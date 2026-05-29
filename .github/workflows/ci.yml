@@ -33,7 +33,7 @@ jobs:
         run: curl -LsSf https://astral.sh/uv/install.sh | sh
       - name: Install deps
         working-directory: api
-        run: uv sync
+        run: uv sync --extra dev  # 含 ruff / pytest / pytest-asyncio
       - name: Lint
         working-directory: api
         run: uv run ruff check .
@@ -52,11 +52,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
-          cache: "npm"
-          cache-dependency-path: web/package-lock.json
+      # 尚未提交 package-lock.json，故用 npm install（非 npm ci）且不開快取。
+      # TODO: 本機 `npm install` 產生 package-lock.json 後，改回 npm ci + setup-node cache。
       - name: Install
         working-directory: web
-        run: npm ci
+        run: npm install
       - name: Typecheck
         working-directory: web
         run: npm run typecheck

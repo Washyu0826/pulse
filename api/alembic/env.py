@@ -13,12 +13,11 @@ from alembic import context
 # 把 api 加入 sys.path，才能 import api.database
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from api.config import settings  # noqa: E402
-from api.database import Base  # noqa: E402
-
 # 載入所有 models 讓 Alembic autogenerate 偵測到全部資料表。
 # api.models.__init__ 已 re-export 所有 model，import 套件即可（不會漏表）。
 import api.models  # noqa: F401,E402
+from api.config import settings  # noqa: E402
+from api.database import Base  # noqa: E402
 
 config = context.config
 
