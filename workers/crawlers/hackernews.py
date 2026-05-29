@@ -39,7 +39,8 @@ def normalize_hn_hit(hit: dict[str, Any]) -> dict:
     # 與 Reddit 爬蟲行為一致（不要硬塞 "" 變成無標題垃圾列）。
     title = hit.get("title")
     text = hit.get("story_text") or ""  # Ask HN / 文字貼文才有；連結貼文通常 None
-    object_id = str(hit.get("objectID"))
+    raw_id = hit.get("objectID")  # 缺 id → 保留 None（勿用 str() 變 "None" 騙過必填防護）
+    object_id = str(raw_id) if raw_id is not None else None
     created_i = hit.get("created_at_i")
     return {
         "source": "hackernews",

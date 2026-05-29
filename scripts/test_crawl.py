@@ -42,7 +42,9 @@ sys.path.insert(0, str(_ROOT / "workers"))
 from api.config import settings  # noqa: E402
 from api.database import AsyncSessionLocal  # noqa: E402
 from api.services.posts import upsert_posts  # noqa: E402
+from crawlers.devto import crawl_devto  # noqa: E402
 from crawlers.hackernews import crawl_hackernews  # noqa: E402
+from crawlers.lobsters import crawl_lobsters  # noqa: E402
 from crawlers.reddit import DEFAULT_SUBREDDITS, crawl_reddit  # noqa: E402
 
 
@@ -70,11 +72,20 @@ async def _collect_hackernews(limit: int, keyword_only: bool) -> list[dict]:
     return rows
 
 
+async def _collect_async_gen(agen) -> list[dict]:
+    return [row async for row in agen]
+
+
 async def main(args: argparse.Namespace) -> None:
+    ko = not args.all
     if args.source == "reddit":
-        rows = await _collect_reddit(args.subreddits, args.limit, keyword_only=not args.all)
-    else:
-        rows = await _collect_hackernews(args.limit, keyword_only=not args.all)
+        rows = await _collect_reddit(args.subreddits, args.limit, keyword_only=ko)
+    elif args.source == "hackernews":
+        rows = await _collect_hackernews(args.limit, keyword_only=ko)
+    elif args.source == "devto":
+        rows = await _collect_async_gen(crawl_devto(per_page=args.limit, keyword_only=ko))
+    else:  # lobsters
+        rows = await _collect_async_gen(crawl_lobsters(keyword_only=ko))
 
     print(f"📥 [{args.source}] 抓到 {len(rows)} 篇含模型關鍵字的貼文")
 
@@ -97,8 +108,8 @@ async def main(args: argparse.Namespace) -> None:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--source", choices=["hackernews", "reddit"], default="hackernews",
-        help="資料來源（預設 hackernews，零 key）",
+        "--source", choices=["hackernews", "reddit", "devto", "lobsters"],
+        default="hackernews", help="資料來源（hackernews/devto/lobsters 皆免 key）",
     )
     parser.add_argument(
         "--subreddits", nargs="*", default=list(DEFAULT_SUBREDDITS),

@@ -223,3 +223,23 @@ cd api && uv run uvicorn api.main:app   # 或用 .venv
 # 2) 起前端
 cd web && npm install && npm run dev     # 開 http://localhost:3000
 ```
+
+---
+
+## 階段 9：新增討論來源 Dev.to + Lobsters ✅（Reddit 暫不可用的替代）
+
+**背景**：Reddit 目前不可用，加兩個免 key、作者/連結可追溯的「AI 使用評論/分享」來源。
+
+- `crawlers/devto.py`：Forem 官方 API（`/articles/latest?tag=...`），逐 tag 抓、跨 tag 去重。
+- `crawlers/lobsters.py`：`lobste.rs/t/ai,ml.json`，小社群站 → 低頻、帶可聯絡 User-Agent。
+- 兩者沿用 `_http` 重試 + `match_models` 過濾（tag 當抓取範圍、關鍵字當保留關卡），共用 `upsert_posts`。
+- `scripts/test_crawl.py` 加 `--source devto|lobsters`。
+
+**真實資料**：Dev.to 140 篇（claude 83/gpt 69/gemini 14…）、Lobsters 1 篇（社群小、量少但正常）。
+**DB 現有 5 來源**：HN 201 + Dev.to 140 + Lobsters 1（posts 342）+ HF 138 + GitHub 60（release_events 198）。
+
+**Code review（第五輪）**：採納 Medium must-fix —— `str(None)` 會變字串 `"None"` 騙過必填防護，
+改為缺 id 時保留 `None`（devto + hackernews 同源 bug 一併修），並補測試。workers 43 測試全過。
+
+> 註：F8 事件偵測（z-score/spike）研究已完成（modified z-score median/MAD + 最小數量門檻），
+> 待後續實作；現在多來源資料更豐富，偵測會更準。
