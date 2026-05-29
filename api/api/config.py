@@ -16,8 +16,9 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
 
     # Database
-    database_url: str = "postgresql+asyncpg://pulse:pulse@localhost:5432/pulse"
-    database_url_sync: str = "postgresql://pulse:pulse@localhost:5432/pulse"
+    # host 埠 5433（避開本機 PostgreSQL）；用 127.0.0.1 避免 Windows IPv6 解析問題。
+    database_url: str = "postgresql+asyncpg://pulse:pulse@127.0.0.1:5433/pulse"
+    database_url_sync: str = "postgresql://pulse:pulse@127.0.0.1:5433/pulse"
 
     # Reddit API
     reddit_client_id: str = ""

@@ -3,8 +3,8 @@ Pulse API - main entry point.
 
 啟動: uv run uvicorn api.main:app --reload
 """
-from contextlib import asynccontextmanager
 from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware

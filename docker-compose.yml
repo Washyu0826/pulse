@@ -32,7 +32,9 @@ services:
       POSTGRES_PASSWORD: pulse
       POSTGRES_DB: pulse
     ports:
-      - "5432:5432"
+      # host 埠用 5433：避開常見的本機 PostgreSQL（佔 5432）衝突。
+      # 容器內仍是 5432；其他容器用 service name `db:5432` 連，不受影響。
+      - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:

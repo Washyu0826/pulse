@@ -13,18 +13,17 @@ from alembic import context
 # 把 api 加入 sys.path，才能 import api.database
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from api.config import settings  # noqa: E402
 from api.database import Base  # noqa: E402
 
-# 載入所有 models 讓 Alembic 偵測到（Week 1 開始加）
-# from api.models import models, posts, sentiments  # noqa: F401
+# 載入所有 models 讓 Alembic autogenerate 偵測到全部資料表。
+# api.models.__init__ 已 re-export 所有 model，import 套件即可（不會漏表）。
+import api.models  # noqa: F401,E402
 
 config = context.config
 
-# 從環境變數讀 DATABASE_URL_SYNC（不要 hardcode）
-database_url = os.environ.get(
-    "DATABASE_URL_SYNC",
-    "postgresql://pulse:pulse@localhost:5432/pulse",
-)
+# DATABASE_URL_SYNC 優先吃環境變數（CI / Docker），否則退回 settings（本地）。
+database_url = os.environ.get("DATABASE_URL_SYNC", settings.database_url_sync)
 config.set_main_option("sqlalchemy.url", database_url)
 
 if config.config_file_name is not None:
@@ -40,6 +39,8 @@ def run_migrations_offline() -> None:
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
+        compare_type=True,
+        compare_server_default=True,
     )
     with context.begin_transaction():
         context.run_migrations()
@@ -56,6 +57,7 @@ def run_migrations_online() -> None:
             connection=connection,
             target_metadata=target_metadata,
             compare_type=True,
+            compare_server_default=True,
         )
         with context.begin_transaction():
             context.run_migrations()

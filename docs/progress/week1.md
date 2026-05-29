@@ -1,0 +1,112 @@
+# Week 1 開發進度記錄
+
+> 目的：讓作者（冠宇）快速判斷「這週做了什麼、做得如何」。
+> 對應 `docs/TASKS.md` 的 Week 1：Reddit API + Models + Posts + Migration + 爬蟲。
+> 每個階段都記：**做了什麼 / 為什麼這樣設計 / 怎麼驗證 / 風險與待辦**。
+
+---
+
+## 階段 0：技術研究（完成 ✅）
+
+用兩個並行研究 agent 調查，再對照本地 ADR 定案：
+
+### 研究 A — SQLAlchemy 2.x + Alembic（重點結論）
+- 用 `Mapped[...]` + `mapped_column()`；nullability 由型別標註決定（`Mapped[int]` = NOT NULL，`Mapped[int | None]` = nullable）。
+- 想在 DB 層生效的預設值用 **`server_default`**（Alembic 只會把 server_default 寫進 migration）。
+- 時間戳用 **`timestamptz`**（`DateTime(timezone=True)` + `server_default=func.now()`）。ADR-009 原本寫裸 `TIMESTAMP`，升級為 timezone-aware。
+- **在第一個 migration 前**就替 `Base.metadata` 設好 `naming_convention`，否則日後改約束名很痛。
+- `quality_flags TEXT[]` 用 **PG dialect 的 `ARRAY(Text)`**（不是泛用 `sqlalchemy.ARRAY`）；JSONB 用 `postgresql.JSONB`。
+- Alembic `env.py` 既有設定是 **sync（正確）**，但有兩個缺口要補：
+  1. 沒 import model 模組 → autogenerate 偵測不到任何表。
+  2. 缺 `compare_server_default=True` → server_default 變更會被漏掉。
+- **`onupdate=func.now()` 在 UPSERT / bulk UPDATE 不會觸發** → upsert 的 `set_` 要顯式塞 `updated_at=func.now()`。
+
+### 研究 B — asyncpraw 爬蟲（重點結論）
+- Read-only 只需三個 credential（client_id / secret / user_agent），**不需要** 帳密登入。
+- 一定要 `async with asyncpraw.Reddit(...)` 包起來，否則 aiohttp session 洩漏。
+- 用 **`.new(limit=)`**（時間序）做週期性爬蟲，不要用 `.hot()`（會一直重抓熱門文）。
+- `author` 帳號被刪會是 `None` → 必須 `sub.author.name if sub.author else None`，否則中途 crash。
+- 去重交給 **DB UPSERT**（key = `source` + Reddit `id`），不要自己做 client-side 分頁。
+- 重試只重試「暫時性」例外：`ServerError` / `RequestException` / `TooManyRequests`；`Forbidden`/`NotFound` 不重試（私密/封鎖的 subreddit）。
+- 爬蟲只存 **raw**（`quality_score=NULL`），**不要** 在這裡丟棄 `[deleted]` 或做關鍵字過濾正文 —— 那是 Week 3 DQC 的事（ADR-009）。
+
+完整研究全文見本次對話記錄（含官方文件來源連結）。
+
+---
+
+## 階段 1：資料庫 Schema（完成 ✅）
+
+**做了什麼**
+- `api/database.py`：替 `Base.metadata` 加 `NAMING_CONVENTION`（pk/uq/fk/ix/ck），讓 migration 約束名穩定可逆。
+- `api/models/mixins.py`：`TimestampMixin`（created_at / updated_at，timestamptz + server now()）。
+- `api/models/models.py`：`Model`（6 模型主表，含 slug/name/company/role/aliases）+ `PostModel`（posts↔models 多對多關聯表）。
+- `api/models/posts.py`：`Post` 原始貼文表。
+- `api/models/__init__.py`：集中 re-export，讓 Alembic 一次抓到所有表。
+
+**為什麼這樣設計**
+- **多對多**（post_models）而非單一 model_id：一篇貼文常同時提到多個模型，Week 2 `/api/models/{slug}/posts` 查詢更乾淨。
+- **(source, external_id) 唯一鍵**：跨來源（reddit/HN）去重，UPSERT 的衝突目標。
+- **三種時間戳分離**：posted_at（來源發佈）/ fetched_at（首次抓取，DQC 找未處理用）/ created_at·updated_at（row 稽核）。
+- **DQC 欄位**（quality_score nullable、quality_flags TEXT[]、dq_processed_at）+ partial index `WHERE dq_processed_at IS NULL`，完全對齊 ADR-009。
+
+## 階段 2：Alembic Migration（完成 ✅）
+
+- 修 `alembic/env.py`：import `api.models`（補上 autogenerate 抓不到表的缺口）、加 `compare_server_default=True`、URL 退回 `settings`。
+- `alembic revision --autogenerate` 產出 `5099a2f34ecc`：3 張表 + 4 索引 + partial index + CASCADE FK 全部正確。
+- `alembic upgrade head` 套用成功，`\dt` 確認 4 張表（含 alembic_version）。
+- **修了 2 個 Windows 跨平台 bug**（見下方「踩到的坑」）。
+
+## 階段 3：Reddit 爬蟲（完成 ✅）
+
+- `workers/crawlers/reddit.py`：`crawl_reddit()` async generator，read-only、單一 Reddit instance 循序抓、tenacity 重試（只重試暫時性例外）、per-post 錯誤隔離。
+- 純函式 `match_models()`（詞界關鍵字比對）、`normalize_submission()`（欄位正規化、刪號 author=None、UTC）→ 可單元測試、不碰網路。
+- `api/services/posts.py`：`upsert_posts()` 批次 UPSERT + 建關聯（批內去重、必填防護、未知 slug 記 log、關聯數正確計算）。
+- `scripts/seed_models.py`：seed 6 模型（idempotent）。
+- `scripts/test_crawl.py`：手動測試（爬 → upsert → 印統計）。
+
+## 階段 4：Code Review（完成 ✅）
+
+派獨立 review agent 嚴審，評為「above-average Week 1，schema 是亮點」。命中 3 個 must-fix，**全部已修**：
+1. ✅ `upsert_posts` 零測試 → 補 6 個整合測試（批內去重、on-conflict 更新、updated_at 推進、關聯不重複、未知 slug、必填略過）。
+2. ✅ 爬蟲 `except Exception` 太寬（一篇壞文丟掉整個 subreddit）→ 改 per-post try/except + subreddit 層只攔 `AsyncPrawcoreException`。
+3. ✅ `stats["associations"]` 重跑會謊報 → 改用 `.returning()` 計實際新增數。
+
+順手修的 should-fix：必填欄位防護、`slug_to_id` 屬性存取、未知 slug 記 log、partial index WHERE 斷言、`skipped` 統計。
+
+## 階段 5：手動驗證（完成 ✅）
+
+| 驗證項 | 結果 |
+|--------|------|
+| Postgres 啟動 + migration | ✅ 4 張表建成，partial index / unique / FK 都在 |
+| Seed 6 模型 | ✅ DB 查到 gpt/claude/gemini/grok/llama/deepseek + aliases |
+| 單元測試（schema 7 + 爬蟲 11） | ✅ 18 passed |
+| 整合測試（upsert，真 Postgres） | ✅ 6 passed |
+| ruff lint | ✅ All checks passed |
+| 跨套件 import + 無憑證友善報錯 | ✅ |
+| **真實 Reddit 爬取** | ⏳ 需你的 Reddit API key（唯一未跑項）|
+
+**對照 TASKS.md Week 1 驗收**：Postgres+migration ✅、能抓存 DB（程式+測試就緒，待真 key）⏳、首頁 6 卡片（既有）✅、OpenAPI ✅。
+
+---
+
+## 踩到的坑（給未來的自己 + 寫進 blog 的素材）
+
+1. **本機 PG18 佔 5432**：Docker pulse-db 只搶到 IPv6，`localhost` 解析混亂 → 認證失敗。
+   解法：docker host 埠改 **5433** + 連線用 **127.0.0.1**（強制 IPv4）。已改 docker-compose / .env.example / config.py。
+2. **Windows cp950 讀 alembic.ini**：configparser 用 OS locale 編碼讀 .ini，中文註解 → `UnicodeDecodeError`。
+   解法：`.ini` 保持 **ASCII-only**（.py 不受影響，預設 UTF-8）。
+3. **Windows console cp950 印中文/emoji crash**：腳本加 `sys.stdout.reconfigure(encoding="utf-8")`。
+4. **alembic ruff hook**：`console_scripts` entrypoint 找不到 → 改 `exec` 模式。
+5. **pytest-asyncio 跨 event loop**：module-scope async engine + function-scope test loop → asyncpg `another operation in progress`。解法：engine fixture 改 function scope。
+
+## 開發環境備註
+
+- 本次用輕量 `.venv`（只裝 Week 1 需要的套件，避開 torch/transformers 數 GB）驗證；正式環境仍用 `uv sync`。
+- DB host 埠是 **5433**，連線字串用 `127.0.0.1`。
+
+## 已知待辦（非 Week 1 blocker，留給後續）
+
+- post_models 加 ORM `relationship()`（Week 2 `/api/models/{slug}/posts` 會用到）。
+- slug/aliases 三處重複（MODEL_KEYWORDS / SEED_MODELS / DB）→ 收斂成單一來源。
+- CI 尚未跑 workers 測試（避免裝 airflow 重依賴）；api CI 已涵蓋 schema + 整合測試。
+- `quality_score` 可加 `CHECK (0..100)`（Week 3 DQC 前）。
