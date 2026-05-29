@@ -110,3 +110,40 @@
 - slug/aliases 三處重複（MODEL_KEYWORDS / SEED_MODELS / DB）→ 收斂成單一來源。
 - CI 尚未跑 workers 測試（避免裝 airflow 重依賴）；api CI 已涵蓋 schema + 整合測試。
 - `quality_score` 可加 `CHECK (0..100)`（Week 3 DQC 前）。
+
+---
+
+## 階段 6：HackerNews 來源（Week 2 提前 ✅）+ CI 修復
+
+**背景**：暫時拿不到 Reddit API key，改先做計畫內的第二來源 HackerNews（Algolia API，零 key），打通「真實資料 → DB」。
+
+**做了什麼**
+- `workers/crawlers/keywords.py`：抽出共用的關鍵字比對（收斂 review 指出的「slug 三處重複」），reddit/hackernews 共用。
+- `workers/crawlers/hackernews.py`：`crawl_hackernews()`，走 Algolia `/search_by_date`、httpx + tenacity（429/5xx 才重試）、跨關鍵字去重、per-hit 錯誤隔離。輸出與 Reddit 同形狀 → **共用 upsert_posts**。
+- `scripts/test_crawl.py`：支援 `--source hackernews|reddit`；加 best-effort `truststore` 注入（見下方坑 6）。
+- 測試：HN 6 純函式 + 3 async generator（去重/失敗隔離/關鍵字過濾）= workers 共 **20 passed**。
+
+**真實資料驗證（重點成果）**
+| 項目 | 結果 |
+|------|------|
+| 實際爬 HN | ✅ 201 篇進 DB、261 個 post↔model 關聯 |
+| 模型分佈 | claude 105 / gpt 67 / gemini 41 / deepseek 26 / llama 19 / grok 3 |
+| 抽樣合理性 | ✅「Claude Opus 4.8」1472 分等真實貼文 |
+| 冪等性 | ✅ 再跑一次 upserted 201 / associations 0，DB 無暴增 |
+
+**Code review（第二輪，HN）**：評「solid，無 Critical」。採納 4 個 must-fix：
+1. ✅ `title=None` 保留 None（交給必填防護略過）而非塞 ""，與 Reddit 一致 + 回歸測試。
+2. ✅ retry 加 429（限流退避）。
+3. ✅ 補 `crawl_hackernews` async generator 測試（去重 + 單一 term 失敗隔離 + 關鍵字過濾）。
+4. ✅ docstring 對齊 `search_by_date`、標註「只抓第 0 頁、term 間不節流」。
+
+**CI 修復（你回報的紅燈）**
+- **API exit 2 主因**：CI 的 `uv sync` 不裝 optional dev 依賴 → `uv run ruff` 找不到。改 `uv sync --extra dev`。
+- **ruff violations**：`api/` 內跑 `ruff check .` 把 `api` 當 first-party，import 排序規則與我先前不同；另有 `Union`→`|`、`Sequence` from collections.abc。已 `--fix`。
+- **B008 誤報**：`Depends()` 放參數預設是 FastAPI 慣例 → pyproject 加 `flake8-bugbear.extend-immutable-calls`。
+- **未來 migration 不再壞 CI**：alembic post_write_hook 加 `ruff check --fix`（不只 format）。
+- **Web 失敗**：缺 `package-lock.json` → `npm ci` 必敗。改用 `npm install` + 移除快取（本機網路被 TLS 攔截無法生成 lock，留 TODO 之後補）。
+
+## 踩到的坑（續）
+
+6. **企業/校園網路 TLS 攔截**：httpx/pip/npm 都報 `CERTIFICATE_VERIFY_FAILED`（根憑證在 OS 但不在 Python 信任庫）。解法：`truststore.inject_into_ssl()` 改用 OS 信任庫 → 立刻通。已加進 workers 依賴 + test_crawl.py（best-effort）。

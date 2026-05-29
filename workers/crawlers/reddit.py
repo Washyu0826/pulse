@@ -10,7 +10,6 @@ workers/crawlers/reddit.py — 非同步 Reddit 爬蟲（raw 擷取）。
 from __future__ import annotations
 
 import logging
-import re
 from collections.abc import AsyncIterator, Iterable
 from datetime import datetime, timezone
 from typing import Any
@@ -29,6 +28,11 @@ from tenacity import (
     wait_exponential,
 )
 
+# 關鍵字比對來自共用模組（單一來源）；re-export 讓既有 import 路徑不變。
+from crawlers.keywords import MODEL_KEYWORDS, match_models
+
+__all__ = ["DEFAULT_SUBREDDITS", "MODEL_KEYWORDS", "crawl_reddit", "match_models", "normalize_submission"]
+
 logger = logging.getLogger(__name__)
 
 # 主力 + 選配 subreddit（PROJECT_PLAN §6）。
@@ -43,21 +47,6 @@ DEFAULT_SUBREDDITS: tuple[str, ...] = (
     "LocalLLM",
 )
 
-# 6 個監測模型的關鍵字別名（slug 要與 models 表、seed_models.py 一致）。
-# 用 \b 詞界避免誤判（grok 不該命中 grokking）。
-MODEL_KEYWORDS: dict[str, list[str]] = {
-    "gpt": [r"gpt", r"chatgpt", r"openai"],
-    "claude": [r"claude", r"anthropic"],
-    "gemini": [r"gemini", r"bard"],
-    "grok": [r"grok", r"xai"],
-    "llama": [r"llama"],
-    "deepseek": [r"deepseek"],
-}
-_PATTERNS: dict[str, re.Pattern[str]] = {
-    slug: re.compile(r"\b(?:%s)\b" % "|".join(aliases), re.IGNORECASE)
-    for slug, aliases in MODEL_KEYWORDS.items()
-}
-
 # 只重試「暫時性」例外；Forbidden / NotFound（私密、封鎖、不存在的 subreddit）不重試。
 retry_reddit = retry(
     retry=retry_if_exception_type((RequestException, ServerError, TooManyRequests)),
@@ -65,11 +54,6 @@ retry_reddit = retry(
     stop=stop_after_attempt(4),
     reraise=True,
 )
-
-
-def match_models(text: str) -> list[str]:
-    """回傳文字中命中的模型 slug list（可能多個，可能空）。純函式，可測。"""
-    return [slug for slug, pat in _PATTERNS.items() if pat.search(text)]
 
 
 def normalize_submission(sub: Any) -> dict:
