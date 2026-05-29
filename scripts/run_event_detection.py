@@ -1,0 +1,109 @@
+"""
+手動執行 F8 事件偵測：讀 posts / release_events → 偵測 → UPSERT 進 events。
+
+- discussion_spike：每個模型的每日討論量做穩健 z-score（median/MAD）偵測突增。
+- launch：release_events 依 (模型, 日) 聚合成發布事件。
+
+可重跑（dedup_key 唯一）。Week 7 會被 Airflow DAG 取代。
+
+用法：cd api && uv run python ../scripts/run_event_detection.py
+"""
+import asyncio
+import sys
+from collections import defaultdict
+from datetime import UTC, datetime, time
+from pathlib import Path
+
+if sys.platform == "win32":
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
+
+_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(_ROOT / "api"))
+sys.path.insert(0, str(_ROOT / "ml"))
+
+import ml.event_detection as ed  # noqa: E402
+from api.database import AsyncSessionLocal  # noqa: E402
+from api.models.models import Model, PostModel  # noqa: E402
+from api.models.posts import Post  # noqa: E402
+from api.models.release import ReleaseEvent  # noqa: E402
+from api.services.events import upsert_events  # noqa: E402
+from sqlalchemy import select  # noqa: E402
+
+
+def _day_to_dt(d) -> datetime:
+    return datetime.combine(d, time.min, tzinfo=UTC)
+
+
+async def main() -> None:
+    async with AsyncSessionLocal() as session:
+        # ---- 1) 討論量突增（posts）----
+        post_rows = (
+            await session.execute(
+                select(Model.slug, Post.posted_at)
+                .join(PostModel, PostModel.post_id == Post.id)
+                .join(Model, Model.id == PostModel.model_id)
+            )
+        ).all()
+        by_model: dict[str, list] = defaultdict(list)
+        for slug, posted_at in post_rows:
+            by_model[slug].append(posted_at.date())
+
+        spike_events = []
+        for slug, dates in by_model.items():
+            series = ed.fill_daily_gaps(ed.daily_counts(dates))
+            for sp in ed.detect_spikes(series):
+                spike_events.append({
+                    "dedup_key": f"discussion_spike:{slug}:{sp.day.isoformat()}",
+                    "event_type": "discussion_spike",
+                    "model": slug,
+                    "title": f"{slug} 討論量突增（{sp.count} 篇，平日中位 {sp.median:g}）",
+                    "description": f"modified z-score {sp.modified_z}（severity {sp.severity}）",
+                    "score": sp.severity,
+                    "occurred_at": _day_to_dt(sp.day),
+                    "extra": {"count": sp.count, "median": sp.median, "modified_z": sp.modified_z},
+                })
+
+        # ---- 2) 發布事件（release_events）----
+        rel_rows = (
+            await session.execute(
+                select(
+                    Model.slug,
+                    ReleaseEvent.published_at,
+                    ReleaseEvent.title,
+                    ReleaseEvent.kind,
+                    ReleaseEvent.extra,
+                ).join(Model, Model.id == ReleaseEvent.model_id, isouter=True)
+            )
+        ).all()
+        releases = [
+            {"model": slug, "day": pub.date(), "title": title, "kind": kind}
+            for slug, pub, title, kind, extra in rel_rows
+            if not (extra or {}).get("prerelease")  # 降噪：跳過 GitHub prerelease（-rc 等）
+        ]
+        launch_events = []
+        for lc in ed.group_launches(releases):
+            launch_events.append({
+                "dedup_key": f"launch:{lc.model_slug or '_unknown'}:{lc.day.isoformat()}",
+                "event_type": "launch",
+                "model": lc.model_slug,
+                "title": f"{lc.model_slug or '未知'}：當日 {lc.count} 個發布",
+                "description": "；".join(t for t in lc.titles[:3] if t),
+                "score": float(lc.count),
+                "occurred_at": _day_to_dt(lc.day),
+                "extra": {"titles": lc.titles, "count": lc.count, "kinds": lc.kinds},
+            })
+
+        all_events = spike_events + launch_events
+        stats = await upsert_events(session, all_events)
+
+    print(f"🔎 偵測到：discussion_spike {len(spike_events)} 筆、launch {len(launch_events)} 筆")
+    print("💾 UPSERT 統計：", stats)
+    if spike_events:
+        print("📈 突增事件樣本：")
+        for e in sorted(spike_events, key=lambda x: -x["score"])[:8]:
+            print(f"   [{e['occurred_at'].date()}] {e['title']}  severity={e['score']}")
+
+
+if __name__ == "__main__":
+    asyncio.run(main())

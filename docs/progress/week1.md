@@ -243,3 +243,37 @@ cd web && npm install && npm run dev     # 開 http://localhost:3000
 
 > 註：F8 事件偵測（z-score/spike）研究已完成（modified z-score median/MAD + 最小數量門檻），
 > 待後續實作；現在多來源資料更豐富，偵測會更準。
+
+---
+
+## 階段 10：F8 事件偵測 ✅（z-score 突增 + 發布事件）
+
+**目標**：把 posts + release_events 變成偵測到的「事件」，寫進 `events` 表，開放 `/api/events`。
+
+**演算法（ml/ml/event_detection.py，純函式可測）**
+- 討論量突增：**穩健 modified z-score（median/MAD）**，比 mean/std 抗離群（過去突增不會遮蔽下一次）。
+  trailing window 14 天且**排除當天**、缺日補 0、絕對門檻 min_count=5、MAD=0 以 floor 防除零、severity 封頂 10、暖身期不發。
+- 發布事件：release_events 依 (模型, 日) 聚合（過濾 GitHub prerelease 降噪、帶 kinds）。
+
+**實作**
+- `api/models/event.py` + migration `1691c8174801`：`events`（dedup_key 唯一＝冪等鍵、score Float、extra JSONB、FK SET NULL）。
+- `api/services/events.py`：`upsert_events`（dedup_key 衝突更新、slug→model_id、未知 slug 警告）。
+- `api/routers/events.py`：`GET /api/events`（type/model 篩選、occurred_at+id 穩定排序）。
+- `scripts/run_event_detection.py`：讀 DB → 偵測 → upsert。
+
+**真實資料成果**
+| 項目 | 結果 |
+|------|------|
+| 偵測 | discussion_spike **11** 筆 + launch **92** 筆，冪等（重跑 upsert 不增） |
+| 招牌案例 | **Claude 討論量 5/26→5/29 連爆（19→40→65→36 篇，平日中位 1）→ severity 封頂 10**（Opus 4.8 發布帶動）|
+| 也抓到 | gemini 5/22（15 篇）、gpt 5/20（10 篇）等 |
+
+**Code review（第六輪）**：評「數學正確，無 Critical/High」。採納 must-fix：
+1. ✅ 端點加 `id` tiebreak（同日事件排序穩定）。
+2. ✅ launch 降噪：過濾 GitHub prerelease + extra 帶 kinds。
+3. ✅ 補測試：down-spike 不誤判、severity 封頂、window 防呆、launch kinds。
+4. ✅ upsert 未知 slug 警告（對齊 releases）；outer-join 篩選行為加註解。
+
+**測試**：ML 15 + API 25 + workers 43 = **83 passed**，ruff 全綠。後端業務 endpoint 增至 2 個（/api/releases、/api/events）。
+
+> 待精修（非阻塞）：偵測未刪除「不再被偵測到」的舊事件（目前只 upsert）；launch HF re-upload 量仍偏多，未來可用 downloads 門檻再降噪；sentiment_flip 偵測待 Week 4 情緒分析後補。
