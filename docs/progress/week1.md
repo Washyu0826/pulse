@@ -184,3 +184,42 @@
 **測試**：API 20（+release 整合 7）+ workers 31（+HF/GitHub 12）= **51 passed**，ruff 全過。
 
 **現況**：後端有**第一個業務 endpoint** `/api/releases/recent`，回真實發布事件 —— F8 的高精度訊號面已可用。前端尚未接（下一步可做垂直切片）。
+
+---
+
+## 階段 8：前後端垂直切片 ✅（首頁顯示真實發布事件）
+
+**目標**：把前端接上 `/api/releases/recent`，讓首頁顯示真實資料（取代假卡片），證明端到端鏈路。
+
+**做了什麼**
+- `web/lib/types.ts`：`ReleaseEvent` DTO 型別（前後端對應單一來源）。
+- `web/lib/api.ts`：`getRecentReleases()` —— Server Component 用的 typed fetch，`next: { revalidate: 60 }`（ISR）；**任何失敗都回 `{ ok:false }`，不 throw 整個 route**；驗證回應是陣列。
+- `web/components/release-card.tsx`：純展示卡片（Server Component），`Intl.RelativeTimeFormat` 相對時間（無依賴）、source/model/version 標籤、安全外連（`rel="noopener noreferrer"`）。
+- `web/app/page.tsx`：首頁改 `await getRecentReleases(20)`，三態渲染（失敗 / 空 / 列表）。
+
+**端到端驗證（重點成果）**
+| 項目 | 結果 |
+|------|------|
+| API endpoint 實測 | ✅ `/api/releases/recent` 回 200、依時間排序、`source` 篩選、invalid source → 422 |
+| 前端 typecheck / lint / build | ✅ 全過，首頁預渲染為靜態（ISR 60s） |
+| **`next start` 抓首頁 HTML** | ✅ 含真實資料：`anthropics/claude-code`、版本 `v2.1.156`/`v0.105.2` 等 render 出來 |
+| 完整鏈路 | ✅ 瀏覽器 → Next.js SSR → FastAPI → PostgreSQL → 真實 HTML |
+
+**Code review（第四輪）**：評「solid, honest vertical slice」。採納 must-fix：
+1. ✅ `api.ts` 驗證回應為陣列（200 但非陣列不再讓 `.map` crash）。
+2. ✅ `ApiResult` 改真正的 result type（失敗分支不帶 data，型別強制先檢查 ok）。
+3. ✅ `relativeTime` 加 `NaN` 防護（壞時間不顯示 "NaN 天前"）。
+4. ✅ server 端優先用 `API_URL_INTERNAL`（容器部署 server/browser URL 分離）+ 註記。
+
+**工具坑**：sandbox 的 npm 也被 TLS 攔截 → 用 Node 24 的 `NODE_OPTIONS=--use-system-ca`（等同 Python truststore）解決，順利 `npm install` 並產生 `package-lock.json`。
+
+**CI**：有了 lock file → web job 改回 `npm ci` + setup-node 快取（解掉先前的 TODO）。
+
+**現況**：首頁已顯示**真實發布事件**。本機跑法：
+```
+# 1) 起 DB + API
+docker compose up -d db
+cd api && uv run uvicorn api.main:app   # 或用 .venv
+# 2) 起前端
+cd web && npm install && npm run dev     # 開 http://localhost:3000
+```

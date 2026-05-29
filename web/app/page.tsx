@@ -1,15 +1,15 @@
 /**
- * Pulse 首頁 - 事件流 + 預設模型即時看板。
+ * Pulse 首頁 - 發布事件流 + 預設模型即時看板。
  *
  * 這是 Server Component（Next.js 14 預設），在 server 端抓資料。
- * 互動元件（搜尋、即時刷新）會在 Week 2+ 拆出 Client Component。
+ * 互動元件（搜尋、即時刷新）會在後續拆出 Client Component。
  */
+import { getRecentReleases } from "@/lib/api";
+import { ReleaseCard } from "@/components/release-card";
 
 export default async function HomePage() {
-  // TODO Week 2: 從 API 抓真實資料
-  // const events = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/events`, {
-  //   next: { revalidate: 60 },
-  // }).then(r => r.json());
+  // 從後端抓真實發布事件（HF + GitHub），失敗時 result.ok=false，頁面其餘區塊照常渲染。
+  const result = await getRecentReleases(20);
 
   return (
     <main className="min-h-screen p-8">
@@ -26,12 +26,23 @@ export default async function HomePage() {
 
       <section className="mb-12">
         <h2 className="text-sm font-mono tracking-widest text-white/50 mb-4">
-          ⚡ ACTIVE EVENTS · 過去 6 小時
+          🚀 最新發布事件 · HuggingFace + GitHub
         </h2>
-        <div className="bg-bg-card rounded-xl p-8 border border-border text-center text-white/40">
-          {/* TODO Week 2: 接 events API */}
-          事件流即將上線（Week 2-5）
-        </div>
+        {!result.ok ? (
+          <div className="bg-bg-card rounded-xl p-8 border border-border text-center text-sentiment-negative">
+            無法載入事件流，請確認 API 是否啟動
+          </div>
+        ) : result.data.length === 0 ? (
+          <div className="bg-bg-card rounded-xl p-8 border border-border text-center text-white/40">
+            目前沒有新的 release 事件
+          </div>
+        ) : (
+          <div className="grid gap-3 md:grid-cols-2">
+            {result.data.map((ev) => (
+              <ReleaseCard key={ev.id} ev={ev} />
+            ))}
+          </div>
+        )}
       </section>
 
       <section className="mb-12">
