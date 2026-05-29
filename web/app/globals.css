@@ -1,0 +1,20 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: dark;
+  }
+
+  body {
+    @apply bg-bg text-white;
+  }
+}
+
+/* Pulse 客製樣式 */
+@layer components {
+  .card {
+    @apply bg-bg-card rounded-xl border border-border p-6;
+  }
+}

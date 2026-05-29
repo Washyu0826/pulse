@@ -1,0 +1,13 @@
+# 統一換行：repo 內一律存 LF，checkout 時依平台自動轉換
+* text=auto eol=lf
+
+# Windows 批次 / PowerShell 維持 CRLF
+*.bat text eol=crlf
+*.ps1 text eol=crlf
+
+# 二進位檔，不做換行轉換、不顯示 diff
+*.docx binary
+*.png  binary
+*.jpg  binary
+*.pt   binary
+*.bin  binary
