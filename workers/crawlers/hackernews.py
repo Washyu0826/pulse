@@ -19,8 +19,8 @@ from datetime import UTC, datetime
 from typing import Any
 
 import httpx
-from tenacity import retry, retry_if_exception, stop_after_attempt, wait_exponential
 
+from crawlers._http import http_retry
 from crawlers.keywords import SEARCH_TERMS, match_models
 
 __all__ = ["crawl_hackernews", "normalize_hn_hit"]
@@ -30,23 +30,7 @@ logger = logging.getLogger(__name__)
 HN_SEARCH_URL = "https://hn.algolia.com/api/v1/search_by_date"
 _USER_AGENT = "pulse/0.1 (AI discussion monitor)"
 
-
-def _is_retryable(exc: BaseException) -> bool:
-    """逾時 / 連線錯誤 / 5xx 才重試；4xx（壞請求）不重試。"""
-    if isinstance(exc, (httpx.TimeoutException, httpx.TransportError)):
-        return True
-    if isinstance(exc, httpx.HTTPStatusError):
-        # 5xx 伺服器錯誤、429 限流都該退避重試
-        return exc.response.status_code >= 500 or exc.response.status_code == 429
-    return False
-
-
-retry_hn = retry(
-    retry=retry_if_exception(_is_retryable),
-    wait=wait_exponential(multiplier=2, min=2, max=60),
-    stop=stop_after_attempt(4),
-    reraise=True,
-)
+retry_hn = http_retry()  # 逾時 / 連線 / 5xx / 429 才重試（共用設定）
 
 
 def normalize_hn_hit(hit: dict[str, Any]) -> dict:

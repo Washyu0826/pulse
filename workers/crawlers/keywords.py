@@ -30,3 +30,31 @@ SEARCH_TERMS: list[str] = sorted({alias for aliases in MODEL_KEYWORDS.values() f
 def match_models(text: str) -> list[str]:
     """回傳文字中命中的模型 slug list（可能多個，可能空）。純函式，可測。"""
     return [slug for slug, pat in _PATTERNS.items() if pat.search(text)]
+
+
+# ---- 發布訊號來源 → 模型 slug 對應（HF / GitHub，依研究實測）----
+
+# Hugging Face org（author）→ slug。
+# 注意：GPT/Claude 幾乎不在 HF 放開源權重（訊號弱）；google 需再用 'gemma' 過濾。
+HF_ORG_TO_SLUG: dict[str, str] = {
+    "meta-llama": "llama",
+    "facebook": "llama",
+    "deepseek-ai": "deepseek",
+    "xai-org": "grok",
+    "google": "gemini",  # 只接受 repo id 含 'gemma' 的（Gemini 本身閉源）
+    "openai": "gpt",
+    "Anthropic": "claude",
+}
+
+# GitHub owner/repo → slug（實測有發 Releases 的 repo；GPT/Claude 為 SDK proxy 訊號）。
+GITHUB_REPO_TO_SLUG: dict[str, str] = {
+    "meta-llama/llama-models": "llama",
+    "meta-llama/llama-cookbook": "llama",
+    "deepseek-ai/DeepSeek-V3": "deepseek",
+    "deepseek-ai/DeepSeek-R1": "deepseek",
+    "google-deepmind/gemma": "gemini",
+    "openai/openai-python": "gpt",
+    "openai/codex": "gpt",
+    "anthropics/anthropic-sdk-python": "claude",
+    "anthropics/claude-code": "claude",
+}

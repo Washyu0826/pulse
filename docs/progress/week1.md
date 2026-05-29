@@ -147,3 +147,40 @@
 ## 踩到的坑（續）
 
 6. **企業/校園網路 TLS 攔截**：httpx/pip/npm 都報 `CERTIFICATE_VERIFY_FAILED`（根憑證在 OS 但不在 Python 信任庫）。解法：`truststore.inject_into_ssl()` 改用 OS 信任庫 → 立刻通。已加進 workers 依賴 + test_crawl.py（best-effort）。
+
+---
+
+## 階段 7：發布事件偵測來源 HF + GitHub（F8 打底，Week 7 提前 ✅）
+
+**目標**：加兩個零 key 的「發布訊號」來源，餵 F8 發布事件偵測，做出「multi-source event detection」。
+
+**設計**：發布訊號與討論貼文性質不同 → 建**專屬 `release_events` 表**（非塞進 posts）。
+- `release_events`：source / external_id / model_id(FK,可空) / title / url / repo / kind / version / published_at / extra(JSONB)。unique(source, external_id)。
+- migration `07c2dc252310`（autogenerate，post-write hook 自動 ruff，驗證了 alembic.ini 修正）。
+
+**做了什麼**
+- `crawlers/_http.py`：共用 httpx 重試（逾時/5xx/429）；HN 也改用它（消重複）。
+- `crawlers/huggingface.py`：逐 org 查 `createdAt desc` 最新模型（HF Hub API，零 key）；google 只收 gemma；org/per-model 錯誤隔離。
+- `crawlers/github.py`：逐 repo 抓 releases（60/hr 循序、可選 GITHUB_TOKEN）；404→[]、draft 跳過、prerelease 標記。
+- `keywords.py`：加 `HF_ORG_TO_SLUG` / `GITHUB_REPO_TO_SLUG`（依研究實測對應）。
+- `api/services/releases.py`：`upsert_release_events`（slug→model_id 解析、批內去重、必填防護、冪等）。
+- `api/routers/releases.py`：`GET /api/releases/recent`（**第一個業務 endpoint**，含 source 篩選 + model slug）。
+- `scripts/fetch_releases.py`：手動抓取腳本。
+
+**真實資料驗證**
+| 項目 | 結果 |
+|------|------|
+| 實際抓 HF + GitHub | ✅ 198 筆進 DB（HF 138 model_upload + GitHub 60 release）|
+| 分佈 | HF: llama 60/deepseek 30/gpt 30/gemini 16/grok 2；GitHub: claude 20/gpt 20/gemini 10/llama 8/deepseek 2 |
+| 抽樣 | ✅ claude-code v2.1.156（當日）、openai codex alpha、anthropic SDK 等真實版本 |
+| 冪等性 | ✅ GitHub 再跑 received 60 / upserted 60（更新非新增）|
+
+**Code review（第三輪）**：評「solid, production-quality，無 Critical/High」。採納 must-fix：
+1. ✅ 補 `model_id` on-conflict 更新的回歸測試。
+2. ✅ 文件化 GitHub 60/hr 請求預算（勿低於 10 分鐘一次）。
+3. ✅ 文件化 HF 無 high-water mark（F8 用 published_at 判斷新發布）。
+4. ✅ HN 改用共用 `_http`（消重複）；endpoint `source` 改 `Literal`（給 422 而非空結果）。
+
+**測試**：API 20（+release 整合 7）+ workers 31（+HF/GitHub 12）= **51 passed**，ruff 全過。
+
+**現況**：後端有**第一個業務 endpoint** `/api/releases/recent`，回真實發布事件 —— F8 的高精度訊號面已可用。前端尚未接（下一步可做垂直切片）。

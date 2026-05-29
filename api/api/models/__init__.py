@@ -6,5 +6,6 @@ SQLAlchemy models 套件。
 """
 from api.models.models import Model, PostModel
 from api.models.posts import Post
+from api.models.release import ReleaseEvent
 
-__all__ = ["Model", "Post", "PostModel"]
+__all__ = ["Model", "Post", "PostModel", "ReleaseEvent"]
