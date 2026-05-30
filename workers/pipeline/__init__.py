@@ -21,6 +21,7 @@ from pipeline.crawl import (
     fetch_releases_to_db,
 )
 from pipeline.events import run_event_detection
+from pipeline.quality import detect_duplicates, process_quality, run_dqc
 
 __all__ = [
     "crawl_hackernews_to_db",
@@ -29,4 +30,7 @@ __all__ = [
     "crawl_reddit_to_db",
     "fetch_releases_to_db",
     "run_event_detection",
+    "process_quality",
+    "detect_duplicates",
+    "run_dqc",
 ]

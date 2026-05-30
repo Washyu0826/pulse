@@ -521,3 +521,49 @@ scripts 與 DAG 共用同一份 async 編排（單一真實來源）。`run_even
 
 > 亮點：不只「跑 cron」—— **Datasets 資料感知排程** 串 producer→consumer、
 > **ExternalPythonOperator 解 SQLAlchemy 版本衝突**、冪等 upsert 保證 retry 安全，是可寫進履歷的 MLOps 工程。
+
+---
+
+## 階段 21：DQC 資料品質過濾（評分 + 跨來源去重）✅
+
+**背景**：使用者要做資料品質過濾（範圍：垃圾/廣告/SEO、相關性評分、跨來源去重；**不做語言過濾**）。
+先派 2 個研究 agent（品質/相關性評分 + 跨來源去重），再實作 → 端到端 → code review → 修。
+
+**純函式核心（ml/，無 DB/網路、可測；不用 LLM —— 啟發式更快/可解釋/適合排程）**
+- `ml/data_quality.py`：`score_post(post, models) -> (quality_score 0-100, flags)`。依 ADR-009 扣分制
+  （score=clamp(100+Σ扣分)、DELETED 歸零），**移除語言層**。flag：TOO_SHORT/LINK_HEAVY/EMOJI_SPAM/
+  ALL_CAPS/EXCESSIVE_PUNCT/SPAM_PHRASE/AD/SEO/AFFILIATE/CLICKBAIT/JOB_POSTING/LIKELY_BOT/
+  KEYWORD_NOT_IN_BODY/WEAK_KEYWORD/SARCASM_DETECTED。先 HTML 解碼+去標籤、SEO 用**密度**判定且排除模型別名。
+- `ml/dedup.py`：跨來源近似重複 —— `canonicalize_url`（去追蹤參數/www/fragment）+ `normalize_title` +
+  `simhash64` 4×16-bit 分桶 + token `jaccard` 雙門檻 + union-find 分群；`select_canonical`（最早發佈優先）；
+  `reconcile_dedup_flags`（冪等增刪 DUPLICATE/CANONICAL:<id>，保留品質 flag）。
+
+**編排 + DAG**
+- `workers/pipeline/quality.py`：`process_quality`（挑未處理、評分、Core executemany 分塊寫回）+
+  `detect_duplicates`（全表分群、對帳更新去重 flag）+ `run_dqc`（分批評分到乾淨再去重）。
+- `workers/dags/data_quality_dag.py`：第 6 個 DAG，資料感知排程（POSTS + 每日 02:00），產出 **POSTS_DQ_PASSED** Dataset。
+- `scripts/run_dqc.py` 手動薄包裝。
+
+**端到端實測（5149 篇真實資料）**
+| 項目 | 結果 |
+|------|------|
+| 品質分布 | **高(≥60) 5065 / 中 81 / 低(<30) 3**（98.4% 高品質，低分都是 Ramp 廣告等真垃圾）|
+| 主要 flag | WEAK_KEYWORD 660（提到但非主題）、SPAM_PHRASE 51、SEO 45、TOO_SHORT 42、AD 28… |
+| 跨來源去重 | **247 群 / 347 篇**標記重複（如「Google 投資 Anthropic $40B」HN 多篇 → 同 canonical）|
+| 冪等 | 重跑 process 0 篇、去重穩定 347（無重複標記）|
+| Airflow | data_quality DAG 經 external_python venv 跑通：`{clusters 247, duplicates 347}` |
+
+**Code review（C1+H1+H2 已修）**：
+1. ✅ **C1**：`run_dqc` 50k 上限會靜默漏處理 → 改 while 收斂 + 觸頂記 warning。
+2. ✅ **H1**（使用者最在意的誤判）：裸 `hiring`/數字清單/單一推廣詞/`sign up` 等誤殺正當貼文
+   → JOB 去裸 hiring、CLICKBAIT 去數字清單、SPAM 需 ≥2 推廣訊號、移除 "sign up"。低分從 32→3。
+3. ✅ **H2**：AD 扣分 40→30（降低與 SPAM_PHRASE 疊加的過重懲罰）。
+4. 加 H1 回歸測試（正當貼文須維持 ≥60）+ 去重覆蓋（來源優先序、union-find 遞移）。
+
+**過程踩坑（見 issues-log G）**：HN 內文的 HTML 實體 `&#x27;` 被 hashtag regex 當 `#x27` → 637 篇誤判 SEO
+（解碼+去標籤修掉）；SQLAlchemy ORM bulk update 報錯 → 改 Core `update(table)` executemany。
+
+**測試**：ml 64（+data_quality 19 + dedup 18）全綠，ruff 全過。
+
+> 註：DQC 產出 quality_score/flags 與 POSTS_DQ_PASSED Dataset，**下游過濾為 opt-in**（下一步可讓事件偵測/
+> 看板只看 ≥60 的貼文）—— 不在此階段悄悄改既有數字，留給使用者定門檻。

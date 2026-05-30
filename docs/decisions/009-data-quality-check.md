@@ -1,8 +1,15 @@
 # ADR-009：Data Quality Check (DQC) 5 層過濾器設計
 
-**狀態**：Accepted
+**狀態**：Accepted（2026-05-30 實作時部分修訂，見下）
 **日期**：2026-05-08
 **觸發**：Mentor Review 建議 #1
+
+> **2026-05-30 實作修訂**（依使用者決定）：
+> - **移除 Layer 2 語言檢測**（NON_ENGLISH/LOW_LANG_CONFIDENCE）—— 不做語言過濾，非英文貼文照常以相關性/互動評分。
+> - **去重改為「跨來源」近似重複**（URL 正規化 + 標題 SimHash/Jaccard），非原設計的「同帳號 24h 同 hash」；
+>   以 `quality_flags` 的 `DUPLICATE` + `CANONICAL:<id>` 標記，不另開表、不扣 quality_score（見 `ml/dedup.py`）。
+> - 新增 spam/廣告/SEO flag（AD/SEO/AFFILIATE/CLICKBAIT/JOB_POSTING/EMOJI_SPAM…）。
+> - 實作：`ml/data_quality.py`（純評分）+ `ml/dedup.py`（去重）+ `workers/pipeline/quality.py`（編排）+ `data_quality` DAG。
 
 ## 背景
 

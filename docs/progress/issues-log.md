@@ -178,6 +178,32 @@
 
 ---
 
+## G. DQC 資料品質（Week 3 補做）
+
+### G1. HN 內文 HTML 實體被 hashtag regex 誤判 → 637 篇假 SEO
+- **症狀**：DQC 上線後 SEO flag 命中 625+ 篇（多為正常 HN 貼文），明顯誤判。
+- **根因**：HN Algolia 內文是 HTML escape 過的（`I&#x27;ve`、`&#x2F;`）；`#\w+` 的 hashtag regex 把 `&#x27;` 裡的 `#x27` 當 hashtag，>=3 個就觸發 SEO。
+- **解法**：評分前先 `html.unescape()` + 去 HTML 標籤；hashtag regex 改 `(?<![\w&])#\w+`（# 前不能是 `&`）。SEO 從 625→45。
+- **檔案**：`ml/ml/data_quality.py`
+
+### G2. SEO 關鍵字堆砌用「絕對次數」對長文誤判
+- **根因**：`max_token_repeat >= 6` 對長文（Dev.to 整篇）必然成立 —— 長文自然重複詞。
+- **解法**：改用**密度**（某 token 佔比 > 8% 且 >=5 次）+ 排除模型別名（談某模型本就重複其名）。
+- **檔案**：`ml/ml/data_quality.py`
+
+### G3. 啟發式誤殺正當貼文（code review H1）
+- **症狀**：「OpenAI is hiring」判 JOB_POSTING、「5 reasons Claude beats GPT」判 CLICKBAIT、「Claude 的 signup 流程很糟」判 AD/SPAM、單一「free trial」判 SPAM。
+- **解法**：JOB 去裸 `hiring`；CLICKBAIT 去裸數字清單；SPAM_PHRASE 需 **>=2** 個推廣訊號；移除 "sign up"（UX 討論太常見）。低分貼文從 32→3。
+- **檔案**：`ml/ml/data_quality.py` + 加回歸測試（正當貼文須維持 >=60）
+
+### G4. SQLAlchemy ORM bulk update 報錯
+- **症狀**：`update(Post).where(id==bindparam).values(...)` + executemany 報 `bulk synchronize ... not supported` / `No primary key value supplied`。
+- **根因**：ORM update + 多參數會走 ORM Bulk Update by PK，要求參數含真實 PK 欄名。
+- **解法**：改用 **Core** `update(Post.__table__)` + `bindparam` executemany（純 SQL UPDATE ... WHERE id=:b_id），繞過 ORM bulk 邏輯。`quality_flags` 綁 `ARRAY(Text)` 型別。
+- **檔案**：`workers/pipeline/quality.py`
+
+---
+
 ## 通用教訓
 
 1. **本機 ≠ CI**：Windows/Linux、cp950/UTF-8、npm 版本、optional 依賴 —— 跨平台差異是最多坑的地方。
