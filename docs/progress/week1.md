@@ -397,3 +397,28 @@ relativeTime formatter 提到模組層、字型加 Noto Sans TC fallback。
 
 **驗證**：typecheck/lint/ruff 全過；Playwright 截圖確認 hero/摘要/主因都正確顯示。
 **Code review（第十一輪）**：抓到資料誠實度問題（摘要窗口、median=0、殭屍事件）全修。
+
+---
+
+## 階段 16：情緒分析（Week 4，與 HN 的核心差異化）+ 30 篇論文 ✅
+
+**目標**：實作情緒分析 —— HN 只有讚數，這裡給情緒/口碑/翻轉，是與 HN 最大的差異化。
+
+**實作（`ml/ml/sentiment.py`，production-ready）**
+- `SentimentAnalyzer`（RoBERTa `cardiffnlp/twitter-roberta-base-sentiment-latest`）：analyze / analyze_batch（溫度校準 + 信心棄答帶）、summarize（口碑指數 + 分歧度）、detect_flip（口碑翻轉）。
+- **truststore**：模組頂層 `inject_into_ssl()` → 在 TLS 攔截網路下也能下載模型。
+- 錯誤處理：torch/transformers 缺、模型載入失敗、文本 truncate、GPU/CPU 自動、**label 驗證守衛**。
+
+**研究 30+ 篇論文並整合**（兩個研究 agent；清單見 [`docs/research/sentiment-literature.md`](../research/sentiment-literature.md)）。已整合的文獻技術：
+- 溫度縮放（Guo 2017）、信心棄答帶（Xin 2021）、信心加權 soft 聚合（Dawid-Skene 1979 / PLOS 2024）、
+  小樣本收縮（Brown 2001）、**兩比例 z 檢定判翻轉**、極化分數（Morales 2015）、反諷標記（Joshi 2017）。
+
+**實測（你的 RTX 4060, device=cuda）**
+- 單則：DeepSeek 早期 positive 0.97/0.92，近期 negative 0.91。
+- 風向：早期口碑 **+59**（信心加權+收縮，比天真 +100 保守）、近期 **-55**，分歧度 0。
+- 翻轉：⚠️ 偵測到（**z=3.16, p=0.002** 統計顯著）：口碑 +59 → -55。
+
+**環境發現**：使用者系統 Python 已有 **GPU torch (cu126) + transformers**（其研究環境）→ 直接複用、不重裝。
+**Code review（第十二輪）**：抓到 label 脆弱性（High）等，已修。測試 ML sentiment 12 + 其餘 = 全綠。
+
+> 後續：把情緒批次跑進 DB（sentiments 表）+ 模型卡顯示口碑 + sentiment_flip 事件（解鎖第三種偵測）。
