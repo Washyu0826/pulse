@@ -37,14 +37,14 @@ export async function TodaySummary() {
 
   return (
     <div>
-      <p className="mb-2 text-xs text-white/45">過去 7 天，AI 圈發生了這些事：</p>
+      <p className="mb-2 text-xs text-white/45">近 7 天動態</p>
       <div className="grid grid-cols-3 gap-4 rounded-lg border border-border/60 bg-bg-card px-5 py-4">
         <Stat
           value={spikes}
           label="討論突增"
-          hint="某模型的單日討論量明顯高於它平常的水準（用穩健統計偵測，排除偶發雜訊）。"
+          hint="單日討論量明顯高於平常（穩健統計偵測）。"
         />
-        <Stat value={launches} label="新發布" hint="HuggingFace / GitHub 上偵測到的模型新版釋出次數。" />
+        <Stat value={launches} label="新發布" hint="HuggingFace / GitHub 偵測到的新版釋出。" />
         <Stat
           value={`${heating}/${models.data.length}`}
           label="模型升溫中"

@@ -48,7 +48,7 @@ export default function HomePage({
 
         <Section
           label="事件動態"
-          description="系統自動偵測的「討論突增 / 新版發布 / 口碑翻轉」，依時間排序。用下方按鈕篩選。"
+          description="自動偵測：討論突增 / 新版發布 / 口碑翻轉。"
         >
           <EventsFilter />
           <Suspense key={feedKey} fallback={<CardGridSkeleton count={4} cols={2} />}>
@@ -58,7 +58,7 @@ export default function HomePage({
 
         <Section
           label="最新發布"
-          description="HuggingFace / GitHub 上各模型最新的版本釋出，可點進原始頁面。"
+          description="HuggingFace / GitHub 各模型最新版本釋出。"
         >
           <Suspense fallback={<CardGridSkeleton count={4} cols={2} />}>
             <ReleasesFeed />
@@ -67,7 +67,7 @@ export default function HomePage({
 
         <Section
           label="模型即時看板"
-          description="六大模型的討論熱度與口碑：點任一張卡可進入該模型的趨勢與詳情。"
+          description="六大模型熱度與口碑，點卡片看詳情。"
         >
           <Suspense fallback={<CardGridSkeleton count={6} cols={6} compact />}>
             <ModelBoard />

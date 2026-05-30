@@ -115,12 +115,12 @@ export default async function ModelDetailPage({ params }: { params: { slug: stri
             value={sIdx == null ? "—" : sIdx > 0 ? `+${sIdx}` : String(sIdx)}
             label={`口碑（${sentimentWord(sIdx)}）`}
             className={sentimentClass(sIdx)}
-            hint="情緒分析的好評/負評淨值，-100..100。正=多數好評，負=多數負評。"
+            hint="好評/負評淨值 −100~100（正=多數好評）。"
           />
           <Metric
             value={String(m.releases_total)}
             label="累計發布"
-            hint="HuggingFace / GitHub 上偵測到的版本釋出次數。"
+            hint="HuggingFace / GitHub 偵測到的版本釋出。"
           />
         </div>
 
