@@ -465,3 +465,21 @@ relativeTime formatter 提到模組層、字型加 Noto Sans TC fallback。
 並列出各模型真實的 coding-agent 討論（Claude「Superset – IDE for the agents」、DeepSeek「native coding agent low cost」）。
 
 **測試**：API 40（+decide 純邏輯 5）全綠，ruff 全過。使用者將於功能更完整時提供 Anthropic key 啟用 LLM 合成。
+
+---
+
+## 階段 19：Threads 爬蟲（Selenium，best-effort plugin）✅
+
+**背景**：使用者要用 Selenium 爬 Threads（Meta）。我先說明限制（登入牆、反爬、selector 易變、不適合 24/7），做成獨立選配 plugin。
+
+- `workers/crawlers/threads.py`：純函式 `normalize_thread_post`（可測）+ `crawl_threads` 產生器
+  （Selenium headless Chrome、捲動 lazy load、保守 selector + 大量 try/except 優雅降級、`asyncio.to_thread` 包同步呼叫）。
+- selenium 加進 workers 依賴；6 個純解析測試。
+
+**實測（意外可跑）**：Selenium Manager 自動下載 driver、Chrome 啟動、**未登入也抓到 ~10 則提到 Claude/GPT 的真實 Threads 貼文**。
+- 限制：未登入只看到部分公開貼文；selector 會抓到作者 header 雜訊（內文都在、models 正確命中）→ 已加長度過濾降噪，Week 3 DQC 會再清。
+- **未灌進正式 DB**（避免 noisy 資料污染）；作為 plugin 交付，selector/去雜訊/登入 cookie 之後可微調。
+
+**測試**：workers 52（+threads 6）全綠，ruff 全過。
+
+> 定位：主力仍是免 key 的 API 來源（HN/Dev.to/HF/GitHub）；Threads/Selenium 是「某來源無 API 時的選配手段」。

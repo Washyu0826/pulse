@@ -13,6 +13,7 @@ dependencies = [
     "asyncpraw>=7.7.0",
     "httpx>=0.26.0",
     "truststore>=0.9.0",  # 用 OS 信任庫，避開企業 TLS 攔截的憑證問題
+    "selenium>=4.20.0",  # Threads 爬蟲（best-effort plugin，瀏覽器自動化）
 
     # DQC (v4 新增)
     "lingua-language-detector>=2.0.0",  # 比 langdetect 準
