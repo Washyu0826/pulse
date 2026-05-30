@@ -13,6 +13,7 @@ from sqlalchemy.sql import func
 
 from api.models.models import Model
 from api.models.release import ReleaseEvent
+from api.services._batch import chunked
 
 logger = logging.getLogger(__name__)
 
@@ -61,17 +62,20 @@ async def upsert_release_events(session: AsyncSession, rows: Sequence[dict]) -> 
         row["model_id"] = slug_to_id.get(slug)
         values.append(row)
 
-    stmt = pg_insert(ReleaseEvent).values(values)
-    stmt = stmt.on_conflict_do_update(
-        index_elements=[ReleaseEvent.source, ReleaseEvent.external_id],
-        set_={
-            **{col: getattr(stmt.excluded, col) for col in _ON_CONFLICT_UPDATE},
-            "model_id": stmt.excluded.model_id,
-            "updated_at": func.now(),  # UPSERT 不觸發 onupdate，顯式更新
-        },
-    ).returning(ReleaseEvent.id)
-
-    result = await session.execute(stmt)
-    stats["upserted"] = len(result.all())
+    # 分塊 UPSERT：避免超過 PG 的 32767 bind 參數上限。
+    upserted = 0
+    for chunk in chunked(values):
+        stmt = pg_insert(ReleaseEvent).values(chunk)
+        stmt = stmt.on_conflict_do_update(
+            index_elements=[ReleaseEvent.source, ReleaseEvent.external_id],
+            set_={
+                **{col: getattr(stmt.excluded, col) for col in _ON_CONFLICT_UPDATE},
+                "model_id": stmt.excluded.model_id,
+                "updated_at": func.now(),  # UPSERT 不觸發 onupdate，顯式更新
+            },
+        ).returning(ReleaseEvent.id)
+        result = await session.execute(stmt)
+        upserted += len(result.all())
+    stats["upserted"] = upserted
     await session.commit()
     return stats

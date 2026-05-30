@@ -297,3 +297,37 @@ cd web && npm install && npm run dev     # 開 http://localhost:3000
 抽 SectionStatus 去重、`result`→`releases` 改名、meta 對比度 /40→/50（WCAG）。
 
 **現況**：首頁三段都是真實資料 —— **事件流（F8 突增/發布）** + 最新發布事件 + 6 模型看板（看板待接）。
+
+---
+
+## 階段 12：歷史資料回填（4~5 月）+ 修真實上線 bug ✅
+
+**目標**：回填 2026-04~05 的歷史資料，讓時間序列夠密、F8 偵測更有意義。
+
+**爬蟲強化**
+- `hackernews.py`：加 `since/until/max_pages` —— 用 Algolia `numericFilters(created_at_i)` 做**精準日期範圍** + 分頁；`_epoch` tz-safe（naive 視為 UTC）。
+- `devto.py`：加 `since/until/max_pages` —— `/articles/latest` 往回翻頁，整頁早於 since 即停（半開區間 [since, until)）。
+- `scripts/backfill.py`：回填協調器。
+
+**踩到並修掉的真實上線 bug（重要）**
+- **PG 32767 bind 參數上限**：一次塞 5000+ 列 INSERT → asyncpg 報 `cannot exceed 32767`。
+  修法：抽 `api/services/_batch.py` 的 `chunked()`，**三個 upsert 服務全部分塊**（posts/releases/events），單一交易末尾才 commit（保持原子性）。
+
+**回填成果（實測）**
+| 項目 | 結果 |
+|------|------|
+| 回填量 | HN 2893 + Dev.to 2238 = **5131 篇**，涵蓋 2026-04-01 ~ 05-30 |
+| 月份分布 | 4 月 1748 + 5 月 3370 |
+| 每模型 | claude 2877 / gpt 2272 / gemini 453 / deepseek 241 / llama 135 / grok 109 |
+| 冪等 | 重跑 DB 僅 +24（兩次執行間的真實新文），無重複暴增 |
+| **F8 重跑** | discussion_spike **11→25 筆**，相對真實 baseline：**Claude 5/13 118 篇 vs 平日中位 60.5（severity 7.76）**、DeepSeek 5/13 39 vs 4（severity 10）等 |
+
+**Code review（第八輪，最嚴）**：採納全部 2 HIGH + 3 MEDIUM：
+1. ✅ `_numeric_filters` tz-safe（naive datetime 不再產生 8 小時偏移）。
+2. ✅ 補 `_batch` 不變式測試（chunk×欄位 < 32767，鎖住三表）+ chunk 跨界整合測試。
+3. ✅ Dev.to `since` 提前停止測試（page_all_older）。
+4. ✅ 文件化 Algolia ~1000/查詢上限（需更完整要切子區間）。
+5. ✅ `crawl_devto` 加 `until`，與 HN 對稱（不再 client-side 過濾）。
+
+**測試**：API 30 + ML 15 + workers 46 = **91 passed**，ruff 全綠。
+**DB 現況**：posts **5142** + release_events 198 + events（spike 25 + launch 92）。

@@ -18,6 +18,8 @@ from collections.abc import AsyncIterator, Iterable
 from datetime import UTC, datetime
 from typing import Any
 
+# 回填用：Algolia 支援 numericFilters(created_at_i) 做日期範圍 + page 分頁。
+
 import httpx
 
 from crawlers._http import http_retry
@@ -62,13 +64,39 @@ def normalize_hn_hit(hit: dict[str, Any]) -> dict:
     }
 
 
+def _epoch(dt: datetime) -> int:
+    """tz-safe 轉 epoch 秒：naive datetime 視為 UTC（避免 timestamp() 用到本機時區）。"""
+    return int(dt.replace(tzinfo=dt.tzinfo or UTC).timestamp())
+
+
+def _numeric_filters(since: datetime | None, until: datetime | None) -> str:
+    """組 Algolia numericFilters（created_at_i 半開區間 [since, until)）。回傳空字串＝不過濾。"""
+    parts = []
+    if since is not None:
+        parts.append(f"created_at_i>={_epoch(since)}")
+    if until is not None:
+        parts.append(f"created_at_i<{_epoch(until)}")
+    return ",".join(parts)
+
+
 @retry_hn
-async def _search_term(client: httpx.AsyncClient, term: str, hits_per_page: int) -> list[dict]:
-    """搜尋單一關鍵字的最新 story（含重試）。"""
-    resp = await client.get(
-        HN_SEARCH_URL,
-        params={"query": term, "tags": "story", "hitsPerPage": hits_per_page},
-    )
+async def _search_term(
+    client: httpx.AsyncClient,
+    term: str,
+    hits_per_page: int,
+    page: int = 0,
+    numeric_filters: str | None = None,
+) -> list[dict]:
+    """搜尋單一關鍵字的 story（含重試、分頁、可選日期範圍）。"""
+    params: dict[str, Any] = {
+        "query": term,
+        "tags": "story",
+        "hitsPerPage": hits_per_page,
+        "page": page,
+    }
+    if numeric_filters:
+        params["numericFilters"] = numeric_filters
+    resp = await client.get(HN_SEARCH_URL, params=params)
     resp.raise_for_status()
     return resp.json().get("hits", [])
 
@@ -77,37 +105,50 @@ async def crawl_hackernews(
     search_terms: Iterable[str] = SEARCH_TERMS,
     hits_per_page: int = 50,
     keyword_only: bool = True,
+    since: datetime | None = None,
+    until: datetime | None = None,
+    max_pages: int = 1,
 ) -> AsyncIterator[dict]:
     """
     依關鍵字搜尋 HN story，yield 正規化貼文 dict（跨關鍵字以 objectID 去重）。
 
     - 不需 credential。
-    - 單一關鍵字查詢失敗只記 log、跳過，不中斷整批。
-    - keyword_only=True 時過濾掉沒命中任何模型的 hit（理論上搜尋結果都會命中該詞，
-      但 Algolia 為模糊比對，保留此關卡以防誤抓）。
+    - since/until：用 Algolia numericFilters 做日期範圍（回填用；應傳 tz-aware）。
+    - max_pages：每個關鍵字最多翻幾頁。
+    - 單一關鍵字/頁查詢失敗只記 log、跳過，不中斷整批。
+
+    注意：Algolia 每個查詢最多回 ~1000 筆（page*hitsPerPage<=1000）。若某關鍵字在
+    指定區間內超過 1000 篇，會被靜默截斷 —— 需要更完整時，請把 since/until 切成更窄的
+    子區間（例如逐週）分多次呼叫。
     """
+    nf = _numeric_filters(since, until) or None
     seen: set[str] = set()
     async with httpx.AsyncClient(timeout=15.0, headers={"User-Agent": _USER_AGENT}) as client:
         for term in search_terms:
-            try:
-                hits = await _search_term(client, term, hits_per_page)
-            except httpx.HTTPError:
-                logger.exception("HN 查詢失敗，跳過 term=%s", term)
-                continue
-
-            kept = 0
-            for hit in hits:
-                object_id = str(hit.get("objectID"))
-                if object_id in seen:
-                    continue
-                seen.add(object_id)
+            kept = total = 0
+            for page in range(max_pages):
                 try:
-                    row = normalize_hn_hit(hit)
-                except Exception:  # noqa: BLE001 — 單筆失敗不該丟掉整個關鍵字的結果
-                    logger.exception("HN 正規化失敗，跳過 id=%s", object_id)
-                    continue
-                if keyword_only and not row["models"]:
-                    continue
-                kept += 1
-                yield row
-            logger.info("HN term=%s：抓 %d 筆，保留 %d 筆", term, len(hits), kept)
+                    hits = await _search_term(client, term, hits_per_page, page=page, numeric_filters=nf)
+                except httpx.HTTPError:
+                    logger.exception("HN 查詢失敗，跳過 term=%s page=%s", term, page)
+                    break
+                if not hits:
+                    break
+                total += len(hits)
+                for hit in hits:
+                    object_id = str(hit.get("objectID"))
+                    if object_id in seen:
+                        continue
+                    seen.add(object_id)
+                    try:
+                        row = normalize_hn_hit(hit)
+                    except Exception:  # noqa: BLE001 — 單筆失敗不該丟掉整批
+                        logger.exception("HN 正規化失敗，跳過 id=%s", object_id)
+                        continue
+                    if keyword_only and not row["models"]:
+                        continue
+                    kept += 1
+                    yield row
+                if len(hits) < hits_per_page:
+                    break  # 最後一頁
+            logger.info("HN term=%s：抓 %d 筆，保留 %d 筆", term, total, kept)

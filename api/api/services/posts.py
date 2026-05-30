@@ -14,6 +14,7 @@ from sqlalchemy.sql import func
 
 from api.models.models import Model, PostModel
 from api.models.posts import Post
+from api.services._batch import chunked
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +41,10 @@ _POST_COLUMNS = (
 # 重抓同一篇時要更新的欄位（互動指標會變；內容 / 標題偶爾會被編輯）。
 # 不更新 external_id / source / created_at / fetched_at / quality_*（保留首次值與 DQC 結果）。
 _ON_CONFLICT_UPDATE = ("title", "content", "score", "num_comments", "flair", "over_18")
+
+# 分塊大小：PG 單一語句 bind 參數上限 32767。posts 13 欄、post_models 2 欄。
+_POST_CHUNK = 1000
+_ASSOC_CHUNK = 5000
 
 
 async def upsert_posts(session: AsyncSession, rows: Sequence[dict]) -> dict[str, int]:
@@ -75,18 +80,21 @@ async def upsert_posts(session: AsyncSession, rows: Sequence[dict]) -> dict[str,
 
     post_values = [{col: r.get(col) for col in _POST_COLUMNS} for r in unique_rows]
 
-    stmt = pg_insert(Post).values(post_values)
-    stmt = stmt.on_conflict_do_update(
-        index_elements=[Post.source, Post.external_id],
-        set_={
-            **{col: getattr(stmt.excluded, col) for col in _ON_CONFLICT_UPDATE},
-            # UPSERT 不會觸發 onupdate，要顯式更新（見 mixins.py 說明）。
-            "updated_at": func.now(),
-        },
-    ).returning(Post.id, Post.source, Post.external_id)
-
-    result = await session.execute(stmt)
-    id_map = {(row.source, row.external_id): row.id for row in result}
+    # 分塊 UPSERT：避免超過 PG 的 32767 bind 參數上限（回填可能上千列）。
+    id_map: dict[tuple[str, str], int] = {}
+    for chunk in chunked(post_values, _POST_CHUNK):
+        stmt = pg_insert(Post).values(chunk)
+        stmt = stmt.on_conflict_do_update(
+            index_elements=[Post.source, Post.external_id],
+            set_={
+                **{col: getattr(stmt.excluded, col) for col in _ON_CONFLICT_UPDATE},
+                # UPSERT 不會觸發 onupdate，要顯式更新（見 mixins.py 說明）。
+                "updated_at": func.now(),
+            },
+        ).returning(Post.id, Post.source, Post.external_id)
+        result = await session.execute(stmt)
+        for row in result:
+            id_map[(row.source, row.external_id)] = row.id
     stats["upserted"] = len(id_map)
 
     # 建立 post ↔ model 關聯（rows 內 models 是 slug list）。
@@ -105,15 +113,17 @@ async def upsert_posts(session: AsyncSession, rows: Sequence[dict]) -> dict[str,
                 continue
             assoc.append({"post_id": post_id, "model_id": model_id})
 
-    if assoc:
+    inserted = 0
+    for chunk in chunked(assoc, _ASSOC_CHUNK):
         assoc_stmt = (
             pg_insert(PostModel)
-            .values(assoc)
+            .values(chunk)
             .on_conflict_do_nothing(index_elements=[PostModel.post_id, PostModel.model_id])
             .returning(PostModel.post_id)
         )
         result = await session.execute(assoc_stmt)
-        stats["associations"] = len(result.all())  # 實際新增的關聯數（已存在的不計）
+        inserted += len(result.all())  # 實際新增的關聯數（已存在的不計）
+    stats["associations"] = inserted
 
     await session.commit()
     return stats

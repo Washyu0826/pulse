@@ -82,7 +82,7 @@ def test_normalize_title_none_kept_none():
 async def test_crawl_dedup_and_term_failure_isolation(monkeypatch):
     """跨關鍵字去重 + 單一關鍵字失敗不影響其他關鍵字。"""
 
-    async def fake_search(client, term, hits_per_page):
+    async def fake_search(client, term, hits_per_page, page=0, numeric_filters=None):
         if term == "claude":
             return [_hit(objectID="1"), _hit(objectID="2")]
         if term == "gpt":
@@ -105,9 +105,44 @@ async def test_crawl_dedup_and_term_failure_isolation(monkeypatch):
 async def test_crawl_keyword_only_filters(monkeypatch):
     """keyword_only=True 時，沒命中任何模型的 hit 要被濾掉。"""
 
-    async def fake_search(client, term, hits_per_page):
+    async def fake_search(client, term, hits_per_page, page=0, numeric_filters=None):
         return [_hit(objectID="99", title="gardening tips", story_text="")]
 
     monkeypatch.setattr(hackernews, "_search_term", fake_search)
     rows = [r async for r in hackernews.crawl_hackernews(search_terms=["claude"], hits_per_page=5)]
     assert rows == []
+
+
+def test_numeric_filters_builds_range():
+    from datetime import datetime
+
+    from crawlers.hackernews import _numeric_filters
+
+    since = datetime(2026, 4, 1, tzinfo=UTC)
+    until = datetime(2026, 6, 1, tzinfo=UTC)
+    nf = _numeric_filters(since, until)
+    assert f"created_at_i>={int(since.timestamp())}" in nf
+    assert f"created_at_i<{int(until.timestamp())}" in nf
+    assert _numeric_filters(None, None) == ""
+
+
+@pytest.mark.asyncio
+async def test_crawl_paginates_until_short_page(monkeypatch):
+    calls = []
+
+    async def fake_search(client, term, hits_per_page, page=0, numeric_filters=None):
+        calls.append(page)
+        if page == 0:
+            return [_hit(objectID=str(i)) for i in range(hits_per_page)]  # 滿頁 → 續翻
+        if page == 1:
+            return [_hit(objectID="x")]  # 短頁 → 停
+        return []
+
+    monkeypatch.setattr(hackernews, "_search_term", fake_search)
+    rows = [
+        r async for r in hackernews.crawl_hackernews(
+            search_terms=["claude"], hits_per_page=3, max_pages=5
+        )
+    ]
+    assert calls == [0, 1]  # 第 0 頁滿 → 翻第 1 頁；第 1 頁短 → 停
+    assert len(rows) == 4  # 3 + 1

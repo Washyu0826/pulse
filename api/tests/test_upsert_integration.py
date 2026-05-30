@@ -168,3 +168,15 @@ async def test_missing_required_field_skipped(session):
     stats = await upsert_posts(session, [bad, _row("g", ["gpt"])])
     assert stats["skipped"] == 1
     assert stats["upserted"] == 1
+
+
+async def test_chunked_upsert_crosses_boundary(session, monkeypatch):
+    """跨多個 chunk 的批次：總數仍正確（驗證 32767 參數上限的分塊修正）。"""
+    import api.services.posts as posts_mod
+
+    monkeypatch.setattr(posts_mod, "_POST_CHUNK", 50)
+    monkeypatch.setattr(posts_mod, "_ASSOC_CHUNK", 50)
+    rows = [_row(f"chunk{i}", ["gpt"]) for i in range(120)]  # 3 個 chunk（50/50/20）
+    stats = await upsert_posts(session, rows)
+    assert stats["upserted"] == 120
+    assert stats["associations"] == 120
