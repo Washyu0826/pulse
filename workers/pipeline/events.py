@@ -24,6 +24,7 @@ from api.models.models import Model, PostModel
 from api.models.posts import Post
 from api.models.release import ReleaseEvent
 from api.models.sentiment import Sentiment
+from api.services._quality import quality_post_filter
 from api.services.events import upsert_events
 from ml.sentiment import SentimentAnalyzer, SentimentResult
 from sqlalchemy import delete, select
@@ -44,6 +45,7 @@ async def _detect_spikes(session: AsyncSession) -> list[dict]:
             select(Model.slug, Post.posted_at, Post.title, Post.score)
             .join(PostModel, PostModel.post_id == Post.id)
             .join(Model, Model.id == PostModel.model_id)
+            .where(*quality_post_filter())  # 只看高品質、非重複 → 不被 bot/垃圾/重複 burst 灌水
         )
     ).all()
     by_model: dict[str, list] = defaultdict(list)
@@ -125,6 +127,7 @@ async def _detect_flips(session: AsyncSession) -> list[dict]:
             .join(PostModel, PostModel.post_id == Post.id)
             .join(Model, Model.id == PostModel.model_id)
             .join(Sentiment, Sentiment.post_id == Post.id)
+            .where(*quality_post_filter())  # 口碑翻轉同樣只看高品質、非重複
         )
     ).all()
     if not sent_rows:

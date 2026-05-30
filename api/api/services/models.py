@@ -11,6 +11,7 @@ from api.models.models import Model, PostModel
 from api.models.posts import Post
 from api.models.release import ReleaseEvent
 from api.models.sentiment import Sentiment
+from api.services._quality import quality_post_filter
 
 _RECENT_DAYS = 7
 _SENTIMENT_SHRINK = 3.0  # 小樣本收縮（與 ml.sentiment 一致）
@@ -22,7 +23,7 @@ async def get_model_dashboard(session: AsyncSession) -> list[dict]:
 
     models = (await session.execute(select(Model).order_by(Model.id))).scalars().all()
 
-    # 貼文總數 + 近 N 天數（一次 group by）
+    # 貼文總數 + 近 N 天數（一次 group by）。只計高品質、非重複（DQC 下游門檻）。
     post_rows = await session.execute(
         select(
             PostModel.model_id,
@@ -30,6 +31,7 @@ async def get_model_dashboard(session: AsyncSession) -> list[dict]:
             func.count().filter(Post.posted_at >= cutoff).label("recent"),
         )
         .join(Post, Post.id == PostModel.post_id)
+        .where(*quality_post_filter())
         .group_by(PostModel.model_id)
     )
     posts = {r.model_id: (r.total, r.recent) for r in post_rows}
@@ -52,7 +54,8 @@ async def get_model_dashboard(session: AsyncSession) -> list[dict]:
     )
     spikes = {r.model_id: r.sev for r in spike_rows}
 
-    # 口碑指數：信心加權 soft（p_positive - p_negative）+ 小樣本收縮，-100..100
+    # 口碑指數：信心加權 soft（p_positive - p_negative）+ 小樣本收縮，-100..100。
+    # 同樣只看高品質、非重複的貼文（與看板計數一致）。
     sent_rows = await session.execute(
         select(
             PostModel.model_id,
@@ -61,6 +64,8 @@ async def get_model_dashboard(session: AsyncSession) -> list[dict]:
             func.sum(Sentiment.score).label("den"),
         )
         .join(Sentiment, Sentiment.post_id == PostModel.post_id)
+        .join(Post, Post.id == PostModel.post_id)
+        .where(*quality_post_filter())
         .group_by(PostModel.model_id)
     )
     sentiment: dict[int, int] = {}

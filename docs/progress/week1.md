@@ -612,3 +612,24 @@ score 納入轉推、id_str 後備註解澄清、docstring 排程修正。
 
 > 工法亮點：用**獨立 worktree 背景 agent 平行開發**，與後端（X 爬蟲）同時推進、互不干擾，完成後乾淨合併（無衝突）。
 > 產品意義：從「能跑但看不懂」→「自我解釋、可操作」。
+
+---
+
+## 階段 24：DQC 下游品質門檻接上（讓品質過濾真正生效）✅
+
+**背景**：階段 21 的 DQC 只產出 quality_score/flags，下游沒用。這階段把門檻**接進事件偵測與看板**——
+只計「高品質、非跨來源重複」的貼文（ADR-009 核心動機：避免 bot/垃圾/重複 burst 被誤判成事件或灌水討論量）。
+
+- `api/services/_quality.py`：共用過濾條件 `quality_post_filter()`（`quality_score>=30` 或 NULL 放行；排除 `DUPLICATE`）。
+- 接進 `api/services/models.py`（看板貼文計數 + 口碑彙總）與 `workers/pipeline/events.py`（discussion_spike + sentiment_flip 計數）。
+
+**before / after（真實資料）**
+| 指標 | before | after | 說明 |
+|------|--------|-------|------|
+| discussion_spike | 25 | **23** | 2 個由重複 burst 灌出的假突增被濾掉 |
+| claude posts_total | 2898 | **2717** | 扣掉 181 篇跨來源重複 |
+| gpt posts_total | 2283 | **2139** | 扣掉 144 篇重複 |
+| 口碑 | — | 微調 | 重複不再灌權重（如 gemini +7→+8、llama +6→+7）|
+
+主要效果是**移除跨來源重複的灌水**（低品質 <30 僅 0~2 篇）。NULL（尚未 DQC）放行避免新貼文在檢核前被丟。
+看板 API 實機驗證套用後數字正確；既有 dashboard 測試 fixture 用 `quality_score=None` → 放行不受影響（CI 驗證）。
