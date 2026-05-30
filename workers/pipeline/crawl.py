@@ -107,6 +107,31 @@ async def crawl_reddit_to_db(
     )
 
 
+async def crawl_twitter_to_db(limit: int = 30, keyword_only: bool = True) -> dict[str, int]:
+    """
+    X/Twitter（best-effort 選配，需帳號 cookie）→ posts。
+
+    缺 cookie 時不視為失敗：記 log 並回傳零統計（DAG 端據此 skip）。
+    """
+    from api.config import settings
+    from crawlers.twitter import crawl_twitter
+
+    if not (settings.x_auth_token and settings.x_ct0 and settings.x_username):
+        logger.warning("缺 X cookie（X_AUTH_TOKEN/X_CT0/X_USERNAME），跳過 Twitter 爬取")
+        return {"received": 0, "skipped": 0, "upserted": 0, "associations": 0, "credential_missing": 1}
+
+    return await _crawl_posts_to_db(
+        crawl_twitter(
+            auth_token=settings.x_auth_token,
+            ct0=settings.x_ct0,
+            username=settings.x_username,
+            limit=limit,
+            keyword_only=keyword_only,
+        ),
+        label="twitter",
+    )
+
+
 async def fetch_releases_to_db(source: str = "all") -> dict[str, int]:
     """
     HF Hub + GitHub Releases（免 key；GitHub 可選 GITHUB_TOKEN 提額度）→ release_events。

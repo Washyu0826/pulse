@@ -567,3 +567,25 @@ scripts 與 DAG 共用同一份 async 編排（單一真實來源）。`run_even
 
 > 註：DQC 產出 quality_score/flags 與 POSTS_DQ_PASSED Dataset，**下游過濾為 opt-in**（下一步可讓事件偵測/
 > 看板只看 ≥60 的貼文）—— 不在此階段悄悄改既有數字，留給使用者定門檻。
+
+---
+
+## 階段 22：X/Twitter 爬蟲（best-effort 選配，twscrape + cookie）✅
+
+**背景**：使用者要加 Twitter/X 來源。先研究 2026 現況 → **無免費官方 API**（官方收費、Nitter 多半失效、
+search 需登入、snscrape 失效）→ 唯一可行是非官方 client。選 **twscrape**（2026 最活躍維護）以帳號 cookie 讀公開推文。
+
+- `workers/crawlers/twitter.py`：純函式 `normalize_tweet`（twscrape `tw.dict()` → 共用 upsert 形狀，
+  score=讚+轉推）+ `crawl_twitter` 產生器（缺 cookie/未裝 twscrape/查詢失敗 → 記 log、不 crash）。
+  帳號池 SQLite 固定路徑、刪舊重建避免 inactive 卡住。
+- `pipeline/crawl.py` 加 `crawl_twitter_to_db`（讀 settings.x_*，缺 cookie 回零統計，與 reddit 一致）。
+- `crawl_x` DAG（第 7 個，預設 **paused**、每 30 分鐘錯開）；config 加 `x_auth_token/x_ct0/x_username`；
+  twscrape 加進 workers 依賴 + Airflow venv image。
+
+**定位**：與 Threads 同 —— **選配 best-effort 補充來源**，預設關閉（無 cookie 即 no-op），主力仍是免 key API。
+違反 X ToS、低量風險小但非零 → 建議用次要帳號。等使用者貼 cookie + unpause + 重 build image 即可live。
+
+**Code review（sonnet，已修）**：帳號池路徑固定化 + 刪舊重建（避免 stale inactive 帳號卡住密碼登入）、
+score 納入轉推、id_str 後備註解澄清、docstring 排程修正。
+
+**測試**：workers 61（+twitter 純函式 9）全綠，ruff 全過；crawl_x DAG 註冊、0 import error（paused）。

@@ -25,6 +25,12 @@ class Settings(BaseSettings):
     reddit_client_secret: str = ""
     reddit_user_agent: str = "pulse/0.1"
 
+    # X / Twitter（選配 best-effort 來源，無官方免費 API → 用 twscrape + 帳號 cookie）。
+    # 從 x.com DevTools → Application → Cookies 取 auth_token / ct0；建議用次要帳號。缺則略過。
+    x_auth_token: str = ""
+    x_ct0: str = ""
+    x_username: str = ""
+
     # Anthropic API
     anthropic_api_key: str = ""
 

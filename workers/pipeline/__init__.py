@@ -18,6 +18,7 @@ from pipeline.crawl import (
     crawl_hackernews_to_db,
     crawl_lobsters_to_db,
     crawl_reddit_to_db,
+    crawl_twitter_to_db,
     fetch_releases_to_db,
 )
 from pipeline.events import run_event_detection
@@ -28,6 +29,7 @@ __all__ = [
     "crawl_devto_to_db",
     "crawl_lobsters_to_db",
     "crawl_reddit_to_db",
+    "crawl_twitter_to_db",
     "fetch_releases_to_db",
     "run_event_detection",
     "process_quality",
