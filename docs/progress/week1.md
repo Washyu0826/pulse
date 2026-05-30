@@ -447,3 +447,21 @@ relativeTime formatter 提到模組層、字型加 Noto Sans TC fallback。
 **測試**：API 35 + ML 27 = 62（+口碑聚合、flip）全綠。
 
 > 差異化落地：HN 只有讚數，Pulse 模型卡現在顯示**口碑指數**（真實資料），且具備口碑翻轉偵測能力。
+
+---
+
+## 階段 18：決策報告 /decide（F3/F4，資料驅動）✅
+
+**目標**：「Claude 還是 GPT 適合做 X?」—— 用真實討論數據給有證據的選型建議（HN 做不到）。
+
+**設計**：**資料驅動**而非 LLM 包裝 —— 答案基於 Pulse 真實資料（口碑、討論量、議題相關熱門討論），
+**無需 key 即可運作**；LLM 只是選配的自然語言合成層（有 `ANTHROPIC_API_KEY` 才啟用，已寫好休眠中）。
+
+- `api/services/decide.py`：`compare_models`（複用 dashboard + 議題過濾的熱門討論 + 資料驅動推薦 `_recommend`）。
+- `api/routers/decide.py`：`GET /api/decide?models=a,b&topic=...`（支援 checkbox 重複參數）。
+- 前端 `app/decide/page.tsx`：原生 GET form（模型 checkbox + 議題）+ 推薦 banner + 各模型比較（口碑、議題相關真實討論）。header 加「決策」導覽。
+
+**端到端實測**（截圖確認）：比較 Claude/GPT/DeepSeek + 議題「coding agent」→ 推薦 **DeepSeek（口碑 +13）**，
+並列出各模型真實的 coding-agent 討論（Claude「Superset – IDE for the agents」、DeepSeek「native coding agent low cost」）。
+
+**測試**：API 40（+decide 純邏輯 5）全綠，ruff 全過。使用者將於功能更完整時提供 Anthropic key 啟用 LLM 合成。

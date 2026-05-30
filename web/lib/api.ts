@@ -1,5 +1,5 @@
 import { API_URL } from "@/lib/utils";
-import type { DetectedEvent, ModelSummary, ReleaseEvent } from "@/lib/types";
+import type { DecideReport, DetectedEvent, ModelSummary, ReleaseEvent } from "@/lib/types";
 
 // 真正的 result type：失敗分支不帶 data，TS 會強制呼叫端先檢查 ok 才能用 data。
 export type ApiResult<T> = { ok: true; data: T } | { ok: false; error: string };
@@ -45,4 +45,22 @@ export function getRecentEvents(limit = 15): Promise<ApiResult<DetectedEvent[]>>
 /** 6 模型即時看板彙總。 */
 export function getModelDashboard(): Promise<ApiResult<ModelSummary[]>> {
   return fetchArray<ModelSummary>(`/api/models`);
+}
+
+/** 決策報告（資料驅動模型比較）。 */
+export async function getDecideReport(
+  models: string,
+  topic?: string,
+): Promise<ApiResult<DecideReport>> {
+  const q = new URLSearchParams({ models });
+  if (topic) q.set("topic", topic);
+  try {
+    const res = await fetch(`${BASE}/api/decide?${q.toString()}`, { next: { revalidate: 60 } });
+    if (!res.ok) {
+      return { ok: false, error: `HTTP ${res.status}` };
+    }
+    return { ok: true, data: (await res.json()) as DecideReport };
+  } catch (err) {
+    return { ok: false, error: String(err) };
+  }
 }

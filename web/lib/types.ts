@@ -27,6 +27,23 @@ export interface ModelSummary {
   sentiment_index: number | null; // 口碑淨值 -100..100（情緒分析）
 }
 
+export interface DecideModel {
+  slug: string;
+  name: string;
+  sentiment_index: number | null;
+  posts_total: number;
+  posts_recent: number;
+  top_discussions: { title: string; score: number; url: string | null; source: string }[];
+}
+
+export interface DecideReport {
+  topic: string | null;
+  models: DecideModel[];
+  recommendation: { winner: string | null; reason: string };
+  summary: string;
+  generated_by: "data" | "llm";
+}
+
 export type EventType = "discussion_spike" | "launch" | "sentiment_flip";
 
 // 注意：命名為 DetectedEvent 以避開瀏覽器全域 Event 型別。
