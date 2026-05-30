@@ -662,3 +662,18 @@ FastAPI `/metrics`（業務量）。四個新容器（statsd-exporter / promethe
 掛載會壞而省略）→ 資源面板改用 `id` 加總（原生 Linux 可改 by name 分容器）。
 
 > 三組指標全到位。`prometheus-client` 加進 api 依賴；CI 不變（監控是獨立 compose 服務）。
+
+---
+
+## 階段 26：收斂加強（CI 補齊 + 測試補洞 + 前端文字精簡）✅
+
+**背景**：使用者要「先就目前內容收斂加強」，不加新功能。重點是把品質補起來。
+
+- **CI 補齊最大缺口**：原本 CI 只跑 api + web，**ml(64) 與 workers(61) 測試從未進 CI**。
+  新增 `ml-lint-test` 與 `workers-lint-test` 兩個 job —— 輕量安裝（純函式測試不需 torch/airflow/selenium，
+  皆 lazy import；ml 只裝 pytest、workers 只裝 httpx/asyncpraw/tenacity）+ ruff lint。
+- **測試補洞**：加 DQC 下游品質門檻整合測試（低品質 + 重複貼文確實被看板濾掉、NULL 放行）。
+- **前端文字精簡**：Hero / 三步上手 / 摘要 / 區塊說明 / 詳情頁提示全部收斂成更短句子（去贅字、保留資訊）。
+
+**驗收**：全套測試本機跑綠 —— **api 45 + ml 64 + workers 61 = 170**；ruff 全過；前端 typecheck 過。
+CI 從 2 個 job 擴為 **4 個**，~170 個測試每次 push 都會跑。

@@ -111,6 +111,29 @@ async def test_dashboard_counts_posts(session):
     assert after["posts_recent"] == before["posts_recent"] + 1  # 只有新的算近 7 天
 
 
+async def test_dashboard_quality_gate_excludes_lowq_and_duplicates(session):
+    """DQC 下游門檻：低品質(<30) 與跨來源重複(DUPLICATE) 不計入看板（NULL 仍放行）。"""
+    from sqlalchemy import update
+
+    before = {d["slug"]: d for d in await get_model_dashboard(session)}["claude"]
+    await upsert_posts(session, [
+        _post("test_dash_q_good", "claude"),  # 高品質 → 計入
+        _post("test_dash_q_low", "claude"),   # 低品質 → 濾掉
+        _post("test_dash_q_dup", "claude"),   # 重複 → 濾掉
+    ])
+    tbl = Post.__table__
+    await session.execute(update(tbl).where(tbl.c.external_id == "test_dash_q_good").values(quality_score=80))
+    await session.execute(update(tbl).where(tbl.c.external_id == "test_dash_q_low").values(quality_score=10))
+    await session.execute(
+        update(tbl).where(tbl.c.external_id == "test_dash_q_dup")
+        .values(quality_score=80, quality_flags=["DUPLICATE", "CANONICAL:1"])
+    )
+    await session.commit()
+
+    after = {d["slug"]: d for d in await get_model_dashboard(session)}["claude"]
+    assert after["posts_total"] == before["posts_total"] + 1  # 只有 good 計入
+
+
 async def _seed_model(session, slug: str):
     await session.execute(
         pg_insert(Model)

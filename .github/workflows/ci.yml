@@ -68,3 +68,43 @@ jobs:
         run: npm run build
         env:
           NEXT_PUBLIC_API_URL: http://localhost:8000
+
+  ml-lint-test:
+    name: ML · Lint + Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      # 純函式測試（情緒/事件/品質/去重）不需 torch/transformers（皆 lazy import）→ 輕量安裝。
+      - name: Install
+        run: pip install pytest ruff
+      - name: Lint
+        working-directory: ml
+        run: ruff check .
+      - name: Test
+        working-directory: ml
+        env:
+          PYTHONPATH: ${{ github.workspace }}/ml
+        run: python -m pytest tests -q
+
+  workers-lint-test:
+    name: Workers · Lint + Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      # 爬蟲純函式測試只需 httpx/asyncpraw/tenacity（不需 airflow/selenium/torch）。
+      - name: Install
+        run: pip install pytest ruff httpx asyncpraw tenacity
+      - name: Lint
+        working-directory: workers
+        run: ruff check .
+      - name: Test
+        working-directory: workers
+        env:
+          PYTHONPATH: ${{ github.workspace }}/workers
+        run: python -m pytest tests -q
