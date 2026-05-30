@@ -45,6 +45,17 @@
 - **症狀**：`npm install`、`next build`（next/font 抓 Google Fonts）SSL 失敗。
 - **解法**：`NODE_OPTIONS=--use-system-ca`（Node 22+ 用 OS 信任庫，等同 Python truststore）。
 
+### B4. Docker build 內 pip SSL 失敗
+- **症狀**：`docker compose build` 的 `RUN pip install` 報 `CERTIFICATE_VERIFY_FAILED`（build 容器無 OS 信任庫的攔截根 CA）。
+- **解法**：`pip install --trusted-host pypi.org --trusted-host files.pythonhosted.org --trusted-host pypi.python.org ...`（同 B1，但在 Dockerfile 內）。
+- **檔案**：`workers/Dockerfile.airflow`
+
+### B5. 容器內爬蟲對外 HTTPS 失敗（攔截 CA 不在 Linux 容器）
+- **症狀**：Airflow 容器內 `crawl_hackernews` 等對外 https 仍 `CERTIFICATE_VERIFY_FAILED`，即使裝了 truststore。
+- **根因**：攔截 proxy 的根 CA 在 **Windows host 信任庫**，但 **Linux 容器**的信任庫沒有 → 容器內 truststore 讀的是容器自己的 store，救不了。
+- **解法**：把 host 信任庫匯出成 `.crt` 放 `workers/ca-certs/`，`Dockerfile.airflow` 併進 `/etc/ssl/certs/ca-certificates.crt`；空目錄（正常網路）為 no-op。`.crt` 入 `.gitignore`（機器相關、勿入庫）。
+- **檔案**：`workers/Dockerfile.airflow`、`workers/ca-certs/README.md`、`.gitignore`
+
 ---
 
 ## C. 資料庫 / SQLAlchemy / Alembic
@@ -135,9 +146,42 @@
 
 ---
 
+## F. 編排 / Airflow（Week 5-7 排程化）
+
+### F1. apache-airflow 2.9 鎖 SQLAlchemy <2.0，與業務碼的 2.0 衝突
+- **症狀**：自建 Airflow image `pip install "apache-airflow==2.9.3" "sqlalchemy>=2.0.25"` 報 `ResolutionImpossible`。
+- **根因**：Airflow 2.9 把 SQLAlchemy 鎖在 **1.4**，但 `api.models` 用 **SQLAlchemy 2.0** 專屬的 `DeclarativeBase`/`mapped_column`/`async_sessionmaker` → 不能同直譯器共存。
+- **解法**：image 內**雙環境** —— 主環境裝 Airflow（1.4）；獨立 venv `/opt/airflow/pulse-venv` 裝 SQLAlchemy 2.0 + 爬蟲/DB 依賴；DAG task 用 **`@task.external_python`** 在該 venv 跑業務邏輯。
+- **檔案**：`workers/Dockerfile.airflow`、`workers/dags/*_dag.py`、`workers/dags/_common.py`
+
+### F2. compose 注入的 `PULSE_DATABASE_URL` 被 settings 忽略 + host 錯
+- **症狀**：DAG 連業務 DB 連到 `127.0.0.1:5433`（容器內無此服務）→ 連線失敗。
+- **根因**：`api.config.Settings` 無 `env_prefix`，讀的是 `DATABASE_URL` 不是 `PULSE_DATABASE_URL`；且預設 host 是 host-only 的 127.0.0.1。
+- **解法**：compose 改注入 **`DATABASE_URL=postgresql+asyncpg://pulse:pulse@db/pulse`**（service 名 `db`、無前綴）。
+- **檔案**：`docker-compose.yml`
+
+### F3. truststore 注入不到 ExternalPython 子行程
+- **症狀**：truststore plugin 在 Airflow 主環境注入了，但 venv 子行程的爬蟲仍 SSL 失敗。
+- **根因**：plugin 注入只在主直譯器生效；`@task.external_python` 另開 venv 子行程。
+- **解法**：在 **`pipeline/crawl.py` 模組頂層**注入 truststore（不論哪個直譯器 import 都生效）。
+- **檔案**：`workers/pipeline/crawl.py`（另見 B5：容器信任庫還要併入攔截 CA）
+
+### F4. SQLAlchemy echo 灌爆 Airflow task log
+- **症狀**：DAG task log 每筆都印整串 SQL（`echo=True`）。
+- **根因**：`engine` 的 `echo=settings.environment=="development"`，容器未設 → 預設 development。
+- **解法**：compose 設 **`ENVIRONMENT=production`** 關掉 echo。
+- **檔案**：`docker-compose.yml`
+
+> 補充：`@task.external_python` 的 task log 會出現 `No module named 'pendulum'` /
+> `No package metadata for apache-airflow` 的 traceback —— 那是 operator 在 venv 內探測 airflow 版本
+> 的**非致命**訊息（`expect_airflow=False` 已處理），task 仍正常回傳。
+
+---
+
 ## 通用教訓
 
 1. **本機 ≠ CI**：Windows/Linux、cp950/UTF-8、npm 版本、optional 依賴 —— 跨平台差異是最多坑的地方。
-2. **TLS 攔截**：企業/校園網路下，pip/npm/httpx 都要各自指向 OS 信任庫（`--trusted-host` / `--use-system-ca` / `truststore`）。
+2. **TLS 攔截**：企業/校園網路下，pip/npm/httpx 都要各自指向 OS 信任庫（`--trusted-host` / `--use-system-ca` / `truststore`）；**Docker 容器**還要把攔截根 CA 併進容器自己的信任庫（B4/B5）。
 3. **資料形狀會變**：回填讓時間序列從稀疏變密集，舊的偵測結果要能「對帳更新」，不能只新增。
 4. **code review 每階段做**：E 區的 bug 多半是獨立 review agent 抓到的，不是測試。
+5. **依賴版本衝突要隔離**：Airflow（SQLAlchemy 1.4）與業務碼（2.0）共存的正解是 ExternalPythonOperator + 獨立 venv，而非硬湊版本（F1）。

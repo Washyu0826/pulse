@@ -38,6 +38,10 @@ next-env.d.ts
 # Docker volumes
 postgres_data/
 
+# 企業/校園 TLS 攔截用的根憑證（機器相關、勿入庫）。放 workers/ca-certs/ 由 image 自動裝入。
+*.pem
+workers/ca-certs/*.crt
+
 # Logs
 *.log
 logs/

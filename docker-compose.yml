@@ -1,26 +1,45 @@
 x-airflow-common: &airflow-common
-  image: apache/airflow:2.9.3-python3.11
+  # 自建 image：官方 Airflow + 跑 DAG 需要的執行期依賴（見 workers/Dockerfile.airflow）。
+  build:
+    context: .
+    dockerfile: workers/Dockerfile.airflow
+  image: pulse-airflow:2.9.3
   environment:
     AIRFLOW__CORE__EXECUTOR: LocalExecutor
     AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@airflow-postgres/airflow
     AIRFLOW__CORE__LOAD_EXAMPLES: "false"
-    AIRFLOW__CORE__FERNET_KEY: ""
-    AIRFLOW__WEBSERVER__SECRET_KEY: "pulse-dev-secret-change-in-prod"
+    # 可由 .env 覆寫（部署前務必設定）；本機開發留空/預設即可。
+    AIRFLOW__CORE__FERNET_KEY: ${AIRFLOW_FERNET_KEY:-}
+    AIRFLOW__WEBSERVER__SECRET_KEY: ${AIRFLOW_WEBSERVER_SECRET_KEY:-pulse-dev-secret-change-in-prod}
     AIRFLOW__CORE__DAGS_FOLDER: /opt/airflow/dags
-    # 把業務 DB 用環境變數注入，DAG 可以連
-    PULSE_DATABASE_URL: postgresql+asyncpg://pulse:pulse@db/pulse
-    PULSE_REDDIT_CLIENT_ID: ${REDDIT_CLIENT_ID:-}
-    PULSE_REDDIT_CLIENT_SECRET: ${REDDIT_CLIENT_SECRET:-}
-    PULSE_ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
-    PULSE_SLACK_WEBHOOK_URL: ${SLACK_WEBHOOK_URL:-}
+    # production：關掉 SQLAlchemy echo（否則每個 task 會把整串 SQL 灌進 Airflow log）。
+    ENVIRONMENT: production
+    # 讓 DAG 能 import api / ml / crawlers / pipeline 套件（原始碼用 volume 掛進來，見下方 volumes）。
+    PYTHONPATH: /opt/airflow/src/api:/opt/airflow/src/ml:/opt/airflow/src/workers
+    # 業務 DB / 憑證用環境變數注入 —— 變數名須對齊 api.config.Settings 欄位（無 env_prefix），
+    # 故用 DATABASE_URL 而非 PULSE_DATABASE_URL；host 用 compose service 名 `db`（非 127.0.0.1）。
+    DATABASE_URL: postgresql+asyncpg://pulse:pulse@db/pulse
+    REDDIT_CLIENT_ID: ${REDDIT_CLIENT_ID:-}
+    REDDIT_CLIENT_SECRET: ${REDDIT_CLIENT_SECRET:-}
+    ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    SLACK_WEBHOOK_URL: ${SLACK_WEBHOOK_URL:-}
+    # Slack 失敗告警：以 Airflow Variable 形式注入（callback best-effort 讀取，空值則略過）。
+    AIRFLOW_VAR_SLACK_WEBHOOK_URL: ${SLACK_WEBHOOK_URL:-}
   volumes:
     - ./workers/dags:/opt/airflow/dags
     - ./workers/plugins:/opt/airflow/plugins
+    # 原始碼掛載（editable）：改 DAG / 爬蟲 / pipeline 免重 build。
+    - ./api:/opt/airflow/src/api:ro
+    - ./ml:/opt/airflow/src/ml:ro
+    - ./workers:/opt/airflow/src/workers:ro
     - airflow_logs:/opt/airflow/logs
   user: "${AIRFLOW_UID:-50000}:0"
   depends_on:
     airflow-init:
       condition: service_completed_successfully
+    db:
+      # 業務 DB 健康才起 webserver/scheduler，避免冷啟動時爬蟲先觸發、連不到 DB 白白燒 retry。
+      condition: service_healthy
 
 services:
   # ===== 業務資料庫 =====
@@ -63,7 +82,10 @@ services:
 
   # ===== Airflow Init（一次性 migration + create admin user）=====
   airflow-init:
-    image: apache/airflow:2.9.3-python3.11
+    build:
+      context: .
+      dockerfile: workers/Dockerfile.airflow
+    image: pulse-airflow:2.9.3
     container_name: pulse-airflow-init
     depends_on:
       airflow-postgres:

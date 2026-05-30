@@ -483,3 +483,41 @@ relativeTime formatter 提到模組層、字型加 Noto Sans TC fallback。
 **測試**：workers 52（+threads 6）全綠，ruff 全過。
 
 > 定位：主力仍是免 key 的 API 來源（HN/Dev.to/HF/GitHub）；Threads/Selenium 是「某來源無 API 時的選配手段」。
+
+---
+
+## 階段 20：Airflow 排程化（5 DAG，TaskFlow + Datasets + ExternalPython）✅
+
+**背景**：使用者要把手動腳本（crawl / fetch_releases / event_detection）排程化（先研究再進行）。
+派 2 個研究 agent（基礎建設 + DAG 設計）調查 Airflow 2.9 best practice，再實作 → 端到端驗收。
+
+**共用 pipeline 套件（DRY 核心）**：把「抓 → UPSERT」「事件偵測」收斂到 `workers/pipeline/`，
+scripts 與 DAG 共用同一份 async 編排（單一真實來源）。`run_event_detection.py` 改薄包裝（行為逐位元一致）。
+- `pipeline/crawl.py`：`crawl_hackernews_to_db` / `crawl_devto_to_db` / `crawl_lobsters_to_db` /
+  `crawl_reddit_to_db`（缺 key 自我偵測、不算失敗）/ `fetch_releases_to_db`；模組頂層注入 truststore。
+- `pipeline/events.py`：`run_event_detection()`（spike + launch + flip + 對帳刪除，同一交易）。
+
+**5 個 DAG（TaskFlow `@dag/@task`）**：
+- `crawl_hackernews`（*/15）、`crawl_community`（devto+lobsters，*/15 錯開）、`crawl_reddit`（*/15，預設 paused）
+  → producer：成功標記 **POSTS** Dataset。
+- `fetch_releases`（@hourly）→ 標記 **RELEASE_EVENTS** Dataset。
+- `event_detection`：**資料感知排程** `DatasetOrTimeSchedule([POSTS, RELEASE_EVENTS] + 每日 01:00 安全網)`
+  —— 有新資料才觸發、不空轉。
+- `default_args`：retries=3 + 指數退避（max 30m）+ Slack `on_failure_callback`（Variable，best-effort）。
+- `catchup=False`、`max_active_runs=1`、固定 `start_date`（避免回填風暴）。
+
+**關鍵架構決策（依賴衝突）**：apache-airflow 2.9 把 **SQLAlchemy 鎖 <2.0**，但業務碼
+（`DeclarativeBase`/`mapped_column`/`async_sessionmaker`）需 **SQLAlchemy 2.0** → 無法共存於同一直譯器。
+解法：自建 image 內**雙環境** —— 主環境跑 Airflow（1.4）；獨立 venv `/opt/airflow/pulse-venv`
+裝 SQLAlchemy 2.0 + 爬蟲/DB 依賴；DAG task 用 **`@task.external_python`** 在該 venv 執行業務邏輯。
+**刻意不裝 torch**（情緒分析留本機 GPU 腳本，見 [方向討論]）。原始碼 bind-mount + PYTHONPATH，改 DAG/爬蟲免重 build。
+
+**端到端實測（docker compose 起 Airflow，業務 DB=容器 `db:5432`）**：
+- 5 DAG 全部註冊、**0 import error**；webserver `/health` HTTP 200（:8080）。
+- `airflow tasks test event_detection` → `{spike 25, launch 92, flip 0, upserted 117}`（與本機跑**完全一致**）。
+- `airflow tasks test crawl_hackernews` → **250 筆 upserted**；`crawl_community/devto` → **110 筆**。
+- 證 ExternalPython venv（SQLAlchemy 2.0）→ asyncpg → 容器 DB 全鏈路打通；重抓多為既有資料
+  （冪等去重，posts 5142→5149 僅淨增 7，符合預期）。
+
+> 亮點：不只「跑 cron」—— **Datasets 資料感知排程** 串 producer→consumer、
+> **ExternalPythonOperator 解 SQLAlchemy 版本衝突**、冪等 upsert 保證 retry 安全，是可寫進履歷的 MLOps 工程。

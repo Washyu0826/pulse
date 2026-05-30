@@ -1,0 +1,46 @@
+# Pulse 專用 Airflow image。
+#
+# ⚠️ 關鍵限制：apache-airflow 2.9.x 把 SQLAlchemy 鎖在 <2.0（用 1.4），但 Pulse 業務碼
+# （api.models 用 DeclarativeBase / mapped_column / async_sessionmaker）需要 SQLAlchemy 2.0。
+# 兩者無法共存於同一直譯器 → 解法：
+#   - 主環境（airflow 直譯器）：只裝 Airflow + Slack provider + truststore（給 DAG 解析 / plugin / 告警）。
+#   - 獨立 venv `/opt/airflow/pulse-venv`：裝 SQLAlchemy 2.0 + DB/HTTP/設定依賴（與 Airflow 隔離）。
+#   - DAG task 用 ExternalPythonOperator（@task.external_python）在該 venv 執行業務邏輯。
+# 刻意不裝 torch/transformers（情緒分析留本機 GPU 腳本）。
+# 不 COPY 原始碼：api/ml/workers 用 bind-mount + PYTHONPATH 注入（見 docker-compose.yml）。
+#
+# --trusted-host：本機/校園 TLS 攔截下，build 容器內 pip 無法驗證 PyPI 憑證
+# （CERTIFICATE_VERIFY_FAILED）→ 指定 trusted-host 跳過驗證以完成 build。
+FROM apache/airflow:2.9.3-python3.11
+
+ARG PIP_TRUSTED="--trusted-host pypi.org --trusted-host files.pythonhosted.org --trusted-host pypi.python.org"
+
+# 主環境：不動 Airflow 鎖定的 SQLAlchemy 1.4。httpx 給 Slack 失敗告警 callback 用。
+RUN pip install --no-cache-dir ${PIP_TRUSTED} \
+    "apache-airflow-providers-slack>=8.6.0" \
+    "truststore>=0.9.0" \
+    "httpx>=0.26.0"
+
+# 業務 venv：SQLAlchemy 2.0 + 跑爬蟲/事件偵測需要的執行期依賴。與主環境隔離。
+RUN python -m venv /opt/airflow/pulse-venv \
+ && /opt/airflow/pulse-venv/bin/pip install --no-cache-dir --upgrade pip ${PIP_TRUSTED} \
+ && /opt/airflow/pulse-venv/bin/pip install --no-cache-dir ${PIP_TRUSTED} \
+    "sqlalchemy[asyncio]>=2.0.25" \
+    "asyncpg>=0.29.0" \
+    "httpx>=0.26.0" \
+    "asyncpraw>=7.7.0" \
+    "truststore>=0.9.0" \
+    "lingua-language-detector>=2.0.0" \
+    "pydantic>=2.5.0" \
+    "pydantic-settings>=2.1.0" \
+    "tenacity>=8.2.0"
+
+# 額外根憑證（TLS 攔截環境用，見 workers/ca-certs/README.md）。把 .crt bundle 併進系統
+# 信任庫 → 容器內 truststore/httpx 信任攔截 proxy。無 .crt（正常網路）則 no-op。
+USER root
+COPY workers/ca-certs/ /tmp/pulse-ca/
+RUN if ls /tmp/pulse-ca/*.crt >/dev/null 2>&1; then \
+        cat /tmp/pulse-ca/*.crt >> /etc/ssl/certs/ca-certificates.crt; \
+        echo "已併入額外根憑證"; \
+    fi && rm -rf /tmp/pulse-ca
+USER airflow
