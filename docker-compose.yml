@@ -25,6 +25,11 @@ x-airflow-common: &airflow-common
     SLACK_WEBHOOK_URL: ${SLACK_WEBHOOK_URL:-}
     # Slack 失敗告警：以 Airflow Variable 形式注入（callback best-effort 讀取，空值則略過）。
     AIRFLOW_VAR_SLACK_WEBHOOK_URL: ${SLACK_WEBHOOK_URL:-}
+    # StatsD 指標 → statsd-exporter（→ Prometheus → Grafana）。需 image 內裝 statsd 套件。
+    AIRFLOW__METRICS__STATSD_ON: "True"
+    AIRFLOW__METRICS__STATSD_HOST: statsd-exporter
+    AIRFLOW__METRICS__STATSD_PORT: "9125"
+    AIRFLOW__METRICS__STATSD_PREFIX: airflow
   volumes:
     - ./workers/dags:/opt/airflow/dags
     - ./workers/plugins:/opt/airflow/plugins
@@ -129,16 +134,71 @@ services:
       start_period: 30s
     restart: unless-stopped
 
-  # Week 11 加入: MLflow server
-  # mlflow:
-  #   image: ghcr.io/mlflow/mlflow:latest
-  #   ...
+  # ===== 監控：Airflow StatsD → statsd-exporter → Prometheus → Grafana + cAdvisor =====
+  statsd-exporter:
+    image: prom/statsd-exporter:v0.27.1
+    container_name: pulse-statsd-exporter
+    command:
+      - "--statsd.mapping-config=/etc/statsd/statsd_mapping.yml"
+      - "--statsd.listen-udp=:9125"
+      - "--web.listen-address=:9102"
+    volumes:
+      - ./monitoring/statsd/statsd_mapping.yml:/etc/statsd/statsd_mapping.yml:ro
+    ports:
+      - "9102:9102"      # /metrics（除錯用）
+      - "9125:9125/udp"  # StatsD ingest（Airflow → 此）
+    restart: unless-stopped
 
-  # Week 11 加入: Prometheus + Grafana
-  # prometheus:
-  #   ...
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.49.1
+    container_name: pulse-cadvisor
+    privileged: true
+    ports:
+      - "8081:8080"      # host 8081（8080 給 airflow-webserver）；容器內仍 8080
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      # 註：Docker Desktop/WSL2 下 /var/lib/docker 掛載會壞，刻意省略（仍能報 CPU/mem）。
+    devices:
+      - /dev/kmsg:/dev/kmsg
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    container_name: pulse-prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=30d"
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    ports:
+      - "9090:9090"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"  # 讓 Prometheus 抓得到 host 上的 API:8000
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:11.2.0
+    container_name: pulse-grafana
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - grafana_data:/var/lib/grafana
+    ports:
+      - "3001:3000"      # host 3001（3000 給 Next.js dev）；容器內仍 3000
+    depends_on:
+      - prometheus
+    restart: unless-stopped
 
 volumes:
   postgres_data:
   airflow_postgres_data:
   airflow_logs:
+  prometheus_data:
+  grafana_data:

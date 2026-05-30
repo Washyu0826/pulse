@@ -1,0 +1,23 @@
+# Prometheus 抓取設定。Prometheus 在容器內：in-compose 服務用 service 名；
+# host 上跑的 API（uvicorn :8000）用 host.docker.internal。
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  - job_name: airflow-statsd
+    static_configs:
+      - targets: ["statsd-exporter:9102"]
+
+  - job_name: cadvisor
+    static_configs:
+      - targets: ["cadvisor:8080"]   # 容器內埠 8080（host 上對映 8081）
+
+  - job_name: pulse-api
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["host.docker.internal:8000"]   # FastAPI 跑在 host，不在 compose

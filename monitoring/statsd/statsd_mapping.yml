@@ -1,0 +1,87 @@
+# Airflow 2.9 StatsD 指標 → 帶標籤的 Prometheus 指標。
+# Airflow 把 dag_id/task_id/state 烤進「點分隔的指標名」，這裡用 regex 還原成 label。
+# 注意：first-match-wins，特定規則要放前面；最後有 catch-all 不丟任何指標。
+# 參考：https://airflow.apache.org/docs/apache-airflow/2.9.1/administration-and-deployment/logging-monitoring/metrics.html
+defaults:
+  timer_type: histogram
+  buckets: [0.5, 1, 2.5, 5, 10, 30, 60, 120, 300, 600, 1800]
+  match_type: regex
+
+mappings:
+  # DAG run 時長（timer）→ 依 dag_id + status
+  - match: '^airflow\.dagrun\.duration\.(success|failed)\.(.+)$'
+    name: "airflow_dagrun_duration_seconds"
+    labels:
+      status: "$1"
+      dag_id: "$2"
+
+  - match: '^airflow\.dagrun\.schedule_delay\.(.+)$'
+    name: "airflow_dagrun_schedule_delay_seconds"
+    labels:
+      dag_id: "$1"
+
+  # Task instance 完成狀態（counter）：ti.finish.<dag>.<task>.<state>
+  - match: '^airflow\.ti\.finish\.(.+)\.(.+)\.(success|failed|skipped|up_for_retry|upstream_failed|removed)$'
+    name: "airflow_ti_finish_total"
+    match_metric_type: counter
+    labels:
+      dag_id: "$1"
+      task_id: "$2"
+      state: "$3"
+
+  # Task instance 啟動（counter）：ti.start.<dag>.<task>
+  - match: '^airflow\.ti\.start\.(.+)\.(.+)$'
+    name: "airflow_ti_start_total"
+    match_metric_type: counter
+    labels:
+      dag_id: "$1"
+      task_id: "$2"
+
+  # 單一 task 時長：dag.<dag>.<task>.duration
+  - match: '^airflow\.dag\.(.+)\.(.+)\.duration$'
+    name: "airflow_task_duration_seconds"
+    labels:
+      dag_id: "$1"
+      task_id: "$2"
+
+  # Operator 成功/失敗 counter
+  - match: '^airflow\.operator_(successes|failures)_(.+)$'
+    name: "airflow_operator_total"
+    match_metric_type: counter
+    labels:
+      status: "$1"
+      operator: "$2"
+
+  # 全域 TI 成功/失敗 counter
+  - match: '^airflow\.ti_(successes|failures)$'
+    name: "airflow_ti_total"
+    match_metric_type: counter
+    labels:
+      status: "$1"
+
+  # Scheduler 心跳
+  - match: 'airflow.scheduler_heartbeat'
+    match_type: glob
+    name: "airflow_scheduler_heartbeat_total"
+    match_metric_type: counter
+
+  # Pool slots gauge
+  - match: '^airflow\.pool\.(open|running|queued|starving)_slots\.(.+)$'
+    name: "airflow_pool_slots"
+    labels:
+      slot_type: "$1"
+      pool: "$2"
+
+  # Executor gauges
+  - match: 'airflow.executor.open_slots'
+    match_type: glob
+    name: "airflow_executor_open_slots"
+  - match: 'airflow.executor.queued_tasks'
+    match_type: glob
+    name: "airflow_executor_queued_tasks"
+  - match: 'airflow.executor.running_tasks'
+    match_type: glob
+    name: "airflow_executor_running_tasks"
+
+  # 不加 catch-all：未匹配的指標 statsd-exporter 會自動以 dots→underscores 匯出，
+  # 不會被丟棄。（先前用 regex '.' 當 catch-all 會誤把名字截成單一字元 → airflow_a_*。）

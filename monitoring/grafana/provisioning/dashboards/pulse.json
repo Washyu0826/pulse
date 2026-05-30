@@ -1,0 +1,100 @@
+{
+  "uid": "pulse-overview",
+  "title": "Pulse Overview",
+  "schemaVersion": 39,
+  "version": 1,
+  "timezone": "browser",
+  "refresh": "30s",
+  "time": { "from": "now-24h", "to": "now" },
+  "templating": { "list": [] },
+  "panels": [
+    {
+      "type": "timeseries",
+      "title": "DAG run 時長 p95 (s)",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(airflow_dagrun_duration_seconds_bucket[5m])) by (le, dag_id))",
+          "legendFormat": "{{dag_id}}"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Task 成功率 (1h)",
+      "gridPos": { "h": 8, "w": 6, "x": 12, "y": 0 },
+      "fieldConfig": { "defaults": { "unit": "percentunit", "min": 0, "max": 1 } },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "sum(rate(airflow_ti_finish_total{state=\"success\"}[1h])) / clamp_min(sum(rate(airflow_ti_finish_total{state=~\"success|failed\"}[1h])), 1)",
+          "legendFormat": "success rate"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Scheduler 心跳率 (/min)",
+      "gridPos": { "h": 8, "w": 6, "x": 18, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "sum(rate(airflow_scheduler_heartbeat_total[5m])) * 60", "legendFormat": "heartbeats/min" }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "資料量趨勢 — posts / events / sentiments",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "pulse_posts_total", "legendFormat": "posts 總數" },
+        { "expr": "pulse_posts_last_24h", "legendFormat": "posts 近24h" },
+        { "expr": "sum(pulse_events_total)", "legendFormat": "events" },
+        { "expr": "sum(pulse_sentiments_total)", "legendFormat": "sentiments" },
+        { "expr": "pulse_posts_duplicate", "legendFormat": "重複(去重標記)" }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Posts by source",
+      "gridPos": { "h": 8, "w": 6, "x": 12, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "expr": "pulse_posts_by_source", "legendFormat": "{{source}}" }]
+    },
+    {
+      "type": "piechart",
+      "title": "品質分桶",
+      "gridPos": { "h": 8, "w": 6, "x": 18, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "expr": "pulse_posts_quality", "legendFormat": "{{bucket}}" }]
+    },
+    {
+      "type": "timeseries",
+      "title": "容器 CPU 總計 (cores)",
+      "description": "所有 Docker 容器加總。Docker Desktop/WSL2 下 cAdvisor 拿不到容器名 → 用 id 加總；原生 Linux 可改 by(name) 分容器。",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "sum(rate(container_cpu_usage_seconds_total{id=~\"/docker/.+\"}[5m]))",
+          "legendFormat": "containers total"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "容器記憶體總計 (MiB)",
+      "description": "所有 Docker 容器加總（Docker Desktop 限制，見 CPU 面板說明）。",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
+      "fieldConfig": { "defaults": { "unit": "decmbytes" } },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "sum(container_memory_usage_bytes{id=~\"/docker/.+\"}) / 1024 / 1024",
+          "legendFormat": "containers total"
+        }
+      ]
+    }
+  ]
+}

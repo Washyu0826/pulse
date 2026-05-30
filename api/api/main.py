@@ -10,7 +10,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from api.config import settings
-from api.routers import decide, events, health, models, releases
+from api.routers import decide, events, health, metrics, models, releases
 
 
 @asynccontextmanager
@@ -55,6 +55,8 @@ app.include_router(models.router, prefix="/api", tags=["models"])
 app.include_router(releases.router, prefix="/api", tags=["releases"])
 app.include_router(events.router, prefix="/api", tags=["events"])
 app.include_router(decide.router, prefix="/api", tags=["decide"])
+# Prometheus 業務指標（無 /api 前綴，scrape URL = /metrics）
+app.include_router(metrics.router, tags=["metrics"])
 
 
 @app.get("/")

@@ -633,3 +633,32 @@ score 納入轉推、id_str 後備註解澄清、docstring 排程修正。
 
 主要效果是**移除跨來源重複的灌水**（低品質 <30 僅 0~2 篇）。NULL（尚未 DQC）放行避免新貼文在檢核前被丟。
 看板 API 實機驗證套用後數字正確；既有 dashboard 測試 fixture 用 `quality_score=None` → 放行不受影響（CI 驗證）。
+
+---
+
+## 階段 25：可觀測性 —— Prometheus + Grafana 監控 ✅
+
+**背景**：使用者要監控三組指標：DAG 成功率/時長、資料量趨勢、系統資源。先研究精確接線再實作。
+
+**架構**：`Airflow StatsD → statsd-exporter → Prometheus → Grafana`，外加 cAdvisor（容器資源）與
+FastAPI `/metrics`（業務量）。四個新容器（statsd-exporter / prometheus / grafana / cadvisor）。
+
+- **DAG 健康**：Airflow 開 `AIRFLOW__METRICS__STATSD_*`（image 加 `statsd`），statsd-exporter 用
+  `statsd_mapping.yml`（regex）把 `dagrun.duration.<status>.<dag>`、`ti.finish.<dag>.<task>.<state>` 等
+  點分名還原成帶 label 的 Prometheus 指標。
+- **資料量趨勢**：`api/routers/metrics.py` 用 prometheus-client custom collector，scrape 時即時查業務 DB
+  暴露 gauge（posts/events/sentiments/品質分桶/重複/各來源/各模型）。pull 模式（長駐服務不用 Pushgateway）。
+- **系統資源**：cAdvisor（Docker Desktop 用 —— node-exporter 在 WSL2 沒用）。
+- **Grafana provisioning**：自動掛 Prometheus datasource + 「Pulse Overview」dashboard（DAG p95/成功率/心跳、
+  資料量趨勢、品質分桶 pie、容器 CPU/mem）。埠：Prometheus 9090、Grafana **3001**（3000 給 Next.js）。
+
+**端到端實測**
+- 四個 Prometheus target 全部 **UP**（airflow-statsd / cadvisor / prometheus / pulse-api）。
+- `/metrics` 回真實業務量（posts 5149、品質 high 5065/mid 81/low 3、events launch 92…）。
+- Airflow 跑 task 後 `airflow_operator_total`/`pool_slots`/`executor_*` 進 Prometheus；Grafana dashboard 自動載入。
+
+**踩坑**：statsd-exporter catch-all 用 regex `'.'` 會把名字截成單一字元（`airflow_a_*`）→ 移除 catch-all
+（未匹配指標本就會自動 dots→underscores 匯出）。cAdvisor 在 Docker Desktop/WSL2 拿不到容器名（`/var/lib/docker`
+掛載會壞而省略）→ 資源面板改用 `id` 加總（原生 Linux 可改 by name 分容器）。
+
+> 三組指標全到位。`prometheus-client` 加進 api 依賴；CI 不變（監控是獨立 compose 服務）。

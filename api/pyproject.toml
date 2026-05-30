@@ -28,6 +28,8 @@ dependencies = [
     # Utils
     "tenacity>=8.2.0",
     "python-json-logger>=2.0.0",
+    # Monitoring
+    "prometheus-client>=0.20.0",
 ]
 
 [project.optional-dependencies]

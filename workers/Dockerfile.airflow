@@ -19,7 +19,8 @@ ARG PIP_TRUSTED="--trusted-host pypi.org --trusted-host files.pythonhosted.org -
 RUN pip install --no-cache-dir ${PIP_TRUSTED} \
     "apache-airflow-providers-slack>=8.6.0" \
     "truststore>=0.9.0" \
-    "httpx>=0.26.0"
+    "httpx>=0.26.0" \
+    "statsd>=4.0.1"
 
 # 業務 venv：SQLAlchemy 2.0 + 跑爬蟲/事件偵測需要的執行期依賴。與主環境隔離。
 RUN python -m venv /opt/airflow/pulse-venv \
