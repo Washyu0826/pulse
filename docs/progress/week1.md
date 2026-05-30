@@ -376,3 +376,24 @@ ReleaseCard 加 aria-label、footer 對比度、focus-visible 限定互動元素
 relativeTime formatter 提到模組層、字型加 Noto Sans TC fallback。
 
 **現況**：前端達業界級（簡潔暗色儀表板）。後端 3 業務 endpoint、前端三段真實資料 + Suspense 串流。
+
+---
+
+## 階段 15：產品化（讓人一看就懂）+ 問題全紀錄 ✅
+
+**背景**：使用者反饋「看不大懂在做什麼」。派 2 個研究 agent 調查市面產品（TLDR AI、Brand24、Exploding Topics、Stripe、Vercel、PostHog…），套用「自我解釋」設計。
+
+**做了什麼（前端，無需改後端的部分）**
+- **Hero**：價值主張「AI 模型的即時動態，一眼掌握」+ 它在做什麼 + 範圍（5 秒看懂）。
+- **近 7 天摘要列**：突增 / 新發布 / 升溫中（先給答案；三格統一 7 天窗口）。
+- **每段「這是什麼」說明**、空狀態改「一切平靜」框架、技術詞→人話（近7天/vs 平日/tooltip）。
+- **突增白話化**：不秀 z-score，改「約為平常 N×」+ 文字標籤（升溫/熱議/爆量）。
+
+**做了什麼（後端，加產品價值）**
+- **突增「主因」**：偵測時存當天最熱門貼文標題 → 卡片顯示「主要討論：〈標題〉」（Brand24 的 "this spike was caused by X"）。
+- **對帳刪除殭屍事件**：回填後不再成立的舊突增（如 claude 05-28，舊 median=1.5）會被刪除 —— 同時解決「主因空白」與資料誤導。
+
+**問題全紀錄**：新增 [`docs/progress/issues-log.md`](issues-log.md) —— 整個開發過程的**所有問題**（環境/網路/DB/CI/邏輯，22 項）：症狀→根因→解法→檔案。
+
+**驗證**：typecheck/lint/ruff 全過；Playwright 截圖確認 hero/摘要/主因都正確顯示。
+**Code review（第十一輪）**：抓到資料誠實度問題（摘要窗口、median=0、殭屍事件）全修。

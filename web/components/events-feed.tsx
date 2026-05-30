@@ -9,7 +9,7 @@ export async function EventsFeed() {
     return <SectionStatus kind="error">無法載入事件流，請確認 API 是否啟動</SectionStatus>;
   }
   if (events.data.length === 0) {
-    return <SectionStatus kind="empty">目前沒有偵測到事件</SectionStatus>;
+    return <SectionStatus kind="empty">目前一切平靜 — 沒有偵測到討論突增或新發布。</SectionStatus>;
   }
   return (
     <div className="grid gap-3 md:grid-cols-2">

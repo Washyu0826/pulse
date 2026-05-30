@@ -24,11 +24,12 @@ sys.path.insert(0, str(_ROOT / "ml"))
 
 import ml.event_detection as ed  # noqa: E402
 from api.database import AsyncSessionLocal  # noqa: E402
+from api.models.event import Event  # noqa: E402
 from api.models.models import Model, PostModel  # noqa: E402
 from api.models.posts import Post  # noqa: E402
 from api.models.release import ReleaseEvent  # noqa: E402
 from api.services.events import upsert_events  # noqa: E402
-from sqlalchemy import select  # noqa: E402
+from sqlalchemy import delete, select  # noqa: E402
 
 
 def _day_to_dt(d) -> datetime:
@@ -40,19 +41,25 @@ async def main() -> None:
         # ---- 1) 討論量突增（posts）----
         post_rows = (
             await session.execute(
-                select(Model.slug, Post.posted_at)
+                select(Model.slug, Post.posted_at, Post.title, Post.score)
                 .join(PostModel, PostModel.post_id == Post.id)
                 .join(Model, Model.id == PostModel.model_id)
             )
         ).all()
         by_model: dict[str, list] = defaultdict(list)
-        for slug, posted_at in post_rows:
-            by_model[slug].append(posted_at.date())
+        top_post: dict[tuple[str, object], tuple[int, str]] = {}  # (slug, day) -> (score, 主因標題)
+        for slug, posted_at, title, score in post_rows:
+            day = posted_at.date()
+            by_model[slug].append(day)
+            key = (slug, day)
+            if key not in top_post or (score or 0) > top_post[key][0]:
+                top_post[key] = (score or 0, title)
 
         spike_events = []
         for slug, dates in by_model.items():
             series = ed.fill_daily_gaps(ed.daily_counts(dates))
             for sp in ed.detect_spikes(series):
+                cause = top_post.get((slug, sp.day), (0, None))[1]  # 那天最熱門貼文 = 主因
                 spike_events.append({
                     "dedup_key": f"discussion_spike:{slug}:{sp.day.isoformat()}",
                     "event_type": "discussion_spike",
@@ -61,7 +68,12 @@ async def main() -> None:
                     "description": f"modified z-score {sp.modified_z}（severity {sp.severity}）",
                     "score": sp.severity,
                     "occurred_at": _day_to_dt(sp.day),
-                    "extra": {"count": sp.count, "median": sp.median, "modified_z": sp.modified_z},
+                    "extra": {
+                        "count": sp.count,
+                        "median": sp.median,
+                        "modified_z": sp.modified_z,
+                        "top_post": cause,
+                    },
                 })
 
         # ---- 2) 發布事件（release_events）----
@@ -95,6 +107,17 @@ async def main() -> None:
             })
 
         all_events = spike_events + launch_events
+
+        # 對帳：刪除「這次沒再偵測到」的舊 spike/launch 事件（如回填後不再成立的突增）。
+        current_keys = {e["dedup_key"] for e in all_events}
+        if current_keys:
+            await session.execute(
+                delete(Event).where(
+                    Event.event_type.in_(["discussion_spike", "launch"]),
+                    Event.dedup_key.not_in(current_keys),
+                )
+            )
+
         stats = await upsert_events(session, all_events)
 
     print(f"🔎 偵測到：discussion_spike {len(spike_events)} 筆、launch {len(launch_events)} 筆")
