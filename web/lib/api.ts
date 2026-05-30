@@ -1,5 +1,5 @@
 import { API_URL } from "@/lib/utils";
-import type { DetectedEvent, ReleaseEvent } from "@/lib/types";
+import type { DetectedEvent, ModelSummary, ReleaseEvent } from "@/lib/types";
 
 // 真正的 result type：失敗分支不帶 data，TS 會強制呼叫端先檢查 ok 才能用 data。
 export type ApiResult<T> = { ok: true; data: T } | { ok: false; error: string };
@@ -40,4 +40,9 @@ export function getRecentReleases(limit = 20): Promise<ApiResult<ReleaseEvent[]>
 /** 最近偵測到的事件（discussion_spike + launch）。 */
 export function getRecentEvents(limit = 15): Promise<ApiResult<DetectedEvent[]>> {
   return fetchArray<DetectedEvent>(`/api/events?limit=${limit}`);
+}
+
+/** 6 模型即時看板彙總。 */
+export function getModelDashboard(): Promise<ApiResult<ModelSummary[]>> {
+  return fetchArray<ModelSummary>(`/api/models`);
 }

@@ -14,6 +14,18 @@ export interface ReleaseEvent {
   published_at: string; // ISO 8601
 }
 
+export interface ModelSummary {
+  slug: string;
+  name: string;
+  company: string;
+  role: string | null;
+  posts_total: number;
+  posts_recent: number;
+  releases_total: number;
+  latest_release_at: string | null;
+  spike_severity: number | null;
+}
+
 export type EventType = "discussion_spike" | "launch";
 
 // 注意：命名為 DetectedEvent 以避開瀏覽器全域 Event 型別。

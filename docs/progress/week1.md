@@ -331,3 +331,24 @@ cd web && npm install && npm run dev     # 開 http://localhost:3000
 
 **測試**：API 30 + ML 15 + workers 46 = **91 passed**，ruff 全綠。
 **DB 現況**：posts **5142** + release_events 198 + events（spike 25 + launch 92）。
+
+---
+
+## 階段 13：6 模型即時看板接真實數據 ✅（首頁第三段）
+
+**目標**：把首頁「6 模型即時看板」從假卡片改成真實彙總。
+
+- `api/services/models.py`：`get_model_dashboard` —— 三個彙總查詢（貼文總數+近7天用 `count() FILTER`、發布數+最新時間、近7天突增最大 severity），以 model_id 在 Python 合併（無資料模型也出現、補 0）。
+- `api/routers/models.py`：`GET /api/models`（第 3 個業務 endpoint，F2）。
+- 前端：`lib/types.ts` ModelSummary、`getModelDashboard`、`components/model-card.tsx`（突增亮黃點，`spike_severity != null` 正確保留 severity 0）、`page.tsx` Promise.all 改 3 個並行。
+
+**端到端驗證**：`/api/models` 實機回 6 模型真實數字（claude 2893/近7天566/spike10、gpt 2282/246、gemini 456/spike5.4…）；首頁 HTML 渲染 `2,893`/`2,282`/「近7天」。typecheck/lint/build 全過。
+
+**Code review（第九輪）**：評「正確、idiomatic，無 Critical/High」。採納 must-fix：
+1. ✅ 補測試：**無資料模型出現且全 0/None**（核心不變式）、releases 彙總、spike 彙總。
+2. ✅ 清掉 main.py 過時 TODO 註解。
+> 已記錄待辦（非阻塞）：4 個整合測試檔的 engine/session fixture 可抽 conftest.py；endpoint 可加 Pydantic response_model；events 可加 (event_type,occurred_at) 複合索引。
+
+**測試**：API 34 + ML 15 + workers 46 = **95 passed**，ruff 全綠。
+
+**現況**：首頁三段全部真實資料 —— 事件流（F8）+ 最新發布 + **6 模型看板**。後端 3 個業務 endpoint。

@@ -4,14 +4,19 @@
  * 這是 Server Component（Next.js 14 預設），在 server 端抓資料。
  * 互動元件（搜尋、即時刷新）會在後續拆出 Client Component。
  */
-import { getRecentEvents, getRecentReleases } from "@/lib/api";
+import { getModelDashboard, getRecentEvents, getRecentReleases } from "@/lib/api";
 import { EventCard } from "@/components/event-card";
+import { ModelCard } from "@/components/model-card";
 import { ReleaseCard } from "@/components/release-card";
 import { SectionStatus } from "@/components/section-status";
 
 export default async function HomePage() {
-  // 兩個獨立 fetch 並行；任一失敗都只影響自己的區塊（wrapper 不 throw）。
-  const [events, releases] = await Promise.all([getRecentEvents(15), getRecentReleases(20)]);
+  // 三個獨立 fetch 並行；任一失敗都只影響自己的區塊（wrapper 不 throw）。
+  const [events, releases, models] = await Promise.all([
+    getRecentEvents(15),
+    getRecentReleases(20),
+    getModelDashboard(),
+  ]);
 
   return (
     <main className="min-h-screen p-8">
@@ -64,19 +69,17 @@ export default async function HomePage() {
         <h2 className="text-sm font-mono tracking-widest text-white/50 mb-4">
           📊 6 模型即時看板
         </h2>
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-          {/* TODO Week 2: 接 /api/models */}
-          {["GPT-5", "Claude", "Gemini", "Grok", "Llama", "DeepSeek"].map((name) => (
-            <div
-              key={name}
-              className="bg-bg-card rounded-xl p-4 border border-border"
-            >
-              <div className="text-sm text-white/60">{name}</div>
-              <div className="text-2xl font-bold text-white mt-2">--</div>
-              <div className="text-xs text-white/40 mt-1">尚未載入</div>
-            </div>
-          ))}
-        </div>
+        {!models.ok ? (
+          <SectionStatus kind="error">無法載入模型看板，請確認 API 是否啟動</SectionStatus>
+        ) : models.data.length === 0 ? (
+          <SectionStatus kind="empty">尚無模型資料</SectionStatus>
+        ) : (
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+            {models.data.map((m) => (
+              <ModelCard key={m.slug} m={m} />
+            ))}
+          </div>
+        )}
       </section>
 
       <footer className="mt-16 text-xs font-mono text-white/30">
