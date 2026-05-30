@@ -1,6 +1,10 @@
 import type { ModelSummary } from "@/lib/types";
 
-/** 單一模型卡：累計討論數 + 近 7 天增量 + 發布數。近期升溫時右上角亮黃點。 */
+function sentimentClass(idx: number): string {
+  return idx > 10 ? "text-sentiment-positive" : idx < -10 ? "text-sentiment-negative" : "text-white/55";
+}
+
+/** 單一模型卡：累計討論數 + 口碑指數 + 近 7 天 + 發布數。近期升溫時右上角亮黃點。 */
 export function ModelCard({ m }: { m: ModelSummary }) {
   return (
     <div className="card relative">
@@ -19,6 +23,15 @@ export function ModelCard({ m }: { m: ModelSummary }) {
       >
         {m.posts_total.toLocaleString()}
       </div>
+      {m.sentiment_index != null && (
+        <div
+          title="口碑淨值（情緒分析，-100..100）：正=多數好評，負=多數負評"
+          className={`mt-1 font-mono text-xs ${sentimentClass(m.sentiment_index)}`}
+        >
+          口碑 {m.sentiment_index > 0 ? `+${m.sentiment_index}` : m.sentiment_index}
+          {m.sentiment_index > 10 ? " ↑" : m.sentiment_index < -10 ? " ↓" : ""}
+        </div>
+      )}
       <div className="mt-1.5 flex items-center gap-2 font-mono text-[11px]">
         {m.posts_recent > 0 && <span className="text-sentiment-positive">+{m.posts_recent}</span>}
         <span className="text-white/45">近7天</span>

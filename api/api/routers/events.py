@@ -15,7 +15,7 @@ router = APIRouter()
 @router.get("/events")
 async def list_events(
     limit: int = Query(50, ge=1, le=200),
-    event_type: Literal["discussion_spike", "launch"] | None = Query(None),
+    event_type: Literal["discussion_spike", "launch", "sentiment_flip"] | None = Query(None),
     model: str | None = Query(None, description="模型 slug 篩選"),
     db: AsyncSession = Depends(get_db),
 ) -> list[dict[str, Any]]:

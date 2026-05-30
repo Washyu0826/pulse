@@ -11,7 +11,7 @@
 import asyncio
 import sys
 from collections import defaultdict
-from datetime import UTC, datetime, time
+from datetime import UTC, datetime, time, timedelta
 from pathlib import Path
 
 if sys.platform == "win32":
@@ -28,7 +28,11 @@ from api.models.event import Event  # noqa: E402
 from api.models.models import Model, PostModel  # noqa: E402
 from api.models.posts import Post  # noqa: E402
 from api.models.release import ReleaseEvent  # noqa: E402
+from api.models.sentiment import Sentiment  # noqa: E402
 from api.services.events import upsert_events  # noqa: E402
+
+# 只用純統計 detect_flip / summarize，不載模型（torch 在 __init__ 才 import）
+from ml.sentiment import SentimentAnalyzer, SentimentResult  # noqa: E402
 from sqlalchemy import delete, select  # noqa: E402
 
 
@@ -106,21 +110,82 @@ async def main() -> None:
                 "extra": {"titles": lc.titles, "count": lc.count, "kinds": lc.kinds},
             })
 
-        all_events = spike_events + launch_events
+        # ---- 3) 口碑翻轉（sentiments，近 14 天 vs 前 14 天）----
+        sent_rows = (
+            await session.execute(
+                select(
+                    Model.slug,
+                    Post.posted_at,
+                    Sentiment.label,
+                    Sentiment.p_positive,
+                    Sentiment.p_neutral,
+                    Sentiment.p_negative,
+                    Sentiment.score,
+                )
+                .join(PostModel, PostModel.post_id == Post.id)
+                .join(Model, Model.id == PostModel.model_id)
+                .join(Sentiment, Sentiment.post_id == Post.id)
+            )
+        ).all()
+
+        flip_events = []
+        if sent_rows:
+            max_day = max(r.posted_at for r in sent_rows)
+            recent_cut = max_day - timedelta(days=14)
+            prior_cut = max_day - timedelta(days=28)
+            by_model_period: dict[str, dict[str, list[SentimentResult]]] = defaultdict(
+                lambda: {"prev": [], "curr": []}
+            )
+            for r in sent_rows:
+                if r.posted_at < prior_cut:
+                    continue
+                bucket = "curr" if r.posted_at >= recent_cut else "prev"
+                res = SentimentResult(
+                    label=r.label,
+                    score=r.score,
+                    scores={"positive": r.p_positive, "neutral": r.p_neutral, "negative": r.p_negative},
+                )
+                by_model_period[r.slug][bucket].append(res)
+
+            for slug, periods in by_model_period.items():
+                flip = SentimentAnalyzer.detect_flip(periods["prev"], periods["curr"])
+                if not flip.flipped:
+                    continue
+                flip_events.append({
+                    "dedup_key": f"sentiment_flip:{slug}:{recent_cut.date().isoformat()}",
+                    "event_type": "sentiment_flip",
+                    "model": slug,
+                    "title": f"{slug} 口碑翻轉（{'轉差' if flip.direction == 'to_negative' else '轉好'}）",
+                    "description": flip.reason,
+                    "score": round(abs(flip.to_index - flip.from_index)),
+                    "occurred_at": _day_to_dt(recent_cut.date()),
+                    "extra": {
+                        "from_index": flip.from_index,
+                        "to_index": flip.to_index,
+                        "direction": flip.direction,
+                        "z": round(flip.z, 2),
+                        "p_value": round(flip.p_value, 4),
+                    },
+                })
+
+        all_events = spike_events + launch_events + flip_events
 
         # 對帳：刪除「這次沒再偵測到」的舊 spike/launch 事件（如回填後不再成立的突增）。
         current_keys = {e["dedup_key"] for e in all_events}
         if current_keys:
             await session.execute(
                 delete(Event).where(
-                    Event.event_type.in_(["discussion_spike", "launch"]),
+                    Event.event_type.in_(["discussion_spike", "launch", "sentiment_flip"]),
                     Event.dedup_key.not_in(current_keys),
                 )
             )
 
         stats = await upsert_events(session, all_events)
 
-    print(f"🔎 偵測到：discussion_spike {len(spike_events)} 筆、launch {len(launch_events)} 筆")
+    print(
+        f"🔎 偵測到：discussion_spike {len(spike_events)} 筆、launch {len(launch_events)} 筆、"
+        f"sentiment_flip {len(flip_events)} 筆"
+    )
     print("💾 UPSERT 統計：", stats)
     if spike_events:
         print("📈 突增事件樣本：")

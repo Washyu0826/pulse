@@ -24,9 +24,10 @@ export interface ModelSummary {
   releases_total: number;
   latest_release_at: string | null;
   spike_severity: number | null;
+  sentiment_index: number | null; // 口碑淨值 -100..100（情緒分析）
 }
 
-export type EventType = "discussion_spike" | "launch";
+export type EventType = "discussion_spike" | "launch" | "sentiment_flip";
 
 // 注意：命名為 DetectedEvent 以避開瀏覽器全域 Event 型別。
 export interface DetectedEvent {

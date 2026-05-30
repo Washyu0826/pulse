@@ -3,7 +3,7 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 import pytest_asyncio
-from sqlalchemy import delete
+from sqlalchemy import delete, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
@@ -14,10 +14,12 @@ from api.models.event import Event
 from api.models.models import Model
 from api.models.posts import Post
 from api.models.release import ReleaseEvent
+from api.models.sentiment import Sentiment
 from api.services.events import upsert_events
 from api.services.models import get_model_dashboard
 from api.services.posts import upsert_posts
 from api.services.releases import upsert_release_events
+from api.services.sentiments import upsert_sentiments
 
 _SOURCE = "test_dash"
 
@@ -90,8 +92,8 @@ async def test_dashboard_shape(session):
     assert {"gpt", "claude"} <= set(by_slug)
     gpt = by_slug["gpt"]
     assert set(gpt) == {
-        "slug", "name", "company", "role", "posts_total",
-        "posts_recent", "releases_total", "latest_release_at", "spike_severity",
+        "slug", "name", "company", "role", "posts_total", "posts_recent",
+        "releases_total", "latest_release_at", "spike_severity", "sentiment_index",
     }
     assert isinstance(gpt["posts_total"], int)
     assert isinstance(gpt["posts_recent"], int)
@@ -148,3 +150,23 @@ async def test_releases_and_spike_aggregation(session):
     assert full["releases_total"] == 1
     assert full["latest_release_at"] is not None
     assert full["spike_severity"] == 7.5
+
+
+async def test_sentiment_index_aggregation(session):
+    """模型卡的口碑指數＝信心加權 soft（p_pos-p_neg）+ 收縮。"""
+    await _seed_model(session, "test_dash_full")
+    await upsert_posts(session, [_post("s1", "test_dash_full")])
+    pid = await session.scalar(select(Post.id).where(Post.external_id == "s1"))
+    # 一篇強烈正面（p_pos=0.9, p_neg=0.05）→ soft≈0.85，收縮後仍明顯正
+    await upsert_sentiments(session, [{
+        "post_id": pid, "label": "positive", "score": 0.9,
+        "p_positive": 0.9, "p_neutral": 0.05, "p_negative": 0.05, "confident": True,
+    }])
+    full = {d["slug"]: d for d in await get_model_dashboard(session)}["test_dash_full"]
+    assert full["sentiment_index"] is not None
+    assert full["sentiment_index"] > 0  # 正面口碑
+
+    # cleanup: 該測試模型的貼文（cascade 清 sentiments）
+    await session.execute(delete(Sentiment).where(Sentiment.post_id == pid))
+    await session.execute(delete(Post).where(Post.external_id == "s1"))
+    await session.commit()

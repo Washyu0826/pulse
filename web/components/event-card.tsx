@@ -1,4 +1,4 @@
-import { Activity, Rocket } from "lucide-react";
+import { Activity, Rocket, TrendingDown, TrendingUp } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { relativeTime } from "@/lib/time";
@@ -87,7 +87,33 @@ function LaunchCard({ ev }: { ev: DetectedEvent }) {
   );
 }
 
+function FlipCard({ ev }: { ev: DetectedEvent }) {
+  const toNeg = str(ev.extra?.direction) === "to_negative";
+  const Icon = toNeg ? TrendingDown : TrendingUp;
+  const color = toNeg ? "text-sentiment-negative" : "text-sentiment-positive";
+  return (
+    <div className="card">
+      <div className="flex items-center gap-2">
+        <Icon aria-hidden className={`h-3.5 w-3.5 shrink-0 ${color}`} />
+        <Badge variant={toNeg ? "warn" : "neutral"}>口碑翻轉</Badge>
+        {ev.model && <Badge variant="accent">{ev.model}</Badge>}
+        <time className="ml-auto shrink-0 font-mono text-xs text-white/45">
+          {relativeTime(ev.occurred_at)}
+        </time>
+      </div>
+      <h3 className="mt-2.5 text-sm font-medium leading-snug text-white">{ev.title}</h3>
+      {ev.description && (
+        <p className="mt-1 line-clamp-2 text-[13px] leading-relaxed text-white/60">
+          {ev.description}
+        </p>
+      )}
+    </div>
+  );
+}
+
 /** 單筆偵測事件卡片（純展示，Server Component）。 */
 export function EventCard({ ev }: { ev: DetectedEvent }) {
-  return ev.event_type === "discussion_spike" ? <SpikeCard ev={ev} /> : <LaunchCard ev={ev} />;
+  if (ev.event_type === "discussion_spike") return <SpikeCard ev={ev} />;
+  if (ev.event_type === "sentiment_flip") return <FlipCard ev={ev} />;
+  return <LaunchCard ev={ev} />;
 }

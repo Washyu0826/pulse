@@ -422,3 +422,28 @@ relativeTime formatter 提到模組層、字型加 Noto Sans TC fallback。
 **Code review（第十二輪）**：抓到 label 脆弱性（High）等，已修。測試 ML sentiment 12 + 其餘 = 全綠。
 
 > 後續：把情緒批次跑進 DB（sentiments 表）+ 模型卡顯示口碑 + sentiment_flip 事件（解鎖第三種偵測）。
+
+---
+
+## 階段 17：情緒接進產品（口碑落地到畫面）✅
+
+**目標**：把情緒從 demo 變成產品 —— 批次跑 5000 篇 → DB → 模型卡顯示口碑 → sentiment_flip 事件。
+
+- `sentiments` 表（post_id PK、label、三類機率、confident）+ migration `32a6a15ed0d2`。
+- `scripts/backfill_sentiments.py`：**GPU 批次跑 5142 篇**（device=cuda），增量（只跑未分析的）。
+- `api/services/models.py`：口碑指數 = 信心加權 soft（p_pos-p_neg）+ 小樣本收縮，加進 `/api/models`。
+- 前端 `model-card.tsx`：顯示「口碑 +13 ↑」（依正負上色）。
+- `run_event_detection.py`：**sentiment_flip 偵測**（近 14 天 vs 前 14 天，detect_flip 兩比例 z 檢定）+ 對帳；endpoint Literal + 前端 FlipCard 補完。
+
+**端到端實測**
+| 項目 | 結果 |
+|------|------|
+| GPU 情緒批次 | ✅ 5142 篇（499↑ / 4006 中 / 637↓） |
+| 各模型口碑 | deepseek **+13** · gemini/gpt +7 · llama +6 · claude/grok +3 |
+| 模型卡顯示 | ✅ 截圖確認「口碑 +13」等渲染出來 |
+| sentiment_flip | 0 筆（真實資料口碑都小幅正面、無劇烈翻轉 —— 誠實；能力已實作+測試）|
+
+**環境**：複用使用者系統 Python 的 GPU torch；DB 套件（sqlalchemy/asyncpg）裝進系統 Python 供 GPU 批次。
+**測試**：API 35 + ML 27 = 62（+口碑聚合、flip）全綠。
+
+> 差異化落地：HN 只有讚數，Pulse 模型卡現在顯示**口碑指數**（真實資料），且具備口碑翻轉偵測能力。
