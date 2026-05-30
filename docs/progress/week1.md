@@ -352,3 +352,27 @@ cd web && npm install && npm run dev     # 開 http://localhost:3000
 **測試**：API 34 + ML 15 + workers 46 = **95 passed**，ruff 全綠。
 
 **現況**：首頁三段全部真實資料 —— 事件流（F8）+ 最新發布 + **6 模型看板**。後端 3 個業務 endpoint。
+
+---
+
+## 階段 14：前端優化成業界級 ✅（簡潔明瞭 · Linear/Vercel 風）
+
+**目標**：把陽春前端升級成業界級、簡潔明瞭的暗色儀表板。先派設計 agent 出具體 spec，再實作。
+
+**做了什麼**
+- **字型**：`next/font` 載入 Inter + JetBrains Mono（CSS 變數接 Tailwind）；中文走系統 CJK fallback。修掉原本 fontFamily 指 Inter 卻沒載入的問題。
+- **版面**：置頂 sticky header（wordmark + 標語 + LIVE 脈動點）、`max-w-5xl` 置中、`space-y-12` 節奏；去除 emoji 標題、改克制的 mono 小標。
+- **設計系統**：CVA `Badge` chip（模型=紫/版本=青/突增=琥珀/中性）、`.card`/`.card-interactive`、單一強調色原則。
+- **元件重構**：event/release/model 卡片改 Inter 標題 + Badge + stat 數字（`tabular-nums` + 綠色 delta + 突增亮點）。
+- **載入**：每區塊獨立 async + `<Suspense>` 串流 + 骨架（header 立刻顯示）。
+- **a11y**：focus-visible ring（限互動元素）、aria-hidden 裝飾、reduced-motion、對比度提升（白字透明度 /40~/60 達 WCAG AA）。
+- **RWD**：手機 1 欄、看板 2 欄；桌機 events 2 欄、看板 6 欄。
+- 移除未用的 recharts 依賴。
+
+**驗證**：typecheck/lint/build 全過；**用 Playwright 實截桌機 + 手機圖**確認視覺（乾淨、層次清楚、真實數據）。
+
+**Code review（第十輪）**：評「solid, ship-ready，無 Critical/High」。採納 polish：移除 recharts、
+ReleaseCard 加 aria-label、footer 對比度、focus-visible 限定互動元素、LiveDot aria-hidden、
+relativeTime formatter 提到模組層、字型加 Noto Sans TC fallback。
+
+**現況**：前端達業界級（簡潔暗色儀表板）。後端 3 業務 endpoint、前端三段真實資料 + Suspense 串流。

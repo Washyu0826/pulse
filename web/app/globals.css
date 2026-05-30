@@ -10,11 +10,34 @@
   body {
     @apply bg-bg text-white;
   }
+
+  /* 互動元素的 focus-visible ring（a11y）—— 只套在可聚焦元素，不全域 */
+  a:focus-visible,
+  button:focus-visible,
+  [role="button"]:focus-visible,
+  input:focus-visible,
+  select:focus-visible,
+  textarea:focus-visible,
+  [tabindex]:focus-visible {
+    @apply outline-none ring-2 ring-accent-primary/70 ring-offset-2 ring-offset-bg;
+  }
+
+  /* 尊重「減少動態」偏好 */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
 }
 
-/* Pulse 客製樣式 */
 @layer components {
   .card {
-    @apply bg-bg-card rounded-xl border border-border p-6;
+    @apply rounded-lg border border-border/60 bg-bg-card p-4 transition-colors duration-150;
+  }
+  .card-interactive {
+    @apply card hover:border-border hover:bg-bg-cardLight;
   }
 }

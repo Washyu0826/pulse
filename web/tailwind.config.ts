@@ -30,8 +30,8 @@ const config: Config = {
         },
       },
       fontFamily: {
-        sans: ["Inter", "system-ui", "sans-serif"],
-        mono: ["JetBrains Mono", "Consolas", "monospace"],
+        sans: ["var(--font-sans)", "system-ui", "-apple-system", "PingFang TC", "Microsoft JhengHei", "Noto Sans TC", "sans-serif"],
+        mono: ["var(--font-mono)", "Consolas", "ui-monospace", "monospace"],
       },
     },
   },
