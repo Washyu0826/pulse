@@ -1,0 +1,124 @@
+import type { TrendPoint } from "@/lib/types";
+
+/**
+ * 趨勢圖（純 SVG，零依賴）—— 上：逐日討論量面積圖；下：逐日口碑折線（-100..100）。
+ *
+ * 為何不用 recharts：先前 recharts 的 package-lock 帶進 @emnapi 平台相依，
+ * 在 Linux CI 上 `npm ci` 會缺檔而中斷（cross-platform 破壞）。這個需求只要一條
+ * 趨勢線，用 SVG 畫即可——無新依賴、SSR 友善、不影響 package-lock。
+ */
+
+const W = 720;
+const VOL_H = 120;
+const SENT_H = 80;
+const PAD = 8;
+
+function buildPath(values: number[], h: number, max: number): { area: string; line: string } {
+  const n = values.length;
+  if (n === 0) return { area: "", line: "" };
+  const dx = n > 1 ? (W - PAD * 2) / (n - 1) : 0;
+  const y = (v: number) => h - PAD - (max > 0 ? (v / max) * (h - PAD * 2) : 0);
+  const pts = values.map((v, i) => [PAD + i * dx, y(v)] as const);
+  const line = pts.map(([px, py], i) => `${i === 0 ? "M" : "L"}${px.toFixed(1)},${py.toFixed(1)}`).join(" ");
+  const area = `${line} L${pts[n - 1][0].toFixed(1)},${h - PAD} L${pts[0][0].toFixed(1)},${h - PAD} Z`;
+  return { area, line };
+}
+
+export function TrendChart({ trend }: { trend: TrendPoint[] }) {
+  if (trend.length === 0) {
+    return (
+      <div className="card flex h-40 items-center justify-center text-sm text-white/45">
+        這段期間沒有足夠資料畫出趨勢。
+      </div>
+    );
+  }
+
+  const posts = trend.map((p) => p.posts);
+  const maxPosts = Math.max(1, ...posts);
+  const totalPosts = posts.reduce((a, b) => a + b, 0);
+  const { area, line } = buildPath(posts, VOL_H, maxPosts);
+
+  // 口碑：把 -100..100 映到 0..1 的 y（0 = 中性基準線）。只連有資料的點。
+  const sentVals = trend.map((p) => p.sentiment_index);
+  const hasSent = sentVals.some((v) => v != null);
+  const dx = trend.length > 1 ? (W - PAD * 2) / (trend.length - 1) : 0;
+  const sentY = (v: number) => SENT_H / 2 - (v / 100) * (SENT_H / 2 - PAD);
+  const sentPts: string[] = [];
+  sentVals.forEach((v, i) => {
+    if (v == null) return;
+    const px = PAD + i * dx;
+    const py = sentY(v);
+    sentPts.push(`${sentPts.length === 0 ? "M" : "L"}${px.toFixed(1)},${py.toFixed(1)}`);
+  });
+
+  const first = trend[0]?.date ?? "";
+  const last = trend[trend.length - 1]?.date ?? "";
+
+  return (
+    <div className="space-y-4">
+      <figure className="card">
+        <figcaption className="mb-2 flex items-baseline justify-between">
+          <span className="text-xs font-medium text-white/70">每日討論量</span>
+          <span className="font-mono text-[11px] text-white/40">
+            共 {totalPosts.toLocaleString()} 篇 · 單日最高 {maxPosts}
+          </span>
+        </figcaption>
+        <svg
+          viewBox={`0 0 ${W} ${VOL_H}`}
+          className="h-32 w-full"
+          preserveAspectRatio="none"
+          role="img"
+          aria-label={`每日討論量趨勢，共 ${totalPosts} 篇`}
+        >
+          <path d={area} fill="rgb(139 92 246 / 0.15)" />
+          <path d={line} fill="none" stroke="rgb(139 92 246)" strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
+        </svg>
+      </figure>
+
+      <figure className="card">
+        <figcaption className="mb-2 flex items-baseline justify-between">
+          <span className="text-xs font-medium text-white/70">每日口碑指數</span>
+          <span className="font-mono text-[11px] text-white/40">中性線=0 · 上正下負</span>
+        </figcaption>
+        {hasSent ? (
+          <svg
+            viewBox={`0 0 ${W} ${SENT_H}`}
+            className="h-20 w-full"
+            preserveAspectRatio="none"
+            role="img"
+            aria-label="每日口碑指數趨勢"
+          >
+            {/* 中性基準線 */}
+            <line
+              x1={PAD}
+              y1={SENT_H / 2}
+              x2={W - PAD}
+              y2={SENT_H / 2}
+              stroke="rgb(255 255 255 / 0.12)"
+              strokeWidth="1"
+              strokeDasharray="3 3"
+              vectorEffect="non-scaling-stroke"
+            />
+            <path
+              d={sentPts.join(" ")}
+              fill="none"
+              stroke="rgb(6 182 212)"
+              strokeWidth="1.5"
+              strokeLinejoin="round"
+              vectorEffect="non-scaling-stroke"
+            />
+          </svg>
+        ) : (
+          <div className="flex h-20 items-center justify-center text-xs text-white/40">
+            這段期間尚無情緒資料。
+          </div>
+        )}
+      </figure>
+
+      <div className="flex justify-between px-1 font-mono text-[11px] text-white/35">
+        <span>{first}</span>
+        <span>{last}</span>
+      </div>
+    </div>
+  );
+}

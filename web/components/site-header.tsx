@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { LiveDot } from "@/components/live-dot";
+import { SiteNav } from "@/components/site-nav";
 
 /** 置頂導覽列 —— wordmark + 標語 + 導覽 + LIVE 指示。 */
 export function SiteHeader() {
@@ -11,15 +12,13 @@ export function SiteHeader() {
           Pulse
         </Link>
         <span className="hidden text-sm text-white/55 sm:inline">AI 工程師的每日情報秘書</span>
-        <nav className="ml-auto flex items-center gap-4 font-mono text-xs uppercase tracking-widest text-white/55">
-          <Link href="/decide" className="transition-colors hover:text-white">
-            決策
-          </Link>
-          <span className="flex items-center gap-2">
+        <div className="ml-auto flex items-center gap-4">
+          <SiteNav />
+          <span className="flex items-center gap-2 font-mono text-xs uppercase tracking-widest text-white/55">
             <LiveDot />
             Live
           </span>
-        </nav>
+        </div>
       </div>
     </header>
   );

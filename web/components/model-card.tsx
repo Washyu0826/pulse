@@ -1,13 +1,20 @@
+import Link from "next/link";
+import { ArrowRight } from "lucide-react";
+
 import type { ModelSummary } from "@/lib/types";
 
 function sentimentClass(idx: number): string {
   return idx > 10 ? "text-sentiment-positive" : idx < -10 ? "text-sentiment-negative" : "text-white/55";
 }
 
-/** 單一模型卡：累計討論數 + 口碑指數 + 近 7 天 + 發布數。近期升溫時右上角亮黃點。 */
+/** 單一模型卡：累計討論數 + 口碑指數 + 近 7 天 + 發布數。整張可點 → 模型詳情頁。 */
 export function ModelCard({ m }: { m: ModelSummary }) {
   return (
-    <div className="card relative">
+    <Link
+      href={`/models/${m.slug}`}
+      aria-label={`查看 ${m.name} 詳情`}
+      className="card-interactive group relative block"
+    >
       {m.spike_severity != null && (
         <span
           role="img"
@@ -37,6 +44,9 @@ export function ModelCard({ m }: { m: ModelSummary }) {
         <span className="text-white/45">近7天</span>
         <span className="ml-auto text-white/45">{m.releases_total} 發布</span>
       </div>
-    </div>
+      <span className="mt-2 flex items-center gap-1 text-[11px] text-white/0 transition-colors group-hover:text-accent-primary">
+        查看詳情 <ArrowRight className="h-3 w-3" aria-hidden />
+      </span>
+    </Link>
   );
 }

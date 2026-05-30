@@ -9,7 +9,11 @@ export async function ReleasesFeed() {
     return <SectionStatus kind="error">無法載入發布事件，請確認 API 是否啟動</SectionStatus>;
   }
   if (releases.data.length === 0) {
-    return <SectionStatus kind="empty">目前尚無新模型發布。</SectionStatus>;
+    return (
+      <SectionStatus kind="empty">
+        目前尚無新模型發布 —— HuggingFace / GitHub 一有新版上架，就會出現在這裡。
+      </SectionStatus>
+    );
   }
   return (
     <div className="grid gap-3 md:grid-cols-2">

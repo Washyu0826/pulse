@@ -1,5 +1,12 @@
 import { API_URL } from "@/lib/utils";
-import type { DecideReport, DetectedEvent, ModelSummary, ReleaseEvent } from "@/lib/types";
+import type {
+  DecideReport,
+  DetectedEvent,
+  EventType,
+  ModelDetail,
+  ModelSummary,
+  ReleaseEvent,
+} from "@/lib/types";
 
 // 真正的 result type：失敗分支不帶 data，TS 會強制呼叫端先檢查 ok 才能用 data。
 export type ApiResult<T> = { ok: true; data: T } | { ok: false; error: string };
@@ -32,19 +39,50 @@ async function fetchArray<T>(path: string): Promise<ApiResult<T[]>> {
   }
 }
 
-/** 最近的 release 事件（HF + GitHub）。 */
-export function getRecentReleases(limit = 20): Promise<ApiResult<ReleaseEvent[]>> {
-  return fetchArray<ReleaseEvent>(`/api/releases/recent?limit=${limit}`);
+type ReleaseSourceFilter = "huggingface" | "github";
+
+/** 最近的 release 事件（HF + GitHub），可選來源過濾。 */
+export function getRecentReleases(
+  limit = 20,
+  source?: ReleaseSourceFilter,
+): Promise<ApiResult<ReleaseEvent[]>> {
+  const q = new URLSearchParams({ limit: String(limit) });
+  if (source) q.set("source", source);
+  return fetchArray<ReleaseEvent>(`/api/releases/recent?${q.toString()}`);
 }
 
-/** 最近偵測到的事件（discussion_spike + launch）。 */
-export function getRecentEvents(limit = 15): Promise<ApiResult<DetectedEvent[]>> {
-  return fetchArray<DetectedEvent>(`/api/events?limit=${limit}`);
+/** 最近偵測到的事件，可選事件類型 / 模型 slug 過濾。 */
+export function getRecentEvents(
+  limit = 15,
+  filters?: { eventType?: EventType; model?: string },
+): Promise<ApiResult<DetectedEvent[]>> {
+  const q = new URLSearchParams({ limit: String(limit) });
+  if (filters?.eventType) q.set("event_type", filters.eventType);
+  if (filters?.model) q.set("model", filters.model);
+  return fetchArray<DetectedEvent>(`/api/events?${q.toString()}`);
 }
 
 /** 6 模型即時看板彙總。 */
 export function getModelDashboard(): Promise<ApiResult<ModelSummary[]>> {
   return fetchArray<ModelSummary>(`/api/models`);
+}
+
+/** 單一模型詳情（趨勢 + 事件 + 熱門討論 + 發布）。404 → { ok:false }。 */
+export async function getModelDetail(
+  slug: string,
+  trendDays = 30,
+): Promise<ApiResult<ModelDetail>> {
+  try {
+    const res = await fetch(`${BASE}/api/models/${encodeURIComponent(slug)}?trend_days=${trendDays}`, {
+      next: { revalidate: 60 },
+    });
+    if (!res.ok) {
+      return { ok: false, error: `HTTP ${res.status}` };
+    }
+    return { ok: true, data: (await res.json()) as ModelDetail };
+  } catch (err) {
+    return { ok: false, error: String(err) };
+  }
 }
 
 /** 決策報告（資料驅動模型比較）。 */

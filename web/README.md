@@ -16,10 +16,9 @@ npm run dev
 web/
 ├── app/
 │   ├── layout.tsx      根 layout
-│   ├── page.tsx        首頁（事件流 + 模型看板）
-│   ├── decide/         自訂查詢頁（Week 6 加入）
-│   ├── models/[slug]/  模型詳情頁（Week 9 加入）
-│   ├── daily/          每日快照頁（Week 5 加入）
+│   ├── page.tsx        首頁（事件流 + 模型看板 + 怎麼用引導 + 事件篩選）
+│   ├── decide/         決策報告頁（資料驅動模型比較）
+│   ├── models/[slug]/  模型詳情頁（趨勢圖 + 事件 + 熱門討論 + 發布）
 │   └── globals.css
 ├── components/
 │   ├── ui/             shadcn/ui 元件
