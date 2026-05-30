@@ -277,3 +277,23 @@ cd web && npm install && npm run dev     # 開 http://localhost:3000
 **測試**：ML 15 + API 25 + workers 43 = **83 passed**，ruff 全綠。後端業務 endpoint 增至 2 個（/api/releases、/api/events）。
 
 > 待精修（非阻塞）：偵測未刪除「不再被偵測到」的舊事件（目前只 upsert）；launch HF re-upload 量仍偏多，未來可用 downloads 門檻再降噪；sentiment_flip 偵測待 Week 4 情緒分析後補。
+
+---
+
+## 階段 11：前端接事件流 ✅（F8 看得見）
+
+**目標**：首頁加「事件流」區塊，顯示 `/api/events` 偵測到的突增 + 發布。
+
+- `lib/api.ts`：重構成泛型 `fetchArray<T>`（消除重複），加 `getRecentEvents`。
+- `lib/time.ts`：抽出共用 `relativeTime`（release-card 也改用，去重）。
+- `components/event-card.tsx`：事件卡（突增=琥珀 Activity / 發布=青 Rocket，spike 顯示 severity）。
+- `components/section-status.tsx`：抽出空/錯狀態框（消除 page 內 4 處重複）。
+- `app/page.tsx`：`Promise.all` 並行抓 events + releases，事件流置頂；各區塊獨立守 ok。
+
+**端到端驗證**：typecheck/lint/build 全過；`next start` 首頁 HTML 渲染出**真實偵測事件**
+（「討論突增」標籤 + severity + 真實篇數 65/40/36/19）。
+
+**Code review（第七輪）**：評「無 Critical/High，可合併」。採納 polish：修 release 區塊錯誤文案、
+抽 SectionStatus 去重、`result`→`releases` 改名、meta 對比度 /40→/50（WCAG）。
+
+**現況**：首頁三段都是真實資料 —— **事件流（F8 突增/發布）** + 最新發布事件 + 6 模型看板（看板待接）。

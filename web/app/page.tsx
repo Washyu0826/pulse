@@ -4,12 +4,14 @@
  * 這是 Server Component（Next.js 14 預設），在 server 端抓資料。
  * 互動元件（搜尋、即時刷新）會在後續拆出 Client Component。
  */
-import { getRecentReleases } from "@/lib/api";
+import { getRecentEvents, getRecentReleases } from "@/lib/api";
+import { EventCard } from "@/components/event-card";
 import { ReleaseCard } from "@/components/release-card";
+import { SectionStatus } from "@/components/section-status";
 
 export default async function HomePage() {
-  // 從後端抓真實發布事件（HF + GitHub），失敗時 result.ok=false，頁面其餘區塊照常渲染。
-  const result = await getRecentReleases(20);
+  // 兩個獨立 fetch 並行；任一失敗都只影響自己的區塊（wrapper 不 throw）。
+  const [events, releases] = await Promise.all([getRecentEvents(15), getRecentReleases(20)]);
 
   return (
     <main className="min-h-screen p-8">
@@ -26,19 +28,32 @@ export default async function HomePage() {
 
       <section className="mb-12">
         <h2 className="text-sm font-mono tracking-widest text-white/50 mb-4">
-          🚀 最新發布事件 · HuggingFace + GitHub
+          ⚡ 事件流 · 偵測到的突增與發布（F8）
         </h2>
-        {!result.ok ? (
-          <div className="bg-bg-card rounded-xl p-8 border border-border text-center text-sentiment-negative">
-            無法載入事件流，請確認 API 是否啟動
-          </div>
-        ) : result.data.length === 0 ? (
-          <div className="bg-bg-card rounded-xl p-8 border border-border text-center text-white/40">
-            目前沒有新的 release 事件
-          </div>
+        {!events.ok ? (
+          <SectionStatus kind="error">無法載入事件流，請確認 API 是否啟動</SectionStatus>
+        ) : events.data.length === 0 ? (
+          <SectionStatus kind="empty">目前沒有偵測到事件</SectionStatus>
         ) : (
           <div className="grid gap-3 md:grid-cols-2">
-            {result.data.map((ev) => (
+            {events.data.map((ev) => (
+              <EventCard key={ev.id} ev={ev} />
+            ))}
+          </div>
+        )}
+      </section>
+
+      <section className="mb-12">
+        <h2 className="text-sm font-mono tracking-widest text-white/50 mb-4">
+          🚀 最新發布事件 · HuggingFace + GitHub
+        </h2>
+        {!releases.ok ? (
+          <SectionStatus kind="error">無法載入發布事件，請確認 API 是否啟動</SectionStatus>
+        ) : releases.data.length === 0 ? (
+          <SectionStatus kind="empty">目前沒有新的 release 事件</SectionStatus>
+        ) : (
+          <div className="grid gap-3 md:grid-cols-2">
+            {releases.data.map((ev) => (
               <ReleaseCard key={ev.id} ev={ev} />
             ))}
           </div>
