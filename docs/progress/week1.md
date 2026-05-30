@@ -589,3 +589,26 @@ search 需登入、snscrape 失效）→ 唯一可行是非官方 client。選 *
 score 納入轉推、id_str 後備註解澄清、docstring 排程修正。
 
 **測試**：workers 61（+twitter 純函式 9）全綠，ruff 全過；crawl_x DAG 註冊、0 import error（paused）。
+
+---
+
+## 階段 23：前端可用性大升級（自我解釋 + 模型詳細頁 + 趨勢圖）✅
+
+**背景**：使用者反饋「不大清楚到底要怎麼用」。開**背景 agent（worktree 隔離）平行處理**：研究同類產品 →
+稽核現有前端 → 重設計 → 實作 → 驗證。聚焦「讓冷啟動使用者一眼看懂這是什麼、怎麼用」。
+
+**做了什麼**
+- **新 Hero**：一句話價值主張 + 明確列出與 HackerNews 的差異 + 三張能力卡。
+- **「三步上手」引導條**（首訪顯示、localStorage 記憶）+ 術語人話化 + `InfoHint`（滑過才看真實指標，去掉 z-score 等黑話）。
+- **事件流篩選器**（依事件類型/模型，狀態存 URL、可分享、上一頁有效）+ **導覽列**（儀表板/決策報告，當前頁高亮）。
+- **模型詳細頁 `/models/[slug]`**：點模型卡 → 趨勢圖（每日討論量 + 口碑走勢，**純 SVG 零依賴**）、近期事件、熱門討論、最新發布、loading/not-found。
+- 解釋性空/錯狀態（「有變化時這裡會自動冒出卡片…」）。
+
+**新後端 API**：`GET /api/models/{slug}?trend_days=`（時間序列：每日討論量 + 口碑，gap-filled；複用 dashboard 口碑公式保持一致）+ `services/model_detail.py` + 整合測試。
+
+**端到端實測（合併進 main 後）**：`/api/models/claude` HTTP 200（口碑 3、31 個趨勢點、5 熱門討論）；
+首頁新版 + `/models/claude` 詳細頁在 :3000 渲染成功。typecheck/lint/build 全過、`npm ci` 可重現、**後端掛掉前端不崩**（fail-soft）。
+**零新增 npm 套件**（圖表手刻 SVG），順手清掉舊 `@emnapi` 跨平台 lockfile 風險。
+
+> 工法亮點：用**獨立 worktree 背景 agent 平行開發**，與後端（X 爬蟲）同時推進、互不干擾，完成後乾淨合併（無衝突）。
+> 產品意義：從「能跑但看不懂」→「自我解釋、可操作」。
