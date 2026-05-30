@@ -1,12 +1,24 @@
+import { InfoHint } from "@/components/ui/info-hint";
 import { getModelDashboard, getRecentEvents } from "@/lib/api";
 
-function Stat({ value, label }: { value: number | string; label: string }) {
+function Stat({
+  value,
+  label,
+  hint,
+}: {
+  value: number | string;
+  label: string;
+  hint?: React.ReactNode;
+}) {
   return (
     <div className="flex flex-col">
       <span className="font-mono text-2xl font-semibold tabular-nums tracking-tight text-white">
         {value}
       </span>
-      <span className="mt-0.5 text-xs text-white/50">{label}</span>
+      <span className="mt-0.5 flex items-center gap-1 text-xs text-white/50">
+        {label}
+        {hint && <InfoHint label={label}>{hint}</InfoHint>}
+      </span>
     </div>
   );
 }
@@ -24,10 +36,21 @@ export async function TodaySummary() {
   const heating = models.data.filter((m) => m.spike_severity != null).length;
 
   return (
-    <div className="grid grid-cols-3 gap-4 rounded-lg border border-border/60 bg-bg-card px-5 py-4">
-      <Stat value={spikes} label="近 7 天討論突增" />
-      <Stat value={launches} label="近 7 天新發布" />
-      <Stat value={`${heating}/${models.data.length}`} label="模型討論升溫中" />
+    <div>
+      <p className="mb-2 text-xs text-white/45">過去 7 天，AI 圈發生了這些事：</p>
+      <div className="grid grid-cols-3 gap-4 rounded-lg border border-border/60 bg-bg-card px-5 py-4">
+        <Stat
+          value={spikes}
+          label="討論突增"
+          hint="某模型的單日討論量明顯高於它平常的水準（用穩健統計偵測，排除偶發雜訊）。"
+        />
+        <Stat value={launches} label="新發布" hint="HuggingFace / GitHub 上偵測到的模型新版釋出次數。" />
+        <Stat
+          value={`${heating}/${models.data.length}`}
+          label="模型升溫中"
+          hint="近 7 天討論量高於平常的模型數 / 監測模型總數。"
+        />
+      </div>
     </div>
   );
 }

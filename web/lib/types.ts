@@ -44,6 +44,20 @@ export interface DecideReport {
   generated_by: "data" | "llm";
 }
 
+export interface TrendPoint {
+  date: string; // ISO date (YYYY-MM-DD)
+  posts: number;
+  sentiment_index: number | null;
+}
+
+export interface ModelDetail extends ModelSummary {
+  trend_days: number;
+  trend: TrendPoint[];
+  events: DetectedEvent[];
+  top_discussions: { title: string; score: number; url: string | null; source: string }[];
+  releases: ReleaseEvent[];
+}
+
 export type EventType = "discussion_spike" | "launch" | "sentiment_flip";
 
 // 注意：命名為 DetectedEvent 以避開瀏覽器全域 Event 型別。
