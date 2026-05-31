@@ -132,6 +132,29 @@ async def crawl_twitter_to_db(limit: int = 30, keyword_only: bool = True) -> dic
     )
 
 
+async def crawl_threads_to_db(max_posts: int = 30, keyword_only: bool = True) -> dict[str, int]:
+    """
+    Threads（Selenium，best-effort 選配，需本機/容器 Chrome）→ posts。
+
+    缺 sessionid 不視為失敗：仍以未登入模式嘗試（多半抓很少），記 log。
+    Chrome 啟動失敗會丟例外 → 交給 DAG retry / 告警（與其他爬蟲一致）。
+    """
+    from api.config import settings
+    from crawlers.threads import crawl_threads
+
+    if not settings.threads_sessionid:
+        logger.warning("缺 Threads cookie（THREADS_SESSIONID），以未登入模式嘗試（資料可能很少）")
+
+    return await _crawl_posts_to_db(
+        crawl_threads(
+            max_posts=max_posts,
+            keyword_only=keyword_only,
+            sessionid=settings.threads_sessionid or None,
+        ),
+        label="threads",
+    )
+
+
 async def fetch_releases_to_db(source: str = "all") -> dict[str, int]:
     """
     HF Hub + GitHub Releases（免 key；GitHub 可選 GITHUB_TOKEN 提額度）→ release_events。

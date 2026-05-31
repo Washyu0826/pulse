@@ -31,6 +31,10 @@ class Settings(BaseSettings):
     x_ct0: str = ""
     x_username: str = ""
 
+    # Threads（選配 best-effort 來源，Selenium 爬，有登入牆）。從 threads.net DevTools →
+    # Application → Cookies 取 sessionid（與 Instagram 共用）；建議用次要帳號。缺則退化為未登入。
+    threads_sessionid: str = ""
+
     # Anthropic API
     anthropic_api_key: str = ""
 

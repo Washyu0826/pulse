@@ -6,6 +6,7 @@ requires-python = ">=3.11"
 dependencies = [
     "transformers>=4.36.0",
     "torch>=2.1.0",
+    "sentencepiece>=0.2.0",  # mDeBERTa-v3（主題分類 zero-shot）的 tokenizer 需要
     "sentence-transformers>=2.2.2",
     "bertopic>=0.16.0",
     "scikit-learn>=1.3.0",

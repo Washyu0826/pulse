@@ -9,5 +9,6 @@ from api.models.models import Model, PostModel
 from api.models.posts import Post
 from api.models.release import ReleaseEvent
 from api.models.sentiment import Sentiment
+from api.models.theme import Theme
 
-__all__ = ["Event", "Model", "Post", "PostModel", "ReleaseEvent", "Sentiment"]
+__all__ = ["Event", "Model", "Post", "PostModel", "ReleaseEvent", "Sentiment", "Theme"]

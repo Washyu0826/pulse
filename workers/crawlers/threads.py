@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import AsyncIterator, Iterable
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 from crawlers.keywords import match_models
@@ -23,9 +23,11 @@ __all__ = ["crawl_threads", "normalize_thread_post"]
 
 logger = logging.getLogger(__name__)
 
-# 預設用模型關鍵字當 search 查詢；threads.net 的 tag 搜尋頁。
-DEFAULT_QUERIES: tuple[str, ...] = ("claude", "gpt", "gemini", "llama", "deepseek")
-_SEARCH_URL = "https://www.threads.net/search?q={q}&serp_type=tags"
+# 預設用模型關鍵字當 search 查詢；Threads 的 tag 搜尋頁。
+# 註：Threads 2025 把主網域 threads.net → threads.com（cookie domain 也跟著變）。
+_DOMAIN = "threads.com"
+DEFAULT_QUERIES: tuple[str, ...] = ("claude", "gpt", "gemini", "grok", "llama", "deepseek")
+_SEARCH_URL = f"https://www.{_DOMAIN}/search?q={{q}}&serp_type=tags"
 _USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
     "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
@@ -36,8 +38,10 @@ def normalize_thread_post(raw: dict[str, Any]) -> dict:
     """把抓到的 Threads 貼文原始 dict 正規化成可 UPSERT 的 dict。純函式，可測。"""
     text = (raw.get("text") or "").strip()
     posted = raw.get("posted_at")
-    if posted is not None and not isinstance(posted, datetime):
-        posted = None
+    if not isinstance(posted, datetime):
+        # 抽不到 <time datetime> → fallback 用現在時間（抓取時間），避免必填 posted_at 缺漏被整批丟掉。
+        # 多數貼文都抽得到絕對時間；此 fallback 只兜底少數，不會大量污染時間序。
+        posted = datetime.now(UTC)
     return {
         "source": "threads",
         "external_id": raw.get("id"),  # 缺 id → None，upsert 必填防護會略過
@@ -58,10 +62,19 @@ def normalize_thread_post(raw: dict[str, Any]) -> dict:
 
 
 def _build_driver(headless: bool):
-    """建 Chrome WebDriver（Selenium Manager 自動下載 driver）。失敗給清楚訊息。"""
+    """
+    建 Chrome/Chromium WebDriver。失敗給清楚訊息。
+
+    本機：留空環境變數 → Selenium Manager 自動抓 driver（需裝 Chrome）。
+    容器（Airflow）：apt 裝的 chromium 無法上網下載 driver → 用環境變數指定：
+      CHROME_BIN=/usr/bin/chromium、CHROMEDRIVER_PATH=/usr/bin/chromedriver。
+    """
+    import os
+
     try:
         from selenium import webdriver
         from selenium.webdriver.chrome.options import Options
+        from selenium.webdriver.chrome.service import Service
     except ImportError as e:
         raise ImportError("需要 selenium：pip install selenium") from e
 
@@ -73,12 +86,34 @@ def _build_driver(headless: bool):
     opts.add_argument("--disable-blink-features=AutomationControlled")
     opts.add_argument(f"--user-agent={_USER_AGENT}")
     opts.add_argument("--window-size=1280,2000")
+    # 容器內用 apt 的 chromium：指定 binary 路徑（否則 Selenium 找不到瀏覽器）。
+    if chrome_bin := os.environ.get("CHROME_BIN"):
+        opts.binary_location = chrome_bin
+    # 有指定 driver 路徑就用它（容器內無網路下載 driver）；否則交給 Selenium Manager。
+    service = Service(executable_path=p) if (p := os.environ.get("CHROMEDRIVER_PATH")) else None
     try:
-        return webdriver.Chrome(options=opts)  # Selenium Manager 處理 driver
+        return webdriver.Chrome(options=opts, service=service)
     except Exception as e:  # noqa: BLE001
         raise RuntimeError(
             f"Chrome WebDriver 啟動失敗（檢查 Chrome 安裝 / driver / 網路）：{e}"
         ) from e
+
+
+def _inject_session(driver, sessionid: str) -> None:
+    """注入 Threads 登入 cookie（sessionid，與 Instagram 共用）以越過登入牆。
+
+    Selenium 規則：add_cookie 前必須先在「同網域」頁面上 → 先載入 threads.net 首頁再注入。
+    best-effort：失敗只記 log，不中斷（退化成未登入模式）。
+    """
+    try:
+        driver.get(f"https://www.{_DOMAIN}/")
+        driver.add_cookie(
+            {"name": "sessionid", "value": sessionid, "domain": f".{_DOMAIN}", "path": "/"}
+        )
+        driver.refresh()  # 重載讓 cookie 生效（套用登入狀態）
+        logger.info("已注入 Threads sessionid cookie（登入模式）")
+    except Exception:  # noqa: BLE001 — 注入失敗就退化成未登入，不該 crash
+        logger.exception("注入 Threads cookie 失敗，退化為未登入模式")
 
 
 def _extract_posts(driver, query: str, max_posts: int) -> list[dict]:
@@ -105,9 +140,23 @@ def _extract_posts(driver, query: str, max_posts: int) -> list[dict]:
                 author = (a.get_attribute("href") or "").rstrip("/").split("/@")[-1]
                 if author:
                     break
+            # 發文時間：Threads 每則貼文有 <time datetime="ISO">（相對顯示「1小時」，但屬性是絕對時間）。
+            # 抽不到就留 None，由 normalize 決定 fallback（避免整批因缺 posted_at 被丟掉）。
+            posted_at = None
+            for t in el.find_elements(By.CSS_SELECTOR, "time[datetime]"):
+                iso = t.get_attribute("datetime")
+                if iso:
+                    try:
+                        posted_at = datetime.fromisoformat(iso.replace("Z", "+00:00"))
+                    except ValueError:
+                        posted_at = None
+                    break
             # 長度門檻：濾掉只含作者名/按鈕的小卡片（best-effort 降噪）
             if pid and len(text.strip()) > 20:
-                out.append({"id": f"threads_{pid}", "text": text, "author": author, "url": link})
+                out.append({
+                    "id": f"threads_{pid}", "text": text, "author": author,
+                    "url": link, "posted_at": posted_at,
+                })
         except Exception:  # noqa: BLE001 — 單一容器解析失敗不該丟掉整批
             logger.debug("解析 Threads 容器失敗，跳過一則（query=%s）", query)
     return out
@@ -119,18 +168,21 @@ async def crawl_threads(
     headless: bool = True,
     scroll_times: int = 3,
     keyword_only: bool = True,
+    sessionid: str | None = None,
 ) -> AsyncIterator[dict]:
     """
     用 Selenium 載入 Threads 搜尋頁、捲動、抽取貼文，yield 正規化 dict。
 
-    ⚠️ 未登入時多半碰到登入牆 → 抓不到或很少（會記 log、不 crash）。
-    需要較完整資料時：在正常網路、或注入登入 cookie（之後可加 cookie 參數）。
+    sessionid：Threads 登入 cookie（與 Instagram 共用）。有給 → 注入後可越過登入牆、
+    抓到較完整資料；未給 → 多半碰到登入牆、抓不到或很少（會記 log、不 crash）。
     """
     import asyncio
 
     driver = await asyncio.to_thread(_build_driver, headless)
     seen: set[str] = set()
     try:
+        if sessionid:
+            await asyncio.to_thread(_inject_session, driver, sessionid)
         for query in queries:
             url = _SEARCH_URL.format(q=query)
             try:

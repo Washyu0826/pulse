@@ -47,9 +47,17 @@ def test_normalize_missing_id_is_none():
     assert row["external_id"] is None  # upsert 必填防護會略過
 
 
-def test_normalize_bad_posted_at_becomes_none():
+def test_normalize_bad_posted_at_falls_back_to_now():
+    # 抽不到/壞掉的時間 → fallback 現在時間（而非 None），避免必填 posted_at 缺漏被 upsert 整批丟掉。
     row = normalize_thread_post(_raw(posted_at="not-a-datetime"))
-    assert row["posted_at"] is None
+    assert isinstance(row["posted_at"], datetime)
+
+
+def test_normalize_valid_posted_at_preserved():
+    # 有合法絕對時間就原樣保留（不被 fallback 蓋掉）。
+    dt = datetime(2026, 5, 20, tzinfo=UTC)
+    row = normalize_thread_post(_raw(posted_at=dt))
+    assert row["posted_at"] == dt
 
 
 def test_normalize_null_counts_default_zero():

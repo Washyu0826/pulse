@@ -35,11 +35,21 @@ RUN python -m venv /opt/airflow/pulse-venv \
     "lingua-language-detector>=2.0.0" \
     "pydantic>=2.5.0" \
     "pydantic-settings>=2.1.0" \
+    "selenium>=4.20.0" \
     "tenacity>=8.2.0"
 
 # 額外根憑證（TLS 攔截環境用，見 workers/ca-certs/README.md）。把 .crt bundle 併進系統
 # 信任庫 → 容器內 truststore/httpx 信任攔截 proxy。無 .crt（正常網路）則 no-op。
 USER root
+# Threads 爬蟲（crawl_threads DAG）用：apt 裝 chromium + driver。瀏覽器重 → image 變大 ~400MB，
+# 只給選配的 Threads plugin 用。crawlers/threads.py 透過 CHROME_BIN/CHROMEDRIVER_PATH 找它們
+# （容器內無法上網讓 Selenium Manager 下載 driver）。不用 Threads 可整段移除以瘦身。
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends chromium chromium-driver \
+ && rm -rf /var/lib/apt/lists/*
+ENV CHROME_BIN=/usr/bin/chromium \
+    CHROMEDRIVER_PATH=/usr/bin/chromedriver
+
 COPY workers/ca-certs/ /tmp/pulse-ca/
 RUN if ls /tmp/pulse-ca/*.crt >/dev/null 2>&1; then \
         cat /tmp/pulse-ca/*.crt >> /etc/ssl/certs/ca-certificates.crt; \

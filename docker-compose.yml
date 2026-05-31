@@ -22,6 +22,8 @@ x-airflow-common: &airflow-common
     REDDIT_CLIENT_ID: ${REDDIT_CLIENT_ID:-}
     REDDIT_CLIENT_SECRET: ${REDDIT_CLIENT_SECRET:-}
     ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    # Threads 爬蟲 cookie（crawl_threads DAG 用，best-effort 選配；缺則未登入模式）。
+    THREADS_SESSIONID: ${THREADS_SESSIONID:-}
     SLACK_WEBHOOK_URL: ${SLACK_WEBHOOK_URL:-}
     # Slack 失敗告警：以 Airflow Variable 形式注入（callback best-effort 讀取，空值則略過）。
     AIRFLOW_VAR_SLACK_WEBHOOK_URL: ${SLACK_WEBHOOK_URL:-}
