@@ -1,8 +1,7 @@
 /**
- * Pulse 首頁（定位 C）—— 聚焦「每日實用情報」：三主題分區（新工具/使用方法/邊界），
- * 模型/情緒/來源/時間為篩選維度。底部保留精簡「依模型瀏覽」作為模型頁入口。
+ * Pulse 首頁（定位 C）—— 左側「依模型瀏覽」側欄 + 右側「每日實用情報」主區。
+ * 主區三主題分區（新工具/使用方法/邊界），模型/情緒/來源/時間為篩選維度。Hero 橫跨上方。
  *
- * 刻意精簡：事件流 / 最新發布等次要區塊不放首頁，避免資訊過載（定位 C）。
  * 篩選狀態走 URL searchParams（?model=&sentiment=&source=&days=）→ 可分享、可後退、無自帶狀態。
  */
 import { Suspense } from "react";
@@ -10,8 +9,7 @@ import { Suspense } from "react";
 import { FeedFilter } from "@/components/feed-filter";
 import { FeedSummary } from "@/components/feed-summary";
 import { HeroIntro } from "@/components/hero-intro";
-import { ModelBoard } from "@/components/model-board";
-import { Section } from "@/components/section";
+import { ModelRail } from "@/components/model-rail";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { ThemeFeed } from "@/components/theme-feed";
@@ -39,26 +37,30 @@ export default function HomePage({
   return (
     <>
       <SiteHeader />
-      <main className="mx-auto max-w-6xl space-y-16 px-6 py-12">
+      <main className="mx-auto max-w-6xl px-6 py-12">
         <HeroIntro />
 
-        <section>
-          <FeedFilter />
-          <Suspense key={`sum:${feedKey}`} fallback={<Skeleton className="h-14 w-full rounded-xl" />}>
-            <FeedSummary filters={filters} />
-          </Suspense>
-          <div className="mt-8">
-            <Suspense key={feedKey} fallback={<CardGridSkeleton count={6} cols={3} />}>
-              <ThemeFeed filters={filters} />
+        <div className="mt-12 grid gap-8 lg:grid-cols-[180px_1fr]">
+          {/* 左側欄：依模型瀏覽（sticky） */}
+          <aside className="h-fit lg:sticky lg:top-20">
+            <Suspense fallback={<Skeleton className="h-48 w-full rounded-lg" />}>
+              <ModelRail />
             </Suspense>
-          </div>
-        </section>
+          </aside>
 
-        <Section label="依模型瀏覽" description="想單看某個模型？點卡片進詳情頁。">
-          <Suspense fallback={<CardGridSkeleton count={6} cols={6} compact />}>
-            <ModelBoard />
-          </Suspense>
-        </Section>
+          {/* 右主區：每日實用情報 */}
+          <div>
+            <FeedFilter />
+            <Suspense key={`sum:${feedKey}`} fallback={<Skeleton className="h-14 w-full rounded-xl" />}>
+              <FeedSummary filters={filters} />
+            </Suspense>
+            <div className="mt-8">
+              <Suspense key={feedKey} fallback={<CardGridSkeleton count={6} cols={3} />}>
+                <ThemeFeed filters={filters} />
+              </Suspense>
+            </div>
+          </div>
+        </div>
       </main>
       <SiteFooter />
     </>
