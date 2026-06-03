@@ -66,7 +66,9 @@ export type Sentiment = "positive" | "neutral" | "negative";
 export interface FeedPost {
   id: number;
   title: string;
+  title_zh: string | null; // 繁中譯文（英文貼才有）
   snippet: string;
+  snippet_zh: string | null;
   source: string;
   url: string | null;
   models: string[];

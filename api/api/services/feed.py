@@ -15,6 +15,7 @@ from api.models.models import Model, PostModel
 from api.models.posts import Post
 from api.models.sentiment import Sentiment
 from api.models.theme import Theme
+from api.models.translation import Translation
 from api.services._quality import quality_post_filter
 
 # 實用情報的三大主題（不含「其他」）。順序＝首頁分區順序（新工具量最大擺第一）。
@@ -70,9 +71,11 @@ async def _query_theme(
             Post.id, Post.title, Post.content, Post.source,
             Post.url, Post.permalink, Post.posted_at, Post.score,
             Theme.confidence, Sentiment.label.label("sentiment"),
+            Translation.title_zh, Translation.snippet_zh,
         )
         .join(Theme, Theme.post_id == Post.id)
         .outerjoin(Sentiment, Sentiment.post_id == Post.id)
+        .outerjoin(Translation, Translation.post_id == Post.id)
         .where(Theme.confident.is_(True), Theme.label == label)
         .order_by(Post.posted_at.desc(), Post.id.desc())
         .limit(limit)
@@ -85,7 +88,9 @@ async def _query_theme(
         {
             "id": r.id,
             "title": _clean(r.title, 120),
+            "title_zh": _clean(r.title_zh, 120) or None,  # 繁中譯文（英文貼才有）
             "snippet": _clean(r.content, 160),
+            "snippet_zh": _clean(r.snippet_zh, 200) or None,
             "source": r.source,
             "url": r.permalink or r.url,
             "models": slugs.get(r.id, []),

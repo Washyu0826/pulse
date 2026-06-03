@@ -58,11 +58,15 @@ export function FeedCard({ post }: { post: FeedPost }) {
         </Badge>
       </div>
       <h3 className="mt-2.5 line-clamp-2 text-sm font-medium leading-snug text-ink">
-        {post.title}
+        {post.title_zh ?? post.title}
       </h3>
-      {post.snippet && post.snippet !== post.title && (
-        <p className="mt-1 line-clamp-2 text-[13px] leading-relaxed text-ink/55">
-          {post.snippet}
+      {/* 中英並列：有譯文時，原文以小字斜體列於下方對照 */}
+      {post.title_zh && (
+        <p className="mt-1 line-clamp-1 text-[11px] italic leading-snug text-ink/40">{post.title}</p>
+      )}
+      {(post.snippet_zh ?? post.snippet) && (post.snippet_zh ?? post.snippet) !== post.title && (
+        <p className="mt-1.5 line-clamp-2 text-[13px] leading-relaxed text-ink/55">
+          {post.snippet_zh ?? post.snippet}
         </p>
       )}
       {post.posted_at && (

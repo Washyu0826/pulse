@@ -15,7 +15,8 @@ dependencies = [
     "pandas>=2.1.0",
     "mlflow>=2.10.0",
     "jieba>=0.42.1",  # 中文斷詞（熱詞抽取）
-    "opencc-python-reimplemented>=0.1.7",  # 繁↔簡（熱詞斷詞前正規化）
+    "opencc-python-reimplemented>=0.1.7",  # 繁↔簡（熱詞斷詞 / 翻譯繁體化）
+    "httpx>=0.26.0",  # 呼叫本機 Ollama（英→繁中翻譯）
     "anthropic>=0.18.0",
     "truststore>=0.9.0",  # 用 OS 信任庫下載模型，避開企業 TLS 攔截
 ]
