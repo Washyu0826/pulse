@@ -12,11 +12,9 @@ export function Section({
 }) {
   return (
     <section>
-      <h2 className="font-mono text-xs font-medium uppercase tracking-[0.12em] text-white/55">
-        {label}
-      </h2>
-      {description && <p className="mt-1 mb-3 text-[13px] text-white/45">{description}</p>}
-      {!description && <div className="mb-3" />}
+      <h2 className="text-[17px] font-semibold tracking-tight text-white">{label}</h2>
+      {description && <p className="mt-1.5 mb-5 text-sm leading-relaxed text-white/45">{description}</p>}
+      {!description && <div className="mb-5" />}
       {children}
     </section>
   );

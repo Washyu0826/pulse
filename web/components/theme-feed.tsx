@@ -9,7 +9,7 @@ import type { FeedFilters } from "@/lib/types";
  * 依 filters（模型/情緒/來源/時間）收斂；模型/情緒/來源是篩選維度，主題是主軸。
  */
 export async function ThemeFeed({ filters }: { filters: FeedFilters }) {
-  const feed = await getFeed(filters, 6);
+  const feed = await getFeed(filters, 4);
   if (!feed.ok) {
     return <SectionStatus kind="error">無法載入情報，請確認 API 是否啟動</SectionStatus>;
   }
@@ -24,7 +24,7 @@ export async function ThemeFeed({ filters }: { filters: FeedFilters }) {
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-10">
       {THEME_ORDER.map((label) => {
         const posts = feed.data[label] ?? [];
         const meta = THEME_META[label];

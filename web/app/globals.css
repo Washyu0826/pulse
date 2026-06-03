@@ -35,9 +35,9 @@
 
 @layer components {
   .card {
-    @apply rounded-lg border border-border/60 bg-bg-card p-4 transition-colors duration-150;
+    @apply rounded-xl border border-border/45 bg-bg-card/70 p-5 transition-all duration-200;
   }
   .card-interactive {
-    @apply card hover:border-border hover:bg-bg-cardLight;
+    @apply card hover:-translate-y-0.5 hover:border-border hover:bg-bg-cardLight hover:shadow-lg hover:shadow-black/20;
   }
 }

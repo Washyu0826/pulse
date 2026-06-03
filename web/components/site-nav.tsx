@@ -14,7 +14,7 @@ const LINKS = [
 export function SiteNav() {
   const pathname = usePathname();
   return (
-    <nav className="flex items-center gap-1 font-mono text-xs uppercase tracking-widest">
+    <nav className="flex items-center gap-1 text-[13px]">
       {LINKS.map((l) => {
         // 「儀表板」在首頁與 /models/* 詳情頁都算 active（同一條探索動線）。
         const active =

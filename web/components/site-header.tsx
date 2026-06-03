@@ -14,7 +14,7 @@ export function SiteHeader() {
         <span className="hidden text-sm text-white/55 sm:inline">AI 工程師的每日情報秘書</span>
         <div className="ml-auto flex items-center gap-4">
           <SiteNav />
-          <span className="flex items-center gap-2 font-mono text-xs uppercase tracking-widest text-white/55">
+          <span className="flex items-center gap-1.5 text-xs text-white/45">
             <LiveDot />
             Live
           </span>
