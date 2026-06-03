@@ -24,13 +24,13 @@ const config: Config = {
         },
         // 2 色克制：冷墨(ink) + 單一藍 accent。cyan/pink 一律導向同色。
         accent: {
-          primary: "#2E86FF",  // 亮藍（唯一彩色 accent）
-          cyan: "#2E86FF",
-          pink: "#2E86FF",
+          primary: "#4D74EA",  // 寶藍（royal/sapphire，偏藍紫、調淡）（唯一彩色 accent）
+          cyan: "#4D74EA",
+          pink: "#4D74EA",
         },
-        // sentiment 也收進 2 色：正面=亮藍、其餘=冷灰深淺（不引入紅綠第三、四色）。
+        // sentiment 也收進 2 色：正面=寶藍、其餘=冷灰深淺（不引入紅綠第三、四色）。
         sentiment: {
-          positive: "#2E86FF",
+          positive: "#4D74EA",
           neutral: "#8A97AC",
           negative: "#5A6677",
         },
