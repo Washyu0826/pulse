@@ -7,7 +7,7 @@ import { SiteNav } from "@/components/site-nav";
 export function SiteHeader() {
   return (
     <header className="sticky top-0 z-40 border-b border-border/60 bg-bg/80 backdrop-blur-md">
-      <div className="mx-auto flex h-14 max-w-6xl items-center gap-3 px-6">
+      <div className="flex h-14 w-full items-center gap-3 px-6 lg:px-10 xl:px-16">
         <Link href="/" className="font-script text-[28px] font-bold leading-none text-accent-primary">
           Pulse
         </Link>

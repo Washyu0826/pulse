@@ -37,10 +37,10 @@ export default function HomePage({
   return (
     <>
       <SiteHeader />
-      <main className="mx-auto max-w-6xl px-6 py-12">
+      <main className="w-full px-6 py-12 lg:px-10 xl:px-16">
         <HeroIntro />
 
-        <div className="mt-12 grid gap-8 lg:grid-cols-[180px_1fr]">
+        <div className="mt-12 grid gap-10 lg:grid-cols-[210px_1fr]">
           {/* 左側欄：依模型瀏覽（sticky） */}
           <aside className="h-fit lg:sticky lg:top-20">
             <Suspense fallback={<Skeleton className="h-48 w-full rounded-lg" />}>
