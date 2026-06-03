@@ -10,7 +10,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from api.config import settings
-from api.routers import decide, events, health, metrics, models, releases
+from api.routers import decide, events, feed, health, metrics, models, releases
 
 
 @asynccontextmanager
@@ -52,6 +52,7 @@ app.add_middleware(
 # Routers
 app.include_router(health.router, prefix="/api", tags=["health"])
 app.include_router(models.router, prefix="/api", tags=["models"])
+app.include_router(feed.router, prefix="/api", tags=["feed"])
 app.include_router(releases.router, prefix="/api", tags=["releases"])
 app.include_router(events.router, prefix="/api", tags=["events"])
 app.include_router(decide.router, prefix="/api", tags=["decide"])
