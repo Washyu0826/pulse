@@ -41,3 +41,21 @@
     @apply card hover:-translate-y-0.5 hover:border-accent-primary/30 hover:shadow-md hover:shadow-ink/[0.06];
   }
 }
+
+/* ── 動效（尊重 prefers-reduced-motion，見上方 base 層）── */
+@keyframes pulse-beat {
+  0%, 35%, 100% { transform: scale(1); }
+  12% { transform: scale(1.14); }
+  24% { transform: scale(0.98); }
+}
+.animate-pulse-beat {
+  animation: pulse-beat 1.8s ease-in-out infinite;
+}
+
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-up {
+  animation: fade-up 0.55s cubic-bezier(0.16, 1, 0.3, 1) both;
+}

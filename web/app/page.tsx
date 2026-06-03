@@ -39,9 +39,11 @@ export default function HomePage({
     <>
       <SiteHeader />
       <main className="w-full px-6 py-12 lg:px-10 xl:px-16">
-        <HeroIntro />
+        <div className="animate-fade-up">
+          <HeroIntro />
+        </div>
 
-        <div className="mt-12 grid gap-10 lg:grid-cols-[190px_1fr] xl:grid-cols-[190px_1fr_230px]">
+        <div className="animate-fade-up mt-12 grid gap-10 lg:grid-cols-[190px_1fr] xl:grid-cols-[190px_1fr_230px] [animation-delay:120ms]">
           {/* 左側欄：依模型瀏覽（sticky） */}
           <aside className="h-fit lg:sticky lg:top-20">
             <Suspense fallback={<Skeleton className="h-48 w-full rounded-lg" />}>

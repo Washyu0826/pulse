@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 export function Logo({ className, markOnly = false }: { className?: string; markOnly?: boolean }) {
   return (
     <span className={cn("inline-flex items-center gap-2", className)}>
-      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-accent-primary shadow-sm shadow-accent-primary/30">
+      <span className="animate-pulse-beat flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-accent-primary shadow-sm shadow-accent-primary/30">
         <svg
           viewBox="0 0 24 24"
           className="h-[18px] w-[18px]"
