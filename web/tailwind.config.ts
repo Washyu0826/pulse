@@ -25,13 +25,13 @@ const config: Config = {
         // 2 色克制：暖墨(ink) + 單一陶土 accent。cyan/pink 一律導向同色，
         // 確保任何殘留引用都不破壞「2 色」原則。
         accent: {
-          primary: "#B5654A",  // 暖陶土（唯一彩色 accent）
-          cyan: "#B5654A",
-          pink: "#B5654A",
+          primary: "#A4632B",  // 赭石（唯一彩色 accent）
+          cyan: "#A4632B",
+          pink: "#A4632B",
         },
-        // sentiment 也收進 2 色：正面=陶土、其餘=暖墨深淺（不引入紅綠第三、四色）。
+        // sentiment 也收進 2 色：正面=赭石、其餘=暖墨深淺（不引入紅綠第三、四色）。
         sentiment: {
-          positive: "#B5654A",
+          positive: "#A4632B",
           neutral: "#9C9484",
           negative: "#6B6457",
         },
