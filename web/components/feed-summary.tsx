@@ -1,22 +1,23 @@
-import { THEME_ORDER } from "@/components/theme-feed";
+import { THEME_META, THEME_ORDER } from "@/components/theme-meta";
 import { getFeedSummary } from "@/lib/api";
 import type { FeedFilters } from "@/lib/types";
-
-const ICON: Record<string, string> = { 新工具: "🆕", 使用方法: "🛠️", 邊界: "🚧" };
 
 /** 今日摘要列：各主題在當前篩選下的貼文數（自帶 fetch）。 */
 export async function FeedSummary({ filters }: { filters: FeedFilters }) {
   const summary = await getFeedSummary(filters);
   if (!summary.ok) return null; // 摘要列非關鍵，失敗就不顯示
   return (
-    <div className="flex flex-wrap items-center gap-x-5 gap-y-2 rounded-lg border border-border/60 bg-white/[0.02] px-4 py-3">
-      {THEME_ORDER.map((t) => (
-        <div key={t} className="flex items-baseline gap-1.5">
-          <span aria-hidden>{ICON[t]}</span>
-          <span className="text-[13px] text-white/55">{t}</span>
-          <span className="font-mono text-sm font-semibold text-white">{summary.data[t] ?? 0}</span>
-        </div>
-      ))}
+    <div className="flex flex-wrap items-center gap-x-6 gap-y-2 rounded-lg border border-border/60 bg-bg-card/40 px-4 py-3">
+      {THEME_ORDER.map((t) => {
+        const m = THEME_META[t];
+        return (
+          <div key={t} className="flex items-center gap-1.5">
+            <m.Icon className={`h-3.5 w-3.5 ${m.text}`} />
+            <span className="text-[13px] text-white/55">{t}</span>
+            <span className="font-mono text-sm font-semibold text-white">{summary.data[t] ?? 0}</span>
+          </div>
+        );
+      })}
       <span className="ml-auto text-[12px] text-white/35">來自 HN / Dev.to / 🌏 Threads</span>
     </div>
   );

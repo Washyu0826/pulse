@@ -1,55 +1,47 @@
-import { Activity, GitCompare, MessagesSquare } from "lucide-react";
+import { THEME_META, THEME_ORDER } from "@/components/theme-meta";
 
-/** 首頁開場：一句價值主張 + 它跟 HN 差在哪 + 三項能力（5 秒看懂這是什麼、為何有用）。 */
+/**
+ * 首頁開場（定位 C）：一句價值主張 + 跟電子報差在哪 + 三主題（5 秒看懂這是什麼、為何有用）。
+ */
 export function HeroIntro() {
   return (
     <section className="border-b border-border/60 pb-8">
-      <h1 className="text-xl font-semibold tracking-tight text-white sm:text-2xl">
-        AI 模型口碑與動態，一眼掌握
+      <h1 className="text-xl font-semibold tracking-tight text-white sm:text-[26px] sm:leading-tight">
+        每天的 AI 實用情報，<span className="text-accent-primary">一頁掌握</span>
       </h1>
-      <p className="mt-2 max-w-2xl text-sm leading-relaxed text-white/65">
-        自動爬梳技術社群對 6 大模型的討論，做
-        <span className="text-white/85">品質過濾 → 情緒分析 → 事件偵測</span>。
+      <p className="mt-2.5 max-w-2xl text-sm leading-relaxed text-white/65">
+        自動爬梳技術社群與
+        <span className="text-accent-cyan">中文 Threads</span>，把大家正在討論的整理成三類：
+        <span className="text-white/85">新工具、怎麼用、要注意的坑</span>。
       </p>
-      <p className="mt-2 max-w-2xl text-[13px] text-white/45">
-        不只讚數：<span className="text-white/60">口碑指數、自動事件、跨來源彙總、決策報告</span>。
+      <p className="mt-1.5 max-w-2xl text-[13px] leading-relaxed text-white/45">
+        過濾雜訊、可依模型與情緒篩選 —— 不是電子報塞給你，是
+        <span className="text-white/65">能查的結構化情報</span>。
       </p>
 
       <ul className="mt-5 grid gap-3 sm:grid-cols-3">
-        <FeatureItem icon={<MessagesSquare className="h-4 w-4 text-accent-primary" />} title="口碑指數">
-          情緒分析聚合成 −100~100 好評淨值。
-        </FeatureItem>
-        <FeatureItem icon={<Activity className="h-4 w-4 text-sentiment-neutral" />} title="自動偵測事件">
-          討論突增、新版發布、口碑翻轉自動挑出。
-        </FeatureItem>
-        <FeatureItem icon={<GitCompare className="h-4 w-4 text-accent-cyan" />} title="資料驅動決策">
-          用真實數據比較模型、給選型建議。
-        </FeatureItem>
+        {THEME_ORDER.map((label) => {
+          const m = THEME_META[label];
+          return (
+            <li
+              key={label}
+              className="rounded-lg border border-border/50 bg-bg-card/50 p-3.5 transition-colors hover:border-border"
+            >
+              <div className="flex items-center gap-2">
+                <span className={`flex h-7 w-7 items-center justify-center rounded-md ${m.bg} ${m.text}`}>
+                  <m.Icon className="h-4 w-4" />
+                </span>
+                <span className="text-sm font-medium text-white/90">{label}</span>
+              </div>
+              <p className="mt-2 text-[12px] leading-relaxed text-white/50">{m.blurb}</p>
+            </li>
+          );
+        })}
       </ul>
 
       <p className="mt-5 font-mono text-xs text-white/40">
-        6 模型 · 5 來源 · 約 5,000 篇討論 · 近 30 天
+        6 模型 · HN / Dev.to / <span className="text-accent-cyan/70">🌏 中文 Threads</span> · 約 5,000 篇 · 過濾雜訊後
       </p>
     </section>
-  );
-}
-
-function FeatureItem({
-  icon,
-  title,
-  children,
-}: {
-  icon: React.ReactNode;
-  title: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <li className="rounded-lg border border-border/50 bg-bg-card/50 p-3">
-      <div className="flex items-center gap-2">
-        {icon}
-        <span className="text-[13px] font-medium text-white/90">{title}</span>
-      </div>
-      <p className="mt-1.5 text-[12px] leading-relaxed text-white/50">{children}</p>
-    </li>
   );
 }

@@ -1,15 +1,8 @@
 import { FeedCard } from "@/components/feed-card";
 import { SectionStatus } from "@/components/section-status";
+import { THEME_META, THEME_ORDER } from "@/components/theme-meta";
 import { getFeed } from "@/lib/api";
 import type { FeedFilters } from "@/lib/types";
-
-// 三大實用主題的呈現順序與外觀（新工具量最大擺第一）。
-export const THEME_ORDER = ["新工具", "使用方法", "邊界"] as const;
-const THEME_META: Record<string, { icon: string; blurb: string }> = {
-  新工具: { icon: "🆕", blurb: "新發表的 AI 工具、模型、產品" },
-  使用方法: { icon: "🛠️", blurb: "提示技巧、教學、工作流、use case" },
-  邊界: { icon: "🚧", blurb: "限制、風險、要注意的坑" },
-};
 
 /**
  * 每日實用情報三主題分區（定位 C 門面，自帶 fetch，Suspense 內串流）。
@@ -37,17 +30,20 @@ export async function ThemeFeed({ filters }: { filters: FeedFilters }) {
         const meta = THEME_META[label];
         return (
           <section key={label}>
-            <div className="mb-3 flex items-baseline gap-2">
-              <h3 className="text-base font-semibold text-white">
-                <span aria-hidden className="mr-1">
-                  {meta.icon}
-                </span>
-                {label}
-              </h3>
-              <span className="text-[13px] text-white/40">{meta.blurb}</span>
+            <div className="mb-3.5 flex items-center gap-2.5">
+              <span
+                className={`flex h-7 w-7 items-center justify-center rounded-md ring-1 ${meta.bg} ${meta.text} ${meta.ring}`}
+              >
+                <meta.Icon className="h-4 w-4" />
+              </span>
+              <h3 className="text-base font-semibold text-white">{label}</h3>
+              <span className="hidden text-[13px] text-white/40 sm:inline">{meta.blurb}</span>
+              <span className="ml-auto font-mono text-xs text-white/35">{posts.length}</span>
             </div>
             {posts.length === 0 ? (
-              <p className="text-[13px] text-white/35">這個條件下這類沒有新內容。</p>
+              <p className="rounded-lg border border-dashed border-border/50 px-4 py-5 text-center text-[13px] text-white/35">
+                這個條件下這類沒有新內容。
+              </p>
             ) : (
               <div className="grid gap-3 md:grid-cols-2">
                 {posts.map((p) => (

@@ -31,7 +31,7 @@ function SentimentDot({ s }: { s: Sentiment | null }) {
 export function FeedCard({ post }: { post: FeedPost }) {
   const src = SOURCE_META[post.source] ?? { label: post.source };
   const body = (
-    <div className="card h-full">
+    <div className="card-interactive h-full">
       <div className="flex items-center gap-1.5">
         <SentimentDot s={post.sentiment} />
         {post.models.map((m) => (
@@ -61,12 +61,7 @@ export function FeedCard({ post }: { post: FeedPost }) {
 
   // 有原文連結 → 整卡可點（新分頁開啟，不奪走站內導覽）。
   return post.url ? (
-    <a
-      href={post.url}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="block transition-opacity hover:opacity-80"
-    >
+    <a href={post.url} target="_blank" rel="noopener noreferrer" className="block">
       {body}
     </a>
   ) : (
