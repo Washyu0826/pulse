@@ -132,12 +132,17 @@ async def crawl_twitter_to_db(limit: int = 30, keyword_only: bool = True) -> dic
     )
 
 
-async def crawl_threads_to_db(max_posts: int = 30, keyword_only: bool = True) -> dict[str, int]:
+async def crawl_threads_to_db(
+    max_posts: int = 30, scroll_times: int = 5, keyword_only: bool = True
+) -> dict[str, int]:
     """
     Threads（Selenium，best-effort 選配，需本機/容器 Chrome）→ posts。
 
     缺 sessionid 不視為失敗：仍以未登入模式嘗試（多半抓很少），記 log。
     Chrome 啟動失敗會丟例外 → 交給 DAG retry / 告警（與其他爬蟲一致）。
+
+    每日目標 ~100 篇：6 個模型查詢 × max_posts，scroll_times 控制每查詢載入量。
+    注意：scroll 太高（>~6）易觸發 Threads 反爬限流（曾見 gemini/grok 查詢失敗），故取中庸值。
     """
     from api.config import settings
     from crawlers.threads import crawl_threads
@@ -148,6 +153,7 @@ async def crawl_threads_to_db(max_posts: int = 30, keyword_only: bool = True) ->
     return await _crawl_posts_to_db(
         crawl_threads(
             max_posts=max_posts,
+            scroll_times=scroll_times,
             keyword_only=keyword_only,
             sessionid=settings.threads_sessionid or None,
         ),

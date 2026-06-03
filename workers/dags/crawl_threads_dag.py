@@ -36,7 +36,9 @@ def crawl_threads_dag():
 
         from pipeline.crawl import crawl_threads_to_db
 
-        return asyncio.run(crawl_threads_to_db(max_posts=30))
+        # 每日目標 ~100 篇：6 模型查詢 × 40 上限、scroll 5（中庸值，避免觸發反爬限流）。
+        # 去重 + 關鍵字過濾後實得通常 60~100；Threads 反爬下「每天剛好 100」屬 best-effort。
+        return asyncio.run(crawl_threads_to_db(max_posts=40, scroll_times=5))
 
     crawl_and_upsert()
 
