@@ -26,7 +26,13 @@ logger = logging.getLogger(__name__)
 # 預設用模型關鍵字當 search 查詢；Threads 的 tag 搜尋頁。
 # 註：Threads 2025 把主網域 threads.net → threads.com（cookie domain 也跟著變）。
 _DOMAIN = "threads.com"
-DEFAULT_QUERIES: tuple[str, ...] = ("claude", "gpt", "gemini", "grok", "llama", "deepseek")
+# 擴大查詢以提高每日新貼產量：6 模型 + 別名 + 熱門相關詞（tag 搜尋）。
+# keyword_only 仍會把「沒提到 6 模型」的貼擋掉，故這些主要是「更多入口」找到提及模型的貼。
+DEFAULT_QUERIES: tuple[str, ...] = (
+    "claude", "claude code", "chatgpt", "gpt", "openai", "anthropic",
+    "gemini", "grok", "llama", "deepseek",
+    "copilot", "cursor", "perplexity", "ai agent", "提示詞", "ai工具",
+)
 _SEARCH_URL = f"https://www.{_DOMAIN}/search?q={{q}}&serp_type=tags"
 _USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
