@@ -54,3 +54,4 @@ mlruns/
 
 # OS
 Thumbs.db
+scripts/daily_refresh.log
