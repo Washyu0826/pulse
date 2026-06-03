@@ -10,5 +10,8 @@ from api.models.posts import Post
 from api.models.release import ReleaseEvent
 from api.models.sentiment import Sentiment
 from api.models.theme import Theme
+from api.models.trending import TrendingKeyword
 
-__all__ = ["Event", "Model", "Post", "PostModel", "ReleaseEvent", "Sentiment", "Theme"]
+__all__ = [
+    "Event", "Model", "Post", "PostModel", "ReleaseEvent", "Sentiment", "Theme", "TrendingKeyword",
+]

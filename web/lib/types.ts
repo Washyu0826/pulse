@@ -82,6 +82,13 @@ export type FeedThemes = Record<string, FeedPost[]>;
 // /api/feed/summary 回傳：{ 主題: 計數 }
 export type FeedSummary = Record<string, number>;
 
+export interface TrendingKeyword {
+  term: string;
+  rank: number;
+  z: number;
+  recent_count: number;
+}
+
 export interface FeedFilters {
   model?: string;
   sentiment?: Sentiment;

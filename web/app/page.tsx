@@ -13,6 +13,7 @@ import { ModelRail } from "@/components/model-rail";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { ThemeFeed } from "@/components/theme-feed";
+import { TrendingPanel } from "@/components/trending-panel";
 import { CardGridSkeleton, Skeleton } from "@/components/ui/skeleton";
 import type { FeedFilters, Sentiment } from "@/lib/types";
 
@@ -23,7 +24,7 @@ export default function HomePage({
 }: {
   searchParams: { model?: string; sentiment?: string; source?: string; days?: string };
 }) {
-  const days = Number(searchParams.days) || 30;
+  const days = Number(searchParams.days) || 1; // 預設只看今日（滾動視窗）
   const filters: FeedFilters = {
     model: searchParams.model || undefined,
     sentiment: SENTIMENTS.includes(searchParams.sentiment as Sentiment)
@@ -40,7 +41,7 @@ export default function HomePage({
       <main className="w-full px-6 py-12 lg:px-10 xl:px-16">
         <HeroIntro />
 
-        <div className="mt-12 grid gap-10 lg:grid-cols-[210px_1fr]">
+        <div className="mt-12 grid gap-10 lg:grid-cols-[190px_1fr] xl:grid-cols-[190px_1fr_230px]">
           {/* 左側欄：依模型瀏覽（sticky） */}
           <aside className="h-fit lg:sticky lg:top-20">
             <Suspense fallback={<Skeleton className="h-48 w-full rounded-lg" />}>
@@ -48,8 +49,8 @@ export default function HomePage({
             </Suspense>
           </aside>
 
-          {/* 右主區：每日實用情報 */}
-          <div>
+          {/* 中間主區：每日實用情報 */}
+          <div className="min-w-0">
             <FeedFilter />
             <Suspense key={`sum:${feedKey}`} fallback={<Skeleton className="h-14 w-full rounded-xl" />}>
               <FeedSummary filters={filters} />
@@ -60,6 +61,13 @@ export default function HomePage({
               </Suspense>
             </div>
           </div>
+
+          {/* 右側欄：本週熱詞（sticky；窄螢幕移到下方） */}
+          <aside className="h-fit lg:col-span-2 lg:sticky lg:top-20 xl:col-span-1">
+            <Suspense fallback={<Skeleton className="h-64 w-full rounded-lg" />}>
+              <TrendingPanel />
+            </Suspense>
+          </aside>
         </div>
       </main>
       <SiteFooter />

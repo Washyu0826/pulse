@@ -9,6 +9,7 @@ import type {
   ModelDetail,
   ModelSummary,
   ReleaseEvent,
+  TrendingKeyword,
 } from "@/lib/types";
 
 // 真正的 result type：失敗分支不帶 data，TS 會強制呼叫端先檢查 ok 才能用 data。
@@ -83,6 +84,11 @@ export async function getFeedSummary(filters?: FeedFilters): Promise<ApiResult<F
     console.error("[api] /api/feed/summary fetch failed", err);
     return { ok: false, error: String(err) };
   }
+}
+
+/** 本週熱詞榜（log-odds 趨勢）。 */
+export function getTrending(limit = 15): Promise<ApiResult<TrendingKeyword[]>> {
+  return fetchArray<TrendingKeyword>(`/api/trending?limit=${limit}`);
 }
 
 type ReleaseSourceFilter = "huggingface" | "github";

@@ -1,3 +1,4 @@
+import { FavoriteButton } from "@/components/favorite-button";
 import { Badge } from "@/components/ui/badge";
 import { relativeTime } from "@/lib/time";
 import type { FeedPost, Sentiment } from "@/lib/types";
@@ -27,12 +28,25 @@ function SentimentDot({ s }: { s: Sentiment | null }) {
   return <span title={`情緒：${d.word}`} className={`h-2 w-2 shrink-0 rounded-full ${d.cls}`} />;
 }
 
-/** 單則實用情報卡片（純展示，Server Component）。 */
+/**
+ * 單則實用情報卡片。整卡可點（stretched link 開原文）+ 右上角收藏愛心（client，浮在連結之上）。
+ */
 export function FeedCard({ post }: { post: FeedPost }) {
   const src = SOURCE_META[post.source] ?? { label: post.source };
-  const body = (
-    <div className="card-interactive h-full">
-      <div className="flex items-center gap-1.5">
+  return (
+    <div className="card-interactive relative h-full">
+      {/* 整卡可點：覆蓋全卡的隱形連結（最愛按鈕 z 較高、不被它蓋住）。 */}
+      {post.url && (
+        <a
+          href={post.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label={post.title}
+          className="absolute inset-0 z-0 rounded-xl"
+        />
+      )}
+      <FavoriteButton post={post} className="absolute right-2.5 top-2.5 z-10" />
+      <div className="flex items-center gap-1.5 pr-7">
         <SentimentDot s={post.sentiment} />
         {post.models.map((m) => (
           <Badge key={m} variant="accent">
@@ -42,11 +56,6 @@ export function FeedCard({ post }: { post: FeedPost }) {
         <Badge variant={src.local ? "cyan" : "neutral"}>
           {src.local ? `🌏 ${src.label}` : src.label}
         </Badge>
-        {post.posted_at && (
-          <time className="ml-auto shrink-0 font-mono text-xs text-ink/45">
-            {relativeTime(post.posted_at)}
-          </time>
-        )}
       </div>
       <h3 className="mt-2.5 line-clamp-2 text-sm font-medium leading-snug text-ink">
         {post.title}
@@ -56,15 +65,11 @@ export function FeedCard({ post }: { post: FeedPost }) {
           {post.snippet}
         </p>
       )}
+      {post.posted_at && (
+        <time className="mt-2 block font-mono text-[11px] text-ink/40">
+          {relativeTime(post.posted_at)}
+        </time>
+      )}
     </div>
-  );
-
-  // 有原文連結 → 整卡可點（新分頁開啟，不奪走站內導覽）。
-  return post.url ? (
-    <a href={post.url} target="_blank" rel="noopener noreferrer" className="block">
-      {body}
-    </a>
-  ) : (
-    body
   );
 }

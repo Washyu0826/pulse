@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.database import get_db
 from api.services.feed import get_feed, get_feed_summary
+from api.services.trending import get_trending
 
 router = APIRouter()
 
@@ -35,6 +36,15 @@ async def feed(
         db, model=model, sentiment=sentiment, source=source,
         days=days, limit_per_theme=limit_per_theme, theme=theme,
     )
+
+
+@router.get("/trending")
+async def trending(
+    limit: int = Query(15, ge=1, le=50, description="取前幾名熱詞"),
+    db: AsyncSession = Depends(get_db),
+) -> list[dict[str, Any]]:
+    """本週熱詞榜（近期 vs 基線的 log-odds 趨勢，由 backfill_keywords 預算）。"""
+    return await get_trending(db, limit)
 
 
 @router.get("/feed/summary")

@@ -25,7 +25,8 @@ const SOURCES = [
   { value: "threads", label: "🌏 Threads" },
 ];
 const DAYS = [
-  { value: "7", label: "近 7 天" },
+  { value: "1", label: "今日" },
+  { value: "7", label: "本週" },
   { value: "30", label: "近 30 天" },
   { value: "90", label: "近 90 天" },
 ];
@@ -84,7 +85,7 @@ export function FeedFilter() {
       <div className="ml-auto flex flex-wrap items-center gap-x-3 gap-y-2 text-[12px] text-ink/50">
         <label className="flex items-center gap-1.5">情緒{select("sentiment", SENTIMENTS)}</label>
         <label className="flex items-center gap-1.5">來源{select("source", SOURCES)}</label>
-        <label className="flex items-center gap-1.5">時間{select("days", DAYS, "30")}</label>
+        <label className="flex items-center gap-1.5">時間{select("days", DAYS, "1")}</label>
       </div>
     </div>
   );
