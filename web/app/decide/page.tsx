@@ -18,35 +18,35 @@ const MODELS = [
 ];
 
 function sentClass(idx: number | null): string {
-  if (idx == null) return "text-white/45";
-  return idx > 10 ? "text-sentiment-positive" : idx < -10 ? "text-sentiment-negative" : "text-white/60";
+  if (idx == null) return "text-ink/45";
+  return idx > 10 ? "text-sentiment-positive" : idx < -10 ? "text-sentiment-negative" : "text-ink/60";
 }
 
 function ModelRow({ m, winner }: { m: DecideModel; winner: string | null }) {
   return (
     <div className={`card ${m.slug === winner ? "border-accent-primary/50" : ""}`}>
       <div className="flex items-center gap-2">
-        <span className="font-medium text-white">{m.name}</span>
+        <span className="font-medium text-ink">{m.name}</span>
         {m.slug === winner && <Badge variant="accent">推薦</Badge>}
         <span className={`ml-auto font-mono text-sm ${sentClass(m.sentiment_index)}`}>
           口碑 {m.sentiment_index == null ? "—" : m.sentiment_index > 0 ? `+${m.sentiment_index}` : m.sentiment_index}
         </span>
       </div>
-      <div className="mt-1 font-mono text-xs text-white/45">
+      <div className="mt-1 font-mono text-xs text-ink/45">
         累計討論 {m.posts_total.toLocaleString()} · 近 7 天 {m.posts_recent}
       </div>
       {m.top_discussions.length > 0 && (
         <ul className="mt-2 space-y-1">
           {m.top_discussions.map((d, i) => (
-            <li key={i} className="truncate text-[13px] text-white/60">
+            <li key={i} className="truncate text-[13px] text-ink/60">
               {d.url ? (
-                <a href={d.url} target="_blank" rel="noopener noreferrer" className="hover:text-white">
+                <a href={d.url} target="_blank" rel="noopener noreferrer" className="hover:text-ink">
                   {d.title}
                 </a>
               ) : (
                 d.title
               )}
-              <span className="ml-1 font-mono text-white/35">({d.score})</span>
+              <span className="ml-1 font-mono text-ink/35">({d.score})</span>
             </li>
           ))}
         </ul>
@@ -71,9 +71,9 @@ export default async function DecidePage({
       <SiteHeader />
       <main className="mx-auto max-w-3xl space-y-8 px-6 py-10">
         <div>
-          <h1 className="text-xl font-semibold tracking-tight text-white sm:text-2xl">決策報告</h1>
-          <p className="mt-2 text-sm leading-relaxed text-white/60">
-            選要比較的模型 + 議題，Pulse 用<span className="text-white/85">真實討論數據</span>
+          <h1 className="text-xl font-semibold tracking-tight text-ink sm:text-2xl">決策報告</h1>
+          <p className="mt-2 text-sm leading-relaxed text-ink/60">
+            選要比較的模型 + 議題，Pulse 用<span className="text-ink/85">真實討論數據</span>
             （口碑、討論量、熱門討論）給你有證據的選型建議 —— 不是 LLM 空想。
           </p>
         </div>
@@ -81,7 +81,7 @@ export default async function DecidePage({
         <form method="get" className="card space-y-4">
           <div className="flex flex-wrap gap-x-4 gap-y-2">
             {MODELS.map((m) => (
-              <label key={m.slug} className="flex items-center gap-1.5 text-sm text-white/70">
+              <label key={m.slug} className="flex items-center gap-1.5 text-sm text-ink/70">
                 <input
                   type="checkbox"
                   name="models"
@@ -98,11 +98,11 @@ export default async function DecidePage({
               name="topic"
               defaultValue={topic}
               placeholder="議題關鍵字（選填），例：coding agent"
-              className="flex-1 rounded-md border border-border bg-bg px-3 py-1.5 text-sm text-white placeholder:text-white/30"
+              className="flex-1 rounded-md border border-border bg-bg px-3 py-1.5 text-sm text-ink placeholder:text-ink/30"
             />
             <button
               type="submit"
-              className="rounded-md bg-accent-primary px-4 py-1.5 text-sm font-medium text-white transition-colors hover:bg-accent-primary/90"
+              className="rounded-md bg-accent-primary px-4 py-1.5 text-sm font-medium text-ink transition-colors hover:bg-accent-primary/90"
             >
               比較
             </button>
@@ -115,19 +115,19 @@ export default async function DecidePage({
               無法產生報告，請確認 API 是否啟動。
             </div>
           ) : report.data.models.length === 0 ? (
-            <div className="card text-center text-sm text-white/55">查無指定的模型。</div>
+            <div className="card text-center text-sm text-ink/55">查無指定的模型。</div>
           ) : (
             <div className="space-y-3">
               <div className="rounded-lg border border-accent-primary/40 bg-accent-primary/5 p-4">
                 <div className="mb-1 font-mono text-xs uppercase tracking-widest text-accent-primary">
                   建議
                 </div>
-                <p className="whitespace-pre-wrap text-sm leading-relaxed text-white/85">
+                <p className="whitespace-pre-wrap text-sm leading-relaxed text-ink/85">
                   {report.data.generated_by === "llm"
                     ? report.data.summary
                     : report.data.recommendation.reason}
                 </p>
-                <p className="mt-2 font-mono text-[11px] text-white/40">
+                <p className="mt-2 font-mono text-[11px] text-ink/40">
                   來源：{report.data.generated_by === "llm" ? "LLM 合成" : "資料驅動"} ·{" "}
                   {report.data.models.length} 模型比較
                 </p>

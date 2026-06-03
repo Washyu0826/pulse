@@ -27,12 +27,12 @@ export function ReleaseCard({ ev }: { ev: ReleaseEvent }) {
         </Badge>
         {ev.model && <Badge variant="accent">{ev.model}</Badge>}
         {ev.version && <Badge variant="cyan">{ev.version}</Badge>}
-        <time className="ml-auto shrink-0 font-mono text-xs text-white/45">
+        <time className="ml-auto shrink-0 font-mono text-xs text-ink/45">
           {relativeTime(ev.published_at)}
         </time>
       </div>
-      <h3 className="mt-2.5 truncate text-sm font-medium text-white">{ev.title}</h3>
-      <p className="mt-1 truncate font-mono text-xs text-white/45">{ev.repo}</p>
+      <h3 className="mt-2.5 truncate text-sm font-medium text-ink">{ev.title}</h3>
+      <p className="mt-1 truncate font-mono text-xs text-ink/45">{ev.repo}</p>
     </a>
   );
 }

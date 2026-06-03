@@ -4,11 +4,11 @@
 
 @layer base {
   :root {
-    color-scheme: dark;
+    color-scheme: light;
   }
 
   body {
-    @apply bg-bg text-white;
+    @apply bg-bg text-ink;
   }
 
   /* 互動元素的 focus-visible ring（a11y）—— 只套在可聚焦元素，不全域 */
@@ -35,9 +35,9 @@
 
 @layer components {
   .card {
-    @apply rounded-xl border border-border/45 bg-bg-card/70 p-5 transition-all duration-200;
+    @apply rounded-xl border border-border bg-bg-card p-5 shadow-sm shadow-ink/[0.03] transition-all duration-200;
   }
   .card-interactive {
-    @apply card hover:-translate-y-0.5 hover:border-border hover:bg-bg-cardLight hover:shadow-lg hover:shadow-black/20;
+    @apply card hover:-translate-y-0.5 hover:border-accent-primary/30 hover:shadow-md hover:shadow-ink/[0.06];
   }
 }

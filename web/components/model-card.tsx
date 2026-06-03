@@ -4,7 +4,7 @@ import { ArrowRight } from "lucide-react";
 import type { ModelSummary } from "@/lib/types";
 
 function sentimentClass(idx: number): string {
-  return idx > 10 ? "text-sentiment-positive" : idx < -10 ? "text-sentiment-negative" : "text-white/55";
+  return idx > 10 ? "text-sentiment-positive" : idx < -10 ? "text-sentiment-negative" : "text-ink/55";
 }
 
 /** 單一模型卡：累計討論數 + 口碑指數 + 近 7 天 + 發布數。整張可點 → 模型詳情頁。 */
@@ -23,10 +23,10 @@ export function ModelCard({ m }: { m: ModelSummary }) {
           className="absolute right-3 top-3 h-1.5 w-1.5 rounded-full bg-sentiment-neutral shadow-[0_0_6px_theme(colors.sentiment.neutral)]"
         />
       )}
-      <div className="truncate text-xs font-medium text-white/60">{m.name}</div>
+      <div className="truncate text-xs font-medium text-ink/60">{m.name}</div>
       <div
         title="累計討論貼文數"
-        className="mt-2 font-mono text-2xl font-semibold tabular-nums tracking-tight text-white"
+        className="mt-2 font-mono text-2xl font-semibold tabular-nums tracking-tight text-ink"
       >
         {m.posts_total.toLocaleString()}
       </div>
@@ -41,10 +41,10 @@ export function ModelCard({ m }: { m: ModelSummary }) {
       )}
       <div className="mt-1.5 flex items-center gap-2 font-mono text-[11px]">
         {m.posts_recent > 0 && <span className="text-sentiment-positive">+{m.posts_recent}</span>}
-        <span className="text-white/45">近7天</span>
-        <span className="ml-auto text-white/45">{m.releases_total} 發布</span>
+        <span className="text-ink/45">近7天</span>
+        <span className="ml-auto text-ink/45">{m.releases_total} 發布</span>
       </div>
-      <span className="mt-2 flex items-center gap-1 text-[11px] text-white/0 transition-colors group-hover:text-accent-primary">
+      <span className="mt-2 flex items-center gap-1 text-[11px] text-ink/0 transition-colors group-hover:text-accent-primary">
         查看詳情 <ArrowRight className="h-3 w-3" aria-hidden />
       </span>
     </Link>

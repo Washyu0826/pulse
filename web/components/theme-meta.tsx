@@ -17,29 +17,16 @@ export interface ThemeMeta {
   bar: string;
 }
 
+// 2 色克制：三主題共用同一 accent（陶土），靠 icon 形狀區分，不各自配色（Manus 風）。
+const ACCENT = {
+  text: "text-accent-primary",
+  bg: "bg-accent-primary/10",
+  ring: "ring-accent-primary/20",
+  bar: "bg-accent-primary",
+};
+
 export const THEME_META: Record<string, ThemeMeta> = {
-  新工具: {
-    Icon: Sparkles,
-    blurb: "新發表的工具 / 模型 / 產品",
-    text: "text-accent-cyan",
-    bg: "bg-accent-cyan/10",
-    ring: "ring-accent-cyan/25",
-    bar: "bg-accent-cyan",
-  },
-  使用方法: {
-    Icon: Wrench,
-    blurb: "提示技巧 / 教學 / 工作流",
-    text: "text-accent-primary",
-    bg: "bg-accent-primary/10",
-    ring: "ring-accent-primary/25",
-    bar: "bg-accent-primary",
-  },
-  邊界: {
-    Icon: AlertTriangle,
-    blurb: "限制 / 風險 / 要注意的坑",
-    text: "text-sentiment-neutral",
-    bg: "bg-sentiment-neutral/10",
-    ring: "ring-sentiment-neutral/25",
-    bar: "bg-sentiment-neutral",
-  },
+  新工具: { Icon: Sparkles, blurb: "新發表的工具 / 模型 / 產品", ...ACCENT },
+  使用方法: { Icon: Wrench, blurb: "提示技巧 / 教學 / 工作流", ...ACCENT },
+  邊界: { Icon: AlertTriangle, blurb: "限制 / 風險 / 要注意的坑", ...ACCENT },
 };

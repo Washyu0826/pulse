@@ -12,8 +12,8 @@ export function Section({
 }) {
   return (
     <section>
-      <h2 className="text-[17px] font-semibold tracking-tight text-white">{label}</h2>
-      {description && <p className="mt-1.5 mb-5 text-sm leading-relaxed text-white/45">{description}</p>}
+      <h2 className="text-[17px] font-semibold tracking-tight text-ink">{label}</h2>
+      {description && <p className="mt-1.5 mb-5 text-sm leading-relaxed text-ink/45">{description}</p>}
       {!description && <div className="mb-5" />}
       {children}
     </section>

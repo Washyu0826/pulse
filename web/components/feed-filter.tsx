@@ -51,7 +51,7 @@ export function FeedFilter() {
     <select
       value={params.get(key) ?? fallback}
       onChange={(e) => setParam(key, e.target.value)}
-      className="rounded-md border border-border/60 bg-bg px-2 py-1 text-[12px] text-white"
+      className="rounded-md border border-border/60 bg-bg px-2 py-1 text-[12px] text-ink"
     >
       {opts.map((o) => (
         <option key={o.value} value={o.value}>
@@ -73,15 +73,15 @@ export function FeedFilter() {
             className={cn(
               "rounded-md border px-2.5 py-1 text-[12px] transition-colors",
               model === m.value
-                ? "border-accent-primary/50 bg-accent-primary/10 text-white"
-                : "border-border/60 text-white/55 hover:text-white",
+                ? "border-accent-primary/50 bg-accent-primary/10 text-ink"
+                : "border-border/60 text-ink/55 hover:text-ink",
             )}
           >
             {m.label}
           </button>
         ))}
       </div>
-      <div className="ml-auto flex flex-wrap items-center gap-x-3 gap-y-2 text-[12px] text-white/50">
+      <div className="ml-auto flex flex-wrap items-center gap-x-3 gap-y-2 text-[12px] text-ink/50">
         <label className="flex items-center gap-1.5">情緒{select("sentiment", SENTIMENTS)}</label>
         <label className="flex items-center gap-1.5">來源{select("source", SOURCES)}</label>
         <label className="flex items-center gap-1.5">時間{select("days", DAYS, "30")}</label>

@@ -38,11 +38,11 @@ function SpikeCard({ ev }: { ev: DetectedEvent }) {
             <Badge variant="warn">{severityWord(ev.score)}</Badge>
           </span>
         )}
-        <time className="ml-auto shrink-0 font-mono text-xs text-white/45">
+        <time className="ml-auto shrink-0 font-mono text-xs text-ink/45">
           {relativeTime(ev.occurred_at)}
         </time>
       </div>
-      <h3 className="mt-2.5 text-sm font-medium leading-snug text-white">
+      <h3 className="mt-2.5 text-sm font-medium leading-snug text-ink">
         {ev.model ?? "某模型"} 討論量{" "}
         {multiple ? (
           <>約為平常的 <span className="text-sentiment-neutral">{multiple}×</span></>
@@ -53,13 +53,13 @@ function SpikeCard({ ev }: { ev: DetectedEvent }) {
         )}
       </h3>
       {count != null && median != null && (
-        <p className="mt-1 font-mono text-xs text-white/45">
+        <p className="mt-1 font-mono text-xs text-ink/45">
           {count} 篇 · 平日約 {median} 篇/天
         </p>
       )}
       {cause && (
-        <p className="mt-1 truncate text-[13px] text-white/60">
-          主要討論：<span className="text-white/75">{cause}</span>
+        <p className="mt-1 truncate text-[13px] text-ink/60">
+          主要討論：<span className="text-ink/75">{cause}</span>
         </p>
       )}
     </div>
@@ -73,13 +73,13 @@ function LaunchCard({ ev }: { ev: DetectedEvent }) {
         <Rocket aria-hidden className="h-3.5 w-3.5 shrink-0 text-accent-cyan" />
         <Badge variant="neutral">新發布</Badge>
         {ev.model && <Badge variant="accent">{ev.model}</Badge>}
-        <time className="ml-auto shrink-0 font-mono text-xs text-white/45">
+        <time className="ml-auto shrink-0 font-mono text-xs text-ink/45">
           {relativeTime(ev.occurred_at)}
         </time>
       </div>
-      <h3 className="mt-2.5 text-sm font-medium leading-snug text-white">{ev.title}</h3>
+      <h3 className="mt-2.5 text-sm font-medium leading-snug text-ink">{ev.title}</h3>
       {ev.description && (
-        <p className="mt-1 line-clamp-2 text-[13px] leading-relaxed text-white/60">
+        <p className="mt-1 line-clamp-2 text-[13px] leading-relaxed text-ink/60">
           {ev.description}
         </p>
       )}
@@ -97,13 +97,13 @@ function FlipCard({ ev }: { ev: DetectedEvent }) {
         <Icon aria-hidden className={`h-3.5 w-3.5 shrink-0 ${color}`} />
         <Badge variant={toNeg ? "warn" : "neutral"}>口碑翻轉</Badge>
         {ev.model && <Badge variant="accent">{ev.model}</Badge>}
-        <time className="ml-auto shrink-0 font-mono text-xs text-white/45">
+        <time className="ml-auto shrink-0 font-mono text-xs text-ink/45">
           {relativeTime(ev.occurred_at)}
         </time>
       </div>
-      <h3 className="mt-2.5 text-sm font-medium leading-snug text-white">{ev.title}</h3>
+      <h3 className="mt-2.5 text-sm font-medium leading-snug text-ink">{ev.title}</h3>
       {ev.description && (
-        <p className="mt-1 line-clamp-2 text-[13px] leading-relaxed text-white/60">
+        <p className="mt-1 line-clamp-2 text-[13px] leading-relaxed text-ink/60">
           {ev.description}
         </p>
       )}

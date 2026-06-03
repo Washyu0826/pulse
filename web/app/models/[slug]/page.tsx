@@ -22,8 +22,8 @@ import type { ModelDetail } from "@/lib/types";
 export const dynamicParams = true;
 
 function sentimentClass(idx: number | null): string {
-  if (idx == null) return "text-white/45";
-  return idx > 10 ? "text-sentiment-positive" : idx < -10 ? "text-sentiment-negative" : "text-white/60";
+  if (idx == null) return "text-ink/45";
+  return idx > 10 ? "text-sentiment-positive" : idx < -10 ? "text-sentiment-negative" : "text-ink/60";
 }
 
 function sentimentWord(idx: number | null): string {
@@ -48,11 +48,11 @@ function Metric({
 }) {
   return (
     <div className="card">
-      <div className="flex items-center gap-1 text-[11px] text-white/45">
+      <div className="flex items-center gap-1 text-[11px] text-ink/45">
         {label}
         {hint && <InfoHint label={label}>{hint}</InfoHint>}
       </div>
-      <div className={`mt-1 font-mono text-xl font-semibold tabular-nums ${className ?? "text-white"}`}>
+      <div className={`mt-1 font-mono text-xl font-semibold tabular-nums ${className ?? "text-ink"}`}>
         {value}
       </div>
     </div>
@@ -89,11 +89,11 @@ export default async function ModelDetailPage({ params }: { params: { slug: stri
         <div>
           <BackLink />
           <div className="mt-4 flex flex-wrap items-baseline gap-x-3 gap-y-1">
-            <h1 className="text-2xl font-semibold tracking-tight text-white">{m.name}</h1>
-            <span className="text-sm text-white/45">{m.company}</span>
-            {m.role && <span className="text-sm text-white/45">· {m.role}</span>}
+            <h1 className="text-2xl font-semibold tracking-tight text-ink">{m.name}</h1>
+            <span className="text-sm text-ink/45">{m.company}</span>
+            {m.role && <span className="text-sm text-ink/45">· {m.role}</span>}
           </div>
-          <p className="mt-2 text-sm text-white/55">
+          <p className="mt-2 text-sm text-ink/55">
             這個模型在技術社群的討論熱度與口碑，過去 {m.trend_days} 天的走勢。
           </p>
         </div>
@@ -108,7 +108,7 @@ export default async function ModelDetailPage({ params }: { params: { slug: stri
           <Metric
             value={m.posts_recent > 0 ? `+${m.posts_recent}` : "0"}
             label="近 7 天新增"
-            className={m.posts_recent > 0 ? "text-sentiment-positive" : "text-white/70"}
+            className={m.posts_recent > 0 ? "text-sentiment-positive" : "text-ink/70"}
             hint="過去 7 天新增的相關討論數。"
           />
           <Metric
@@ -132,7 +132,7 @@ export default async function ModelDetailPage({ params }: { params: { slug: stri
         {/* 近期事件 */}
         <Section label="近期事件" description="系統針對此模型偵測到的討論突增 / 發布 / 口碑翻轉。">
           {m.events.length === 0 ? (
-            <div className="card text-center text-sm text-white/45">
+            <div className="card text-center text-sm text-ink/45">
               此模型近期沒有偵測到特別事件 —— 一切平穩。
             </div>
           ) : (
@@ -147,7 +147,7 @@ export default async function ModelDetailPage({ params }: { params: { slug: stri
         {/* 熱門討論 */}
         <Section label="熱門討論" description="社群中分數最高的相關討論（依來源分數排序）。">
           {m.top_discussions.length === 0 ? (
-            <div className="card text-center text-sm text-white/45">尚無相關討論。</div>
+            <div className="card text-center text-sm text-ink/45">尚無相關討論。</div>
           ) : (
             <ul className="space-y-2">
               {m.top_discussions.map((d, i) => (
@@ -157,15 +157,15 @@ export default async function ModelDetailPage({ params }: { params: { slug: stri
                       href={d.url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex items-start gap-2 text-sm text-white/85 hover:text-white"
+                      className="flex items-start gap-2 text-sm text-ink/85 hover:text-ink"
                     >
                       <span className="flex-1">{d.title}</span>
-                      <ArrowUpRight className="mt-0.5 h-3.5 w-3.5 shrink-0 text-white/40" aria-hidden />
+                      <ArrowUpRight className="mt-0.5 h-3.5 w-3.5 shrink-0 text-ink/40" aria-hidden />
                     </a>
                   ) : (
-                    <span className="text-sm text-white/85">{d.title}</span>
+                    <span className="text-sm text-ink/85">{d.title}</span>
                   )}
-                  <div className="mt-1 font-mono text-[11px] text-white/40">
+                  <div className="mt-1 font-mono text-[11px] text-ink/40">
                     {d.source} · {d.score} 分
                   </div>
                 </li>
@@ -177,7 +177,7 @@ export default async function ModelDetailPage({ params }: { params: { slug: stri
         {/* 最新發布 */}
         <Section label="最新發布" description="此模型最近的版本釋出（可點進原始頁面）。">
           {m.releases.length === 0 ? (
-            <div className="card text-center text-sm text-white/45">尚無發布紀錄。</div>
+            <div className="card text-center text-sm text-ink/45">尚無發布紀錄。</div>
           ) : (
             <div className="grid gap-3 md:grid-cols-2">
               {m.releases.map((r) => (
@@ -188,7 +188,7 @@ export default async function ModelDetailPage({ params }: { params: { slug: stri
         </Section>
 
         {m.latest_release_at && (
-          <p className="font-mono text-[11px] text-white/35">
+          <p className="font-mono text-[11px] text-ink/35">
             最近一次發布：{relativeTime(m.latest_release_at)}
           </p>
         )}
@@ -202,7 +202,7 @@ function BackLink() {
   return (
     <Link
       href="/"
-      className="inline-flex items-center gap-1 text-xs text-white/50 transition-colors hover:text-white"
+      className="inline-flex items-center gap-1 text-xs text-ink/50 transition-colors hover:text-ink"
     >
       <ArrowLeft className="h-3.5 w-3.5" aria-hidden />
       回儀表板

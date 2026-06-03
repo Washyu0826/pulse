@@ -6,17 +6,17 @@ import { THEME_META, THEME_ORDER } from "@/components/theme-meta";
 export function HeroIntro() {
   return (
     <section className="pt-4">
-      <h1 className="text-2xl font-semibold tracking-tight text-white sm:text-[34px] sm:leading-[1.15]">
+      <h1 className="text-2xl font-semibold tracking-tight text-ink sm:text-[34px] sm:leading-[1.15]">
         每天的 AI 實用情報，<span className="text-accent-primary">一頁掌握</span>
       </h1>
-      <p className="mt-4 max-w-2xl text-[15px] leading-relaxed text-white/65">
+      <p className="mt-4 max-w-2xl text-[15px] leading-relaxed text-ink/65">
         自動爬梳技術社群與
         <span className="text-accent-cyan">中文 Threads</span>，把大家正在討論的整理成三類：
-        <span className="text-white/85">新工具、怎麼用、要注意的坑</span>。
+        <span className="text-ink/85">新工具、怎麼用、要注意的坑</span>。
       </p>
-      <p className="mt-2 max-w-2xl text-sm leading-relaxed text-white/45">
+      <p className="mt-2 max-w-2xl text-sm leading-relaxed text-ink/45">
         過濾雜訊、可依模型與情緒篩選 —— 不是電子報塞給你，是
-        <span className="text-white/65">能查的結構化情報</span>。
+        <span className="text-ink/65">能查的結構化情報</span>。
       </p>
 
       <ul className="mt-8 grid gap-3 sm:grid-cols-3">
@@ -31,15 +31,15 @@ export function HeroIntro() {
                 <span className={`flex h-7 w-7 items-center justify-center rounded-md ${m.bg} ${m.text}`}>
                   <m.Icon className="h-4 w-4" />
                 </span>
-                <span className="text-sm font-medium text-white/90">{label}</span>
+                <span className="text-sm font-medium text-ink/90">{label}</span>
               </div>
-              <p className="mt-2 text-[12px] leading-relaxed text-white/50">{m.blurb}</p>
+              <p className="mt-2 text-[12px] leading-relaxed text-ink/50">{m.blurb}</p>
             </li>
           );
         })}
       </ul>
 
-      <p className="mt-5 font-mono text-xs text-white/40">
+      <p className="mt-5 font-mono text-xs text-ink/40">
         6 模型 · HN / Dev.to / <span className="text-accent-cyan/70">🌏 中文 Threads</span> · 約 5,000 篇 · 過濾雜訊後
       </p>
     </section>

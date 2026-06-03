@@ -1,19 +1,21 @@
 import type { Metadata } from "next";
-import { Inter, JetBrains_Mono } from "next/font/google";
+import { Caveat, Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans", display: "swap" });
 const mono = JetBrains_Mono({ subsets: ["latin"], variable: "--font-mono", display: "swap" });
+// 歐美書寫體（手寫風）：用於 wordmark 與英文點綴；中文無對應字形會回退無襯線。
+const script = Caveat({ subsets: ["latin"], variable: "--font-script", display: "swap", weight: ["600", "700"] });
 
 export const metadata: Metadata = {
-  title: "Pulse · AI 工程師的每日情報秘書",
-  description: "把 Reddit 與 HackerNews 的 AI 討論轉成結構化、可查詢、可訂閱的決策訊號。",
+  title: "Pulse · 每天的 AI 實用情報",
+  description: "把技術社群與中文 Threads 的 AI 討論，整理成可查詢的「新工具 / 用法 / 邊界」情報。",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="zh-TW" className={`dark ${inter.variable} ${mono.variable}`}>
-      <body className="min-h-screen bg-bg font-sans text-white antialiased selection:bg-accent-primary/30">
+    <html lang="zh-TW" className={`${inter.variable} ${mono.variable} ${script.variable}`}>
+      <body className="min-h-screen bg-bg font-sans text-ink antialiased selection:bg-accent-primary/20">
         {children}
       </body>
     </html>

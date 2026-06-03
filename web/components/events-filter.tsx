@@ -51,20 +51,20 @@ export function EventsFilter() {
             className={cn(
               "rounded-md border px-2.5 py-1 text-[12px] transition-colors",
               type === t.value
-                ? "border-accent-primary/50 bg-accent-primary/10 text-white"
-                : "border-border/60 text-white/55 hover:text-white",
+                ? "border-accent-primary/50 bg-accent-primary/10 text-ink"
+                : "border-border/60 text-ink/55 hover:text-ink",
             )}
           >
             {t.label}
           </button>
         ))}
       </div>
-      <label className="ml-auto flex items-center gap-1.5 text-[12px] text-white/50">
+      <label className="ml-auto flex items-center gap-1.5 text-[12px] text-ink/50">
         模型
         <select
           value={model}
           onChange={(e) => setParam("model", e.target.value)}
-          className="rounded-md border border-border/60 bg-bg px-2 py-1 text-[12px] text-white"
+          className="rounded-md border border-border/60 bg-bg px-2 py-1 text-[12px] text-ink"
         >
           {MODELS.map((m) => (
             <option key={m.value} value={m.value}>

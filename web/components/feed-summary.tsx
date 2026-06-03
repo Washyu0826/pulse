@@ -13,12 +13,12 @@ export async function FeedSummary({ filters }: { filters: FeedFilters }) {
         return (
           <div key={t} className="flex items-center gap-1.5">
             <m.Icon className={`h-3.5 w-3.5 ${m.text}`} />
-            <span className="text-[13px] text-white/55">{t}</span>
-            <span className="font-mono text-sm font-semibold text-white">{summary.data[t] ?? 0}</span>
+            <span className="text-[13px] text-ink/55">{t}</span>
+            <span className="font-mono text-sm font-semibold text-ink">{summary.data[t] ?? 0}</span>
           </div>
         );
       })}
-      <span className="ml-auto text-[12px] text-white/35">來自 HN / Dev.to / 🌏 Threads</span>
+      <span className="ml-auto text-[12px] text-ink/35">來自 HN / Dev.to / 🌏 Threads</span>
     </div>
   );
 }

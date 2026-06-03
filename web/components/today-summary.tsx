@@ -12,10 +12,10 @@ function Stat({
 }) {
   return (
     <div className="flex flex-col">
-      <span className="font-mono text-2xl font-semibold tabular-nums tracking-tight text-white">
+      <span className="font-mono text-2xl font-semibold tabular-nums tracking-tight text-ink">
         {value}
       </span>
-      <span className="mt-0.5 flex items-center gap-1 text-xs text-white/50">
+      <span className="mt-0.5 flex items-center gap-1 text-xs text-ink/50">
         {label}
         {hint && <InfoHint label={label}>{hint}</InfoHint>}
       </span>
@@ -37,7 +37,7 @@ export async function TodaySummary() {
 
   return (
     <div>
-      <p className="mb-2 text-xs text-white/45">近 7 天動態</p>
+      <p className="mb-2 text-xs text-ink/45">近 7 天動態</p>
       <div className="grid grid-cols-3 gap-4 rounded-lg border border-border/60 bg-bg-card px-5 py-4">
         <Stat
           value={spikes}

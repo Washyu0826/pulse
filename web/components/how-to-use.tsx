@@ -56,13 +56,13 @@ export function HowToUse() {
         type="button"
         onClick={dismiss}
         aria-label="關閉使用說明"
-        className="absolute right-3 top-3 rounded-md p-1 text-white/40 transition-colors hover:bg-white/10 hover:text-white"
+        className="absolute right-3 top-3 rounded-md p-1 text-ink/40 transition-colors hover:bg-ink/10 hover:text-ink"
       >
         <X className="h-4 w-4" />
       </button>
       <div className="flex items-center gap-2">
         <Compass aria-hidden className="h-4 w-4 text-accent-primary" />
-        <h2 className="text-sm font-semibold text-white">第一次來？三步上手</h2>
+        <h2 className="text-sm font-semibold text-ink">第一次來？三步上手</h2>
       </div>
       <ol className="mt-4 grid gap-4 sm:grid-cols-3">
         {STEPS.map((s) => (
@@ -71,8 +71,8 @@ export function HowToUse() {
               {s.n}
             </span>
             <div>
-              <div className="text-[13px] font-medium text-white/90">{s.title}</div>
-              <p className="mt-1 text-[13px] leading-relaxed text-white/55">{s.body}</p>
+              <div className="text-[13px] font-medium text-ink/90">{s.title}</div>
+              <p className="mt-1 text-[13px] leading-relaxed text-ink/55">{s.body}</p>
             </div>
           </li>
         ))}

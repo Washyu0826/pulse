@@ -8,13 +8,13 @@ export function SiteHeader() {
   return (
     <header className="sticky top-0 z-40 border-b border-border/60 bg-bg/80 backdrop-blur-md">
       <div className="mx-auto flex h-14 max-w-5xl items-center gap-3 px-6">
-        <Link href="/" className="text-xl font-semibold tracking-tight text-white">
+        <Link href="/" className="font-script text-[28px] font-bold leading-none text-accent-primary">
           Pulse
         </Link>
-        <span className="hidden text-sm text-white/55 sm:inline">AI 工程師的每日情報秘書</span>
+        <span className="hidden text-sm text-ink/50 sm:inline">每天的 AI 實用情報</span>
         <div className="ml-auto flex items-center gap-4">
           <SiteNav />
-          <span className="flex items-center gap-1.5 text-xs text-white/45">
+          <span className="flex items-center gap-1.5 text-xs text-ink/45">
             <LiveDot />
             Live
           </span>

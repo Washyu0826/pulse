@@ -36,12 +36,12 @@ export async function ThemeFeed({ filters }: { filters: FeedFilters }) {
               >
                 <meta.Icon className="h-4 w-4" />
               </span>
-              <h3 className="text-base font-semibold text-white">{label}</h3>
-              <span className="hidden text-[13px] text-white/40 sm:inline">{meta.blurb}</span>
-              <span className="ml-auto font-mono text-xs text-white/35">{posts.length}</span>
+              <h3 className="text-base font-semibold text-ink">{label}</h3>
+              <span className="hidden text-[13px] text-ink/40 sm:inline">{meta.blurb}</span>
+              <span className="ml-auto font-mono text-xs text-ink/35">{posts.length}</span>
             </div>
             {posts.length === 0 ? (
-              <p className="rounded-lg border border-dashed border-border/50 px-4 py-5 text-center text-[13px] text-white/35">
+              <p className="rounded-lg border border-dashed border-border/50 px-4 py-5 text-center text-[13px] text-ink/35">
                 這個條件下這類沒有新內容。
               </p>
             ) : (

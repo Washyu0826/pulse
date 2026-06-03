@@ -21,7 +21,7 @@ const SENTIMENT_DOT: Record<Sentiment, { cls: string; word: string }> = {
 
 function SentimentDot({ s }: { s: Sentiment | null }) {
   if (s === null) {
-    return <span title="情緒未分析" className="h-2 w-2 shrink-0 rounded-full bg-white/20" />;
+    return <span title="情緒未分析" className="h-2 w-2 shrink-0 rounded-full bg-ink/20" />;
   }
   const d = SENTIMENT_DOT[s];
   return <span title={`情緒：${d.word}`} className={`h-2 w-2 shrink-0 rounded-full ${d.cls}`} />;
@@ -43,16 +43,16 @@ export function FeedCard({ post }: { post: FeedPost }) {
           {src.local ? `🌏 ${src.label}` : src.label}
         </Badge>
         {post.posted_at && (
-          <time className="ml-auto shrink-0 font-mono text-xs text-white/45">
+          <time className="ml-auto shrink-0 font-mono text-xs text-ink/45">
             {relativeTime(post.posted_at)}
           </time>
         )}
       </div>
-      <h3 className="mt-2.5 line-clamp-2 text-sm font-medium leading-snug text-white">
+      <h3 className="mt-2.5 line-clamp-2 text-sm font-medium leading-snug text-ink">
         {post.title}
       </h3>
       {post.snippet && post.snippet !== post.title && (
-        <p className="mt-1 line-clamp-2 text-[13px] leading-relaxed text-white/55">
+        <p className="mt-1 line-clamp-2 text-[13px] leading-relaxed text-ink/55">
           {post.snippet}
         </p>
       )}
