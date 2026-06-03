@@ -85,6 +85,48 @@ DISCUSSION_RE = re.compile(
     r"coding|capab|quality|accuracy|fail|broke|slow|fast|better|worse)\b",
     re.IGNORECASE,
 )
+# 歧義模型別名：llama(動物/西語「呼叫」)、gemini(星座)、grok(動詞)。命中這些 slug 但全文
+# 毫無 AI/技術脈絡 → 多半不是在談 AI（如寵物、占星）。需有脈絡才採信（見 _relevance_flags）。
+_AMBIGUOUS_SLUGS = frozenset({"llama", "gemini", "grok"})
+# 歧義「只發生在一般社群」：HN/Dev.to/Lobsters 是技術社群，Gemini/Llama/Grok 幾乎必為模型，
+# 不套 OFF_TOPIC（否則誤殺「Gemini 當機」「Llama CPU Benchmarks」等正當技術貼）。
+# 雜訊（寵物/占星）集中在 Threads 等一般社群 → 只對這些來源套歧義過濾。
+_TECH_SOURCES = frozenset({"hackernews", "devto", "lobsters"})
+# AI/技術脈絡詞（補 DISCUSSION_RE）：確認歧義關鍵字真的在 AI 語境。涵蓋本地模型常見詞
+# （local/gpu/vram/gguf/ollama/7b…），避免把正當的 llama 本地部署討論誤殺。
+AI_CONTEXT_RE = re.compile(
+    r"\b(ai|llm|llms|ml|model|models|chatbot|assistant|neural|transformer|inference|"
+    r"weights|quantiz\w*|gguf|ollama|vllm|gpu|vram|local|opensource|open[-\s]?source|"
+    r"hugging\s?face|generat\w*|copilot|agent|coding|developer|prompt|token|cpp|"
+    r"fine[-\s]?tune|opus|sonnet|haiku|flash|benchmark|\d{1,3}b|"
+    # 非歧義模型別名 + AI 公司/實驗室名：歧義關鍵字旁出現這些 → 明確在談 AI。
+    r"gpt|chatgpt|openai|claude|anthropic|bard|xai|deepseek|"
+    r"google|meta|deepmind|microsoft|mistral|qwen)\b",
+    re.IGNORECASE,
+)
+# 「模型當產品用」的強訊號：歧義關鍵字緊接版本號/變體名（llama.cpp、Gemini 3.5、Grok 4、
+# Llama-3、Gemini Flash…）→ 幾乎必為模型本身，不該判離題。
+_MODEL_AS_PRODUCT_RE = re.compile(
+    r"\b(llama|gemini|grok)[\s.\-]?"
+    r"(\d|cpp|flash|pro|omni|max|mini|nano|ultra|vision|code[rd]?|guard|scout|next|thinking)",
+    re.IGNORECASE,
+)
+# 明確「離題」標記（占星/寵物）。高精準策略：只有出現這些**正面證據**才判 OFF_TOPIC，
+# 而非「缺英文 AI 詞就殺」——後者會誤殺無英文關鍵字的中文 AI 貼（如「用 Grok 生成」），
+# 那正是 Threads 中文在地差異化內容，務必保留。中文 AI 詞另列為 override 脈絡。
+_OFFTOPIC_MARKER_RE = re.compile(
+    r"(♈|♉|♊|♋|♌|♍|♎|♏|♐|♑|♒|♓|🦙|🐄|🫏|"
+    r"\b(aries|taurus|libra|scorpio|sagittarius|capricorn|aquarius|pisces|"
+    r"zodiac|horoscope|tarot|astrolog\w*|air\s+signs?)\b|"
+    r"星座|占星|塔羅|生肖|上升星|月亮星|水瓶座|天秤座|射手座|金牛座|雙子座|巨蟹座|"
+    r"獅子座|天蠍座|摩羯座|雙魚座|hermoso|machito)",
+    re.IGNORECASE,
+)
+# 中文 AI 脈絡詞（補英文 AI_CONTEXT_RE）：保護中文 AI 貼不被誤判離題。
+_AI_CONTEXT_ZH_RE = re.compile(
+    r"(生成|提示詞|提示|模型|訓練|微調|部署|推理|開源|智能體|智慧體|代理|"
+    r"工具|外掛|擴充|對話|提問|寫程式|編程|程式碼|代碼|向量|語料|多模態)"
+)
 # SEO 關鍵字堆砌量測用的小型 stopword（非語言偵測，只為避免 the/and 觸發堆砌判定）。
 STOPWORDS = frozenset(
     "the a an and or but for to of in on at is are be was were this that with as it "
@@ -115,6 +157,7 @@ FLAG_DEDUCTIONS: dict[str, int] = {
     "JOB_POSTING": 50,
     "LIKELY_BOT": 60,
     "KEYWORD_NOT_IN_BODY": 30,
+    "OFF_TOPIC": 75,  # 歧義關鍵字無 AI 脈絡 → 降到門檻(30)以下被濾掉
     "WEAK_KEYWORD": 10,
     # flag-only（不扣分）：SARCASM_DETECTED；去重的 DUPLICATE / CANONICAL:<id> 由服務層另加。
 }
@@ -160,8 +203,9 @@ def _keyword_stuffed(text: str, exclude: frozenset[str] = frozenset()) -> bool:
     return count >= 5 and count / len(toks) > 0.08
 
 
-def _relevance_flags(title: str, body_clean: str, models: list[str]) -> set[str]:
-    """相關性層：keyword 只在 URL/code → KEYWORD_NOT_IN_BODY；只帶過一次 → WEAK_KEYWORD。"""
+def _relevance_flags(title: str, body_clean: str, models: list[str], source: str = "") -> set[str]:
+    """相關性層：keyword 只在 URL/code → KEYWORD_NOT_IN_BODY；只帶過一次 → WEAK_KEYWORD；
+    一般社群的歧義關鍵字無 AI 脈絡 → OFF_TOPIC。"""
     if not models:
         return set()
     in_visible = False  # keyword 出現在標題或去雜訊內文（= 真的在談）
@@ -183,7 +227,23 @@ def _relevance_flags(title: str, body_clean: str, models: list[str]) -> set[str]
     if not in_visible:
         # 命中模型 slug（crawler 已過濾），但去掉 URL/code 後看不到 → 只在連結/程式碼裡
         flags.add("KEYWORD_NOT_IN_BODY")
-    elif max_hits <= 1 and not in_title:
+        return flags
+    # 歧義關鍵字（llama 動物 / gemini 星座 / grok 動詞）：命中的模型「全部」都是歧義 slug，
+    # 且全文毫無 AI/技術脈絡 → 判 OFF_TOPIC（非在談 AI，如寵物、占星貼）。
+    # 註：(a) 同篇若也提到非歧義模型，models 會含該 slug → 不進此分支；
+    #     (b) 技術社群來源（HN/Dev.to/Lobsters）信任關鍵字，不套此過濾（避免誤殺技術貼）。
+    if source not in _TECH_SOURCES and models and all(m in _AMBIGUOUS_SLUGS for m in models):
+        has_ctx = (
+            DISCUSSION_RE.search(visible)
+            or AI_CONTEXT_RE.search(visible)
+            or _AI_CONTEXT_ZH_RE.search(visible)  # 中文 AI 詞（保護中文貼）
+            or _MODEL_AS_PRODUCT_RE.search(visible)  # llama.cpp / Gemini 3.5 / Grok 4
+        )
+        # 高精準：需有明確離題標記（占星/寵物）且無 AI 脈絡 → 才判 OFF_TOPIC。
+        if _OFFTOPIC_MARKER_RE.search(visible) and not has_ctx:
+            flags.add("OFF_TOPIC")
+            return flags
+    if max_hits <= 1 and not in_title:
         # 內文只帶過一次、標題也沒提 → 提到但非主題
         flags.add("WEAK_KEYWORD")
     return flags
@@ -249,7 +309,7 @@ def score_post(post: dict, models: list[str]) -> QualityResult:
         flags.add("LIKELY_BOT")
 
     # ---- 相關性 ----
-    flags |= _relevance_flags(title, body_clean, models)
+    flags |= _relevance_flags(title, body_clean, models, (post.get("source") or "").lower())
 
     # ---- 情緒可靠性（flag-only）----
     if SARCASM_RE.search(raw):
