@@ -31,13 +31,15 @@ export function CardGridSkeleton({
   compact,
 }: {
   count: number;
-  cols: 2 | 6;
+  cols: 2 | 3 | 6;
   compact?: boolean;
 }) {
   const grid =
     cols === 2
       ? "grid gap-3 md:grid-cols-2"
-      : "grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6";
+      : cols === 3
+        ? "grid gap-6 lg:grid-cols-3"
+        : "grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6";
   return (
     <div className={grid}>
       {Array.from({ length: count }).map((_, i) => (

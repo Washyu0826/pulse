@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
-import { Caveat, Inter, JetBrains_Mono } from "next/font/google";
+import { Dancing_Script, Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans", display: "swap" });
 const mono = JetBrains_Mono({ subsets: ["latin"], variable: "--font-mono", display: "swap" });
-// 歐美書寫體（手寫風）：用於 wordmark 與英文點綴；中文無對應字形會回退無襯線。
-const script = Caveat({ subsets: ["latin"], variable: "--font-script", display: "swap", weight: ["600", "700"] });
+// 歐美書寫體（優雅手寫）：用於 wordmark；中文無對應字形會回退無襯線。
+const script = Dancing_Script({ subsets: ["latin"], variable: "--font-script", display: "swap", weight: ["600", "700"] });
 
 export const metadata: Metadata = {
   title: "Pulse · 每天的 AI 實用情報",

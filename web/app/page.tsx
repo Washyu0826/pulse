@@ -39,7 +39,7 @@ export default function HomePage({
   return (
     <>
       <SiteHeader />
-      <main className="mx-auto max-w-4xl space-y-20 px-6 py-12">
+      <main className="mx-auto max-w-6xl space-y-16 px-6 py-12">
         <HeroIntro />
 
         <section>
@@ -48,7 +48,7 @@ export default function HomePage({
             <FeedSummary filters={filters} />
           </Suspense>
           <div className="mt-8">
-            <Suspense key={feedKey} fallback={<CardGridSkeleton count={4} cols={2} />}>
+            <Suspense key={feedKey} fallback={<CardGridSkeleton count={6} cols={3} />}>
               <ThemeFeed filters={filters} />
             </Suspense>
           </div>

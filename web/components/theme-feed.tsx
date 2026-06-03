@@ -23,29 +23,29 @@ export async function ThemeFeed({ filters }: { filters: FeedFilters }) {
     );
   }
 
+  // 三主題並排成三欄（kanban），填滿寬度、一頁看完；窄螢幕自動堆疊。
   return (
-    <div className="space-y-10">
+    <div className="grid gap-6 lg:grid-cols-3">
       {THEME_ORDER.map((label) => {
         const posts = feed.data[label] ?? [];
         const meta = THEME_META[label];
         return (
           <section key={label}>
-            <div className="mb-3.5 flex items-center gap-2.5">
+            <div className="mb-4 flex items-center gap-2.5 border-b border-border pb-2.5">
               <span
                 className={`flex h-7 w-7 items-center justify-center rounded-md ring-1 ${meta.bg} ${meta.text} ${meta.ring}`}
               >
                 <meta.Icon className="h-4 w-4" />
               </span>
-              <h3 className="text-base font-semibold text-ink">{label}</h3>
-              <span className="hidden text-[13px] text-ink/40 sm:inline">{meta.blurb}</span>
+              <h3 className="font-semibold text-ink">{label}</h3>
               <span className="ml-auto font-mono text-xs text-ink/35">{posts.length}</span>
             </div>
             {posts.length === 0 ? (
-              <p className="rounded-lg border border-dashed border-border/50 px-4 py-5 text-center text-[13px] text-ink/35">
-                這個條件下這類沒有新內容。
+              <p className="rounded-lg border border-dashed border-border px-4 py-5 text-center text-[13px] text-ink/35">
+                這類目前沒有新內容。
               </p>
             ) : (
-              <div className="grid gap-3 md:grid-cols-2">
+              <div className="space-y-3">
                 {posts.map((p) => (
                   <FeedCard key={p.id} post={p} />
                 ))}
