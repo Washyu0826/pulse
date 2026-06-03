@@ -3,6 +3,9 @@ import type {
   DecideReport,
   DetectedEvent,
   EventType,
+  FeedFilters,
+  FeedSummary,
+  FeedThemes,
   ModelDetail,
   ModelSummary,
   ReleaseEvent,
@@ -35,6 +38,49 @@ async function fetchArray<T>(path: string): Promise<ApiResult<T[]>> {
     return { ok: true, data: json as T[] };
   } catch (err) {
     console.error(`[api] ${path} fetch failed`, err);
+    return { ok: false, error: String(err) };
+  }
+}
+
+/** feed filters → query string（共用）。 */
+function feedQuery(filters?: FeedFilters, extra?: Record<string, string>): string {
+  const q = new URLSearchParams(extra);
+  if (filters?.model) q.set("model", filters.model);
+  if (filters?.sentiment) q.set("sentiment", filters.sentiment);
+  if (filters?.source) q.set("source", filters.source);
+  if (filters?.days) q.set("days", String(filters.days));
+  return q.toString();
+}
+
+/**
+ * 每日實用情報 feed：各主題 top N 貼文（回傳物件 {主題: [...]}，非陣列 → 自訂 fetch）。
+ * 失敗回 { ok:false }，不 throw。
+ */
+export async function getFeed(
+  filters?: FeedFilters,
+  limitPerTheme = 6,
+): Promise<ApiResult<FeedThemes>> {
+  const qs = feedQuery(filters, { limit_per_theme: String(limitPerTheme) });
+  try {
+    const res = await fetch(`${BASE}/api/feed?${qs}`, { next: { revalidate: 60 } });
+    if (!res.ok) return { ok: false, error: `HTTP ${res.status}` };
+    return { ok: true, data: (await res.json()) as FeedThemes };
+  } catch (err) {
+    console.error("[api] /api/feed fetch failed", err);
+    return { ok: false, error: String(err) };
+  }
+}
+
+/** 各主題在篩選下的貼文數（首頁今日摘要列）。 */
+export async function getFeedSummary(filters?: FeedFilters): Promise<ApiResult<FeedSummary>> {
+  try {
+    const res = await fetch(`${BASE}/api/feed/summary?${feedQuery(filters)}`, {
+      next: { revalidate: 60 },
+    });
+    if (!res.ok) return { ok: false, error: `HTTP ${res.status}` };
+    return { ok: true, data: (await res.json()) as FeedSummary };
+  } catch (err) {
+    console.error("[api] /api/feed/summary fetch failed", err);
     return { ok: false, error: String(err) };
   }
 }

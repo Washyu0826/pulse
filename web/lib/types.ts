@@ -58,6 +58,37 @@ export interface ModelDetail extends ModelSummary {
   releases: ReleaseEvent[];
 }
 
+// ---- 每日實用情報 feed（定位 C 首頁核心）----
+
+export type ThemeLabel = "新工具" | "使用方法" | "邊界";
+export type Sentiment = "positive" | "neutral" | "negative";
+
+export interface FeedPost {
+  id: number;
+  title: string;
+  snippet: string;
+  source: string;
+  url: string | null;
+  models: string[];
+  sentiment: Sentiment | null; // null = 未分析
+  theme: string;
+  theme_confidence: number;
+  score: number;
+  posted_at: string | null;
+}
+
+// /api/feed 回傳：{ 主題: [貼文卡, ...] }
+export type FeedThemes = Record<string, FeedPost[]>;
+// /api/feed/summary 回傳：{ 主題: 計數 }
+export type FeedSummary = Record<string, number>;
+
+export interface FeedFilters {
+  model?: string;
+  sentiment?: Sentiment;
+  source?: string;
+  days?: number;
+}
+
 export type EventType = "discussion_spike" | "launch" | "sentiment_flip";
 
 // 注意：命名為 DetectedEvent 以避開瀏覽器全域 Event 型別。
