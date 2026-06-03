@@ -11,29 +11,28 @@ const config: Config = {
       colors: {
         // Pulse 設計系統 —— Manus 風暖色淺底（warm paper light theme）。
         bg: {
-          DEFAULT: "#FBF8EC",     // 淡黃紙底
-          card: "#FFFEF9",        // 暖白卡
-          cardLight: "#F5EFDB",   // hover 淡黃
+          DEFAULT: "#F4F7FC",     // 冷調淺藍白紙底
+          card: "#FFFFFF",        // 乾淨白卡
+          cardLight: "#EAF1FB",   // hover 淺藍
         },
         border: {
-          DEFAULT: "#EBE4CE",     // 暖黃淡邊
+          DEFAULT: "#D9E2F1",     // 冷藍淡邊
         },
-        // 主要文字色（暖近黑）—— 取代原本的純白；用 text-ink/XX 控深淺。
+        // 主要文字色（冷調深岩藍）—— 用 text-ink/XX 控深淺。
         ink: {
-          DEFAULT: "#26221C",
+          DEFAULT: "#1B2536",
         },
-        // 2 色克制：暖墨(ink) + 單一陶土 accent。cyan/pink 一律導向同色，
-        // 確保任何殘留引用都不破壞「2 色」原則。
+        // 2 色克制：冷墨(ink) + 單一藍 accent。cyan/pink 一律導向同色。
         accent: {
-          primary: "#A4632B",  // 赭石（唯一彩色 accent）
-          cyan: "#A4632B",
-          pink: "#A4632B",
+          primary: "#2563EB",  // 藍（唯一彩色 accent）
+          cyan: "#2563EB",
+          pink: "#2563EB",
         },
-        // sentiment 也收進 2 色：正面=赭石、其餘=暖墨深淺（不引入紅綠第三、四色）。
+        // sentiment 也收進 2 色：正面=藍、其餘=冷灰深淺（不引入紅綠第三、四色）。
         sentiment: {
-          positive: "#A4632B",
-          neutral: "#9C9484",
-          negative: "#6B6457",
+          positive: "#2563EB",
+          neutral: "#8A97AC",
+          negative: "#5A6677",
         },
       },
       fontFamily: {
