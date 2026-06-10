@@ -20,11 +20,10 @@ _ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(_ROOT / "api"))
 sys.path.insert(0, str(_ROOT / "ml"))
 
-from sqlalchemy import text  # noqa: E402
-
 from api.database import AsyncSessionLocal  # noqa: E402
 from api.services.translations import upsert_translations  # noqa: E402
 from ml.translate import Translator, needs_translation  # noqa: E402
+from sqlalchemy import text  # noqa: E402
 
 _SQL = text(
     "SELECT p.id, p.title, p.content "

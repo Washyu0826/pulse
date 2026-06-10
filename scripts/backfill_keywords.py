@@ -21,11 +21,10 @@ _ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(_ROOT / "api"))
 sys.path.insert(0, str(_ROOT / "ml"))
 
-from sqlalchemy import text  # noqa: E402
-
 from api.database import AsyncSessionLocal  # noqa: E402
 from api.services.trending import replace_trending  # noqa: E402
 from ml.keywords import compute_trending  # noqa: E402
+from sqlalchemy import text  # noqa: E402
 
 _SQL = text(
     "SELECT coalesce(title,'') || '. ' || coalesce(content,'') "

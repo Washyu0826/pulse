@@ -22,56 +22,71 @@ _ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(_ROOT / "api"))
 sys.path.insert(0, str(_ROOT / "ml"))
 
-from sqlalchemy import select  # noqa: E402
-
 from api.database import AsyncSessionLocal  # noqa: E402
 from api.models.posts import Post  # noqa: E402
 from api.models.theme import Theme  # noqa: E402
 from api.services.themes import upsert_themes  # noqa: E402
 from ml.theme import ThemeClassifier  # noqa: E402
+from sqlalchemy import select  # noqa: E402
 
 
-async def main(min_quality: int) -> None:
-    # 1) 撈「已通過 DQC、品質達標、尚未分類主題」的貼文（左連 themes 找 NULL）
+async def _fetch_chunk(min_quality: int, chunk: int):
+    """撈一批「已過 DQC、品質達標、尚未分類主題」的貼文（左連 themes 找 NULL）。"""
     async with AsyncSessionLocal() as session:
-        rows = (
+        return (
             await session.execute(
                 select(Post.id, Post.title, Post.content)
                 .outerjoin(Theme, Theme.post_id == Post.id)
                 .where(Theme.post_id.is_(None))
                 .where(Post.quality_score.is_not(None))
                 .where(Post.quality_score >= min_quality)
+                .where(~Post.quality_flags.contains(["DUPLICATE"]))
+                .order_by(Post.fetched_at)
+                .limit(chunk)
             )
         ).all()
 
-    if not rows:
-        print(f"✅ 沒有待分類的貼文（quality_score >= {min_quality} 且未分類）。")
+
+async def main(min_quality: int, chunk: int = 2000) -> None:
+    # 分塊處理 + 每塊即寫（可續跑、抗中斷）：大批量主題分類是 1~3 小時的 GPU 工作，
+    # 整批最後才寫的話一中斷全失；改成每塊 upsert，下次重跑只接續未分類者。
+    clf = None
+    total = 0
+    agg: dict[str, int] = {}
+    while True:
+        rows = await _fetch_chunk(min_quality, chunk)
+        if not rows:
+            break
+        if clf is None:
+            print("📥 載入主題模型…")
+            clf = ThemeClassifier()
+            print(f"   device={clf.device}，開始分塊推論（每塊 {chunk}）…")
+
+        post_ids = [r.id for r in rows]
+        texts = [f"{r.title or ''}. {r.content or ''}" for r in rows]
+        results = clf.classify_batch(texts, batch_size=16)  # GPU 批次
+
+        out = [
+            {
+                "post_id": pid,
+                "label": res.label,
+                "confidence": round(res.confidence, 4),
+                "confident": res.confident,
+            }
+            for pid, res in zip(post_ids, results, strict=True)
+        ]
+        async with AsyncSessionLocal() as session:
+            stats = await upsert_themes(session, out)
+        total += stats["upserted"]
+        for label, n in ThemeClassifier.distribution(results).items():
+            agg[label] = agg.get(label, 0) + n
+        print(f"   ＋{stats['upserted']} 筆（累計 {total}）", flush=True)
+
+    if total == 0:
+        print(f"✅ 沒有待分類的貼文（quality_score >= {min_quality}、非重複且未分類）。")
         return
-
-    print(f"📥 {len(rows)} 篇待分類，載入模型…")
-    clf = ThemeClassifier()
-    print(f"   device={clf.device}，開始推論…")
-
-    post_ids = [r.id for r in rows]
-    texts = [f"{r.title or ''}. {r.content or ''}" for r in rows]
-    results = clf.classify_batch(texts, batch_size=16)  # GPU 批次
-
-    out = [
-        {
-            "post_id": pid,
-            "label": res.label,
-            "confidence": round(res.confidence, 4),
-            "confident": res.confident,
-        }
-        for pid, res in zip(post_ids, results)
-    ]
-
-    async with AsyncSessionLocal() as session:
-        stats = await upsert_themes(session, out)
-
-    print(f"💾 寫入 themes：{stats['upserted']} 筆")
-    dist = ThemeClassifier.distribution(results)
-    print("📊 主題分佈：", dict(sorted(dist.items(), key=lambda x: -x[1])))
+    print(f"💾 寫入 themes 共 {total} 筆")
+    print("📊 主題分佈：", dict(sorted(agg.items(), key=lambda x: -x[1])))
 
 
 if __name__ == "__main__":
@@ -80,4 +95,6 @@ if __name__ == "__main__":
         "--min-quality", type=int, default=30,
         help="只分類 quality_score >= 此值的貼文（預設 30，與 ML pipeline 門檻一致）",
     )
-    asyncio.run(main(parser.parse_args().min_quality))
+    parser.add_argument("--chunk", type=int, default=2000, help="每塊處理筆數（即寫，可續跑）")
+    args = parser.parse_args()
+    asyncio.run(main(args.min_quality, args.chunk))
