@@ -1,13 +1,19 @@
 """
 主題分類模組 —— 地端 zero-shot（多語 NLI，mDeBERTa-v3-base-mnli-xnli）。
 
-回應使用者需求（同學回饋）：使用者更在意「怎麼用 AI」而非單純風向，故把每篇貼文
-標成 3 個實用主題之一，外加 fallback：
+5 個實用主題 + fallback（2026-06 依需求研究改版，見 docs/research/offline-evaluation-literature.md
+以及 AI 資訊需求研究）。原本只有 邊界/新工具/使用方法 3 類，缺口是：缺「模型動態與評測」
+（#1 常青需求：哪個模型最好/比較/價格），且「邊界」把實務限制與倫理法規混在一起：
 
-- 邊界：AI 的限制 / 風險 / 安全 / 不該用的情況。
-- 新工具：新的 AI 工具 / 模型 / 產品 / 發表。
-- 使用方法：提示技巧 / 教學 / 工作流 / use case。
-- 其他：低信心 fallback（不是候選標籤，而是 top 分數低於門檻時歸此）。
+- 新工具：新的 AI 工具 / app / 產品 / 功能發表。
+- 模型動態：模型比較 / 評測 / 排名 / 價格 / 能力更新（「哪個最好」）。
+- 使用方法：提示技巧 / 教學 / 工作流 / use case（台灣旗艦需求：補「高自信低行動」鴻溝）。
+- 風險限制：實務限制 / 失敗 / 幻覺 / 不該用的情況。
+- 倫理法規：倫理 / 法規 / 政策 / 隱私（台灣此焦慮特別高）。
+- 其他：低信心 fallback（top 分數低於門檻時歸此）。
+
+主題彼此不互斥（一篇可同時是「新工具 + 使用方法」），故 multi_label 並**輸出 top-2**
+（label 為主、secondary 為次，次主題分數需過 _SECONDARY_MIN）。
 
 為何 zero-shot：不需標註資料、純地端（符合 [[prefer-local-llm]]），且 XNLI 模型跨語對齊，
 英文假設句也能判中文貼文（Threads 中英混雜）。純地端、不打雲端 API。
@@ -32,36 +38,51 @@ logger = logging.getLogger(__name__)
 DEFAULT_MODEL = "MoritzLaurer/mDeBERTa-v3-base-mnli-xnli"
 _MAX_CHARS = 2000  # 先截斷長文（模型再做 token 級 truncation），省記憶體
 _MIN_CONFIDENCE = 0.45  # top 分數低於此 → 歸「其他」
+_SECONDARY_MIN = 0.40  # 次主題分數需過此才輸出 top-2 的 secondary
 _HYPOTHESIS = "This text is about {}."  # XNLI 跨語：英文假設句也能判中文前提
 
 OTHER_LABEL = "其他"
 
-# 正規標籤 → zero-shot 候選描述（英文，靠 XNLI 跨語對齊）。順序固定。
+# 正規標籤 → zero-shot 候選描述（英文，靠 XNLI 跨語對齊）。順序固定；假設句刻意寫得彼此可分。
 THEME_HYPOTHESES: dict[str, str] = {
-    "邊界": "the limitations, risks, safety, or boundaries of using AI",
-    "新工具": "a new AI tool, model, product, or launch",
-    "使用方法": "tips, tutorials, prompts, or workflows for using AI",
+    "新工具": "a new AI tool, app, product, or feature being launched or introduced",
+    "模型動態": "a comparison, benchmark, ranking, price, or capability update of AI models",
+    "使用方法": "tips, tutorials, prompts, or workflows for using AI effectively",
+    "風險限制": "the practical limitations, failures, hallucinations, or risks of using AI tools",
+    "倫理法規": "the ethics, regulation, law, policy, or privacy concerns of AI",
 }
 _DESC_TO_LABEL = {desc: label for label, desc in THEME_HYPOTHESES.items()}
 
 
 @dataclass
 class ThemeResult:
-    """單則文本的主題分類結果。"""
+    """單則文本的主題分類結果（含 top-2）。"""
 
-    label: str  # '邊界' | '新工具' | '使用方法' | '其他'
+    label: str  # 主主題（5 類之一或 '其他'）
     confidence: float  # 最佳標籤分數（0-1）
-    scores: dict[str, float]  # 3 個主題各自分數
+    scores: dict[str, float]  # 5 個主題各自分數
     confident: bool = True  # 是否通過信心門檻（否則 label='其他'）
+    secondary: str | None = None  # 次主題（分數過 _SECONDARY_MIN 才有；多主題貼文用）
+
+    @property
+    def labels(self) -> list[str]:
+        """主 + 次主題（去重、保序）。供「一篇可屬多主題」的瀏覽/篩選用。"""
+        out = [self.label]
+        if self.secondary and self.secondary != self.label:
+            out.append(self.secondary)
+        return out
 
 
-def _pick(scores: dict[str, float], min_confidence: float) -> ThemeResult:
-    """從 3 主題分數挑出結果：top 分數低於門檻 → 歸『其他』。純函式，可測。"""
-    best = max(scores, key=scores.get)
-    top = scores[best]
+def _pick(
+    scores: dict[str, float], min_confidence: float, secondary_min: float = _SECONDARY_MIN
+) -> ThemeResult:
+    """從主題分數挑結果：top<門檻→『其他』；否則取 top-1，次高過 secondary_min 則附為 secondary。純函式。"""
+    ranked = sorted(scores.items(), key=lambda kv: kv[1], reverse=True)
+    best, top = ranked[0]
     if top < min_confidence:
         return ThemeResult(OTHER_LABEL, top, scores, confident=False)
-    return ThemeResult(best, top, scores, confident=True)
+    secondary = ranked[1][0] if len(ranked) > 1 and ranked[1][1] >= secondary_min else None
+    return ThemeResult(best, top, scores, confident=True, secondary=secondary)
 
 
 class ThemeClassifier:
@@ -152,13 +173,16 @@ if __name__ == "__main__":
     print(f"\n模型：{clf.model_name} · device={clf.device}\n")
 
     samples = [
-        "Claude 有時候會編造不存在的 API，重要的事一定要自己再查證一次。",  # 邊界
         "Anthropic just launched Claude Skills — a new way to package agent capabilities.",  # 新工具
+        "GPT-5 vs Claude on SWE-bench：誰比較會寫 code？順便看一下兩邊的 API 價格。",  # 模型動態
         "分享我的 prompt 工作流：先讓模型列大綱、再逐段展開，效率高很多。",  # 使用方法
+        "Claude 有時候會編造不存在的 API，重要的事一定要自己再查證一次。",  # 風險限制
+        "歐盟 AI Act 上路，這些用途會被視為高風險，企業要注意資料隱私。",  # 倫理法規
         "Had pizza for lunch, the weather is nice today.",  # 其他
     ]
-    icon = {"邊界": "🚧", "新工具": "🆕", "使用方法": "🛠️", "其他": "⚪"}
-    print("=== 主題分類（zero-shot + 信心門檻）===")
+    icon = {"新工具": "🆕", "模型動態": "📊", "使用方法": "🛠️", "風險限制": "🚧", "倫理法規": "⚖️", "其他": "⚪"}
+    print("=== 主題分類（zero-shot + 信心門檻 + top-2）===")
     for s, r in zip(samples, clf.classify_batch(samples)):
         flag = "" if r.confident else " (低信心→其他)"
-        print(f"  {icon.get(r.label, '?')} {r.label:5} {r.confidence:.2f}{flag}  {s[:48]}")
+        sec = f"  +{r.secondary}" if r.secondary else ""
+        print(f"  {icon.get(r.label, '?')} {r.label:5} {r.confidence:.2f}{flag}{sec}  {s[:44]}")
