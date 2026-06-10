@@ -51,6 +51,17 @@ logs/
 *.bin
 mlruns/
 .cache/
+/models/
+
+# Generated datasets (silver labels regenerable from DB; large).
+# gold sets are small + valuable — force-add when they exist: git add -f data/gold/gold.jsonl
+data/
+
+# Claude Code local agent data (large, machine-local)
+.claude/
+
+# 與本專案無關（碩論模板，非 Pulse）
+碩論模板.pdf
 
 # OS
 Thumbs.db
