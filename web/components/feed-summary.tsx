@@ -1,3 +1,4 @@
+import { SOURCE_META, SOURCE_ORDER } from "@/components/source-meta";
 import { THEME_META, THEME_ORDER } from "@/components/theme-meta";
 import { getFeedSummary } from "@/lib/api";
 import type { FeedFilters } from "@/lib/types";
@@ -18,7 +19,9 @@ export async function FeedSummary({ filters }: { filters: FeedFilters }) {
           </div>
         );
       })}
-      <span className="ml-auto text-[12px] text-ink/35">來自 HN / Dev.to / 🌏 Threads</span>
+      <span className="ml-auto text-[12px] text-ink/35">
+        來自 {SOURCE_ORDER.map((s) => SOURCE_META[s].label).join(" / ")}
+      </span>
     </div>
   );
 }

@@ -2,6 +2,7 @@
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
+import { SOURCE_META, SOURCE_ORDER } from "@/components/source-meta";
 import { cn } from "@/lib/utils";
 
 const MODELS = [
@@ -18,11 +19,13 @@ const SENTIMENTS = [
   { value: "positive", label: "🟢 正面" },
   { value: "negative", label: "🔴 負面" },
 ];
+// 來源選項由 source-meta 的 SOURCE_ORDER 衍生，新增來源只需改一處。
 const SOURCES = [
   { value: "", label: "全部" },
-  { value: "hackernews", label: "HN" },
-  { value: "devto", label: "Dev.to" },
-  { value: "threads", label: "🌏 Threads" },
+  ...SOURCE_ORDER.map((s) => ({
+    value: s,
+    label: `${SOURCE_META[s].emoji} ${SOURCE_META[s].label}`,
+  })),
 ];
 const DAYS = [
   { value: "1", label: "今日" },

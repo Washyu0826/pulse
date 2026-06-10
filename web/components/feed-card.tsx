@@ -1,17 +1,8 @@
 import { FavoriteButton } from "@/components/favorite-button";
+import { sourceMeta } from "@/components/source-meta";
 import { Badge } from "@/components/ui/badge";
 import { relativeTime } from "@/lib/time";
 import type { FeedPost, Sentiment } from "@/lib/types";
-
-/** 來源顯示名；Threads 標 🌏 凸顯中文在地（定位 C 差異化）。 */
-const SOURCE_META: Record<string, { label: string; local?: boolean }> = {
-  hackernews: { label: "HN" },
-  devto: { label: "Dev.to" },
-  lobsters: { label: "Lobsters" },
-  threads: { label: "Threads", local: true },
-  reddit: { label: "Reddit" },
-  twitter: { label: "X" },
-};
 
 /** 情緒 → 圓點顏色 + 說明。null = 未分析（不假裝中性）。 */
 const SENTIMENT_DOT: Record<Sentiment, { cls: string; word: string }> = {
@@ -32,7 +23,7 @@ function SentimentDot({ s }: { s: Sentiment | null }) {
  * 單則實用情報卡片。整卡可點（stretched link 開原文）+ 右上角收藏愛心（client，浮在連結之上）。
  */
 export function FeedCard({ post }: { post: FeedPost }) {
-  const src = SOURCE_META[post.source] ?? { label: post.source };
+  const src = sourceMeta(post.source);
   return (
     <div className="card-interactive relative h-full">
       {/* 整卡可點：覆蓋全卡的隱形連結（最愛按鈕 z 較高、不被它蓋住）。 */}
@@ -53,8 +44,9 @@ export function FeedCard({ post }: { post: FeedPost }) {
             {m}
           </Badge>
         ))}
-        <Badge variant={src.local ? "cyan" : "neutral"}>
-          {src.local ? `🌏 ${src.label}` : src.label}
+        <Badge className={src.badge} title={src.local ? "中文在地來源" : `來源：${src.label}`}>
+          <span aria-hidden>{src.emoji}</span>
+          {src.label}
         </Badge>
       </div>
       <h3 className="mt-2.5 line-clamp-2 text-sm font-medium leading-snug text-ink">

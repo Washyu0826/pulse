@@ -9,7 +9,7 @@ const script = Dancing_Script({ subsets: ["latin"], variable: "--font-script", d
 
 export const metadata: Metadata = {
   title: "Pulse · 每天的 AI 實用情報",
-  description: "把技術社群與中文 Threads 的 AI 討論，整理成可查詢的「新工具 / 用法 / 邊界」情報。",
+  description: "把技術社群與中文 Threads 的 AI 討論，整理成可查詢的「新工具 / 模型動態 / 用法 / 風險 / 倫理」情報。",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

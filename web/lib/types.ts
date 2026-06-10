@@ -60,8 +60,14 @@ export interface ModelDetail extends ModelSummary {
 
 // ---- 每日實用情報 feed（定位 C 首頁核心）----
 
-export type ThemeLabel = "新工具" | "使用方法" | "邊界";
+// 5 個實用主題 + 低信心 fallback「其他」（與 ml/ml/theme.py THEME_HYPOTHESES 對齊，2026-06 改版）。
+// 後端可能回傳未知/舊主題字串 → 前端一律以「其他」兜底（見 theme-meta.tsx 的 themeMeta()）。
+export type ThemeLabel = "新工具" | "模型動態" | "使用方法" | "風險限制" | "倫理法規" | "其他";
 export type Sentiment = "positive" | "neutral" | "negative";
+
+// 多來源語料的來源軸（與 DB 的 source 欄位對齊）。後端可能回傳其他/未知字串
+// → 前端一律以中性樣式兜底（見 source-meta.tsx 的 sourceMeta()）。
+export type SourceLabel = "hackernews" | "devto" | "threads" | "ptt" | "lobsters";
 
 export interface FeedPost {
   id: number;
@@ -110,4 +116,23 @@ export interface DetectedEvent {
   score: number | null;
   occurred_at: string; // ISO 8601
   extra: Record<string, unknown>;
+}
+
+// ---- 今日事件（忠實摘要 + 行內出處引用）----
+
+/** 一筆出處引用：對應摘要中的 [n] 標記，連向原貼文。 */
+export interface EventCitation {
+  n: number; // 摘要中的引用序號（[1][2]…）
+  url?: string; // 原貼文連結（可無）
+  postId?: string; // 成員貼文 id（無 url 時可用）
+}
+
+/** 一則「今日事件」：把多篇相關貼文聚成一個事件，附忠實摘要與行內出處。 */
+export interface EventSummary {
+  id: string;
+  title: string;
+  summary: string; // 摘要文字，內含 [1][2] 行內引用標記
+  citations: EventCitation[];
+  memberCount: number; // 此事件涵蓋的成員貼文數
+  theme: ThemeLabel;
 }

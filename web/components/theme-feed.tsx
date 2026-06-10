@@ -23,9 +23,9 @@ export async function ThemeFeed({ filters }: { filters: FeedFilters }) {
     );
   }
 
-  // 三主題並排成三欄（kanban），填滿寬度、一頁看完；窄螢幕自動堆疊。
+  // 五主題並排成多欄（kanban），填滿寬度、一頁看完；窄螢幕自動堆疊。
   return (
-    <div className="grid gap-6 lg:grid-cols-3">
+    <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
       {THEME_ORDER.map((label) => {
         const posts = feed.data[label] ?? [];
         const meta = THEME_META[label];

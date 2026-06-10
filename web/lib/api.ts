@@ -2,6 +2,7 @@ import { API_URL } from "@/lib/utils";
 import type {
   DecideReport,
   DetectedEvent,
+  EventSummary,
   EventType,
   FeedFilters,
   FeedSummary,
@@ -89,6 +90,14 @@ export async function getFeedSummary(filters?: FeedFilters): Promise<ApiResult<F
 /** 本週熱詞榜（log-odds 趨勢）。 */
 export function getTrending(limit = 15): Promise<ApiResult<TrendingKeyword[]>> {
   return fetchArray<TrendingKeyword>(`/api/trending?limit=${limit}`);
+}
+
+/**
+ * 今日事件：把多篇相關貼文聚成事件 + 忠實摘要（含行內出處引用）。
+ * 後端端點 /api/events/today 可能尚未上線 → 失敗一律回 { ok:false }，UI 退回空狀態（不 throw）。
+ */
+export function getTodayEvents(limit = 8): Promise<ApiResult<EventSummary[]>> {
+  return fetchArray<EventSummary>(`/api/events/today?limit=${limit}`);
 }
 
 type ReleaseSourceFilter = "huggingface" | "github";
