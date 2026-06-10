@@ -1,7 +1,12 @@
 # Pulse 系統架構
 
-> v4.0 — 採納 Mentor Review #2 建議補上的視覺化架構圖。
 > 本檔案使用 Mermaid 語法，於 GitHub 自動 render。
+>
+> ⚠️ **注意（產品已 pivot）**：下方第 1–5 節保留早期 v4 規劃圖（Reddit / HackerNews 來源、
+> Anthropic API、英文 twitter-roberta 情緒），那些**已不代表現況**。專案已轉向
+> **繁中優先、Threads 主力來源、地端 LLM（無雲端 API）、技術核心 = 事件忠實摘要**。
+> 反映現況的圖請看 **第 5b 節（資料取得與語料庫 ~59.7k）**、**第 6 節（事件忠實摘要管線）** 與 **第 7 節（現行 Offline Evaluation 流程）**，
+> 整體定位見 [README](../README.md) 與 [事件忠實摘要個案研究](case-study-faithful-event-summarizer.md)。
 
 ## 1. 高層次系統架構
 
@@ -286,7 +291,143 @@ flowchart LR
 
 ---
 
-## 6. 設計考量摘要
+## 5b. 資料取得與語料庫（現況，~59.7k 篇）
+
+> 反映現況的資料層。DB 已累積約 6 萬篇多源 AI 貼文；英文量體（HN / Dev.to）給下游 ML 與去重訓練量，
+> 繁中在地訊號（Threads / PTT）是差異化核心與事件摘要的輸入子集。
+
+| 來源 | 規模（約） | 語言 | 取得方式 | 程式 |
+|------|-----------|------|----------|------|
+| HackerNews | ~52k | 英 | Algolia API，**逐月切窗**繞單查詢 ~1000 筆上限，UPSERT 冪等可重跑 | `scripts/bulk_backfill.py` · `workers/crawlers/hackernews.py` |
+| Dev.to | ~6.4k | 英 | API 翻頁（整段範圍只跑一次，避免重抓近期頁） | `scripts/bulk_backfill.py` · `workers/crawlers/devto.py` |
+| **Threads** | **~1k** | **繁中（台灣）** | **Selenium 真瀏覽器 + sessionid cookie 繞登入牆；廣義 AI 門檻 + 繁體過濾擋簡中** | `workers/crawlers/threads.py` |
+| PTT | ~330 | 繁中 | Selenium 真瀏覽器翻技術板 index（年齡牆板注入 over18 cookie） | `scripts/crawl_ptt.py` |
+
+```mermaid
+flowchart TD
+    subgraph BULK["英文量體（回填）"]
+        HN["HackerNews ~52k<br/>Algolia 逐月切窗"]
+        DEV["Dev.to ~6.4k<br/>API 翻頁"]
+    end
+    subgraph LOCAL["繁中在地（差異化，Selenium）"]
+        TH["Threads ~1k<br/>登入牆 + sessionid cookie<br/>廣義 AI 門檻 + 繁體過濾"]
+        PTT["PTT ~330<br/>技術板 + over18 cookie"]
+    end
+
+    HN --> UP["upsert_posts<br/>自然鍵 on-conflict 冪等"]
+    DEV --> UP
+    TH --> UP
+    PTT --> UP
+    UP --> PG[("PostgreSQL<br/>posts ~59.7k")]
+    PG --> DEDUP["跨源近似去重<br/>SimHash + token Jaccard + union-find<br/>ml/ml/dedup.py"]
+    DEDUP --> DQC["DQC 多層啟發式評分<br/>ml/ml/data_quality.py"]
+    DQC --> SENT["情緒 RoBERTa（GPU）<br/>ml/ml/sentiment.py"]
+    DQC --> THEME["主題 5 類 zero-shot<br/>mDeBERTa-v3 · ml/ml/theme.py"]
+
+    classDef bulk fill:#F59E0B,stroke:#000,color:#fff
+    classDef local fill:#EC4899,stroke:#000,color:#fff
+    classDef store fill:#10B981,stroke:#000,color:#fff
+    classDef ml fill:#8B5CF6,stroke:#000,color:#fff
+    class HN,DEV bulk
+    class TH,PTT local
+    class UP,PG,DEDUP store
+    class DQC,SENT,THEME ml
+```
+
+**已跑出的下游與一個誠實發現**：HN/Dev.to 英文量體已跑完跨源去重、情緒（`cardiffnlp/twitter-roberta`，GPU）與主題（`MoritzLaurer/mDeBERTa-v3-base-mnli-xnli` zero-shot 5 類）。主題分布**嚴重偏向「新工具」**——這個偏斜正是 zero-shot 在此 taxonomy 上的弱點，也**直接成為下一步監督式微調 `hfl/chinese-macbert-base`** 取代 zero-shot 的動機（見 §7 與 [README](../README.md) 路線圖）。
+
+**已知問題（地端 LLM）**：PyTorch GPU 推論正常（情緒 / 分類已實跑）；但 Ollama 內附的 CUDA build 目前會 crash，使需要 Ollama 的「真實模式」翻譯與摘要暫時受阻——管線純邏輯與假模型路徑不受影響。
+
+---
+
+## 6. 事件忠實摘要管線（現行技術核心）
+
+> Pulse 的技術核心：把同一事件的多篇 Threads 貼文聚成叢集，抽關鍵句，用 LoRA 微調的繁中小模型
+> 帶引用改寫，再經 NLI 忠實度查核。**非 RAG**。詳見 [個案研究](case-study-faithful-event-summarizer.md)。
+
+```mermaid
+flowchart TD
+    A["台灣 Threads AI 貼文<br/>（已過 DQC + 繁體過濾）"] --> B["BGE-M3 嵌入<br/>event_cluster.build_bge_m3_embedder"]
+    B --> C["HDBSCAN 聚事件<br/>hdbscan_cluster / cluster_by_threshold"]
+    C --> D["MMR 抽關鍵句<br/>mmr_select / extract_key_sentences"]
+    D --> E["LoRA Qwen2.5-1.5B<br/>帶行內引用改寫"]
+    E --> F["mDeBERTa-NLI 忠實度查核<br/>faithfulness.faithfulness_report"]
+    F -->|通過| G["事件摘要（帶 [n] 引用）"]
+    F -->|不通過| H["標記人工複查 /<br/>降級抽取式摘要"]
+    G --> I["電子報「今日事件」"]
+    G --> J["自動鑄 Threads 草稿（路線圖）"]
+
+    classDef done fill:#10B981,stroke:#000,color:#fff
+    classDef wip fill:#F59E0B,stroke:#000,color:#fff
+    classDef plan fill:#94A3B8,stroke:#000,color:#fff
+    class A,B,C,D,F,G,H,I done
+    class E wip
+    class J plan
+```
+
+忠實度查核把「忠實」拆成四個可量測面向（`ml/ml/faithfulness.py`）：句級 NLI 蘊含、句級 NLI 矛盾、
+行內引用有效性、來源覆蓋率，匯總成 `faithfulness_score ∈ [0,1]`。聚類 + 抽句（`ml/ml/event_cluster.py`）
+與忠實度查核皆寫成**純函式 + 注入式重模型**，不裝 BGE-M3 / hdbscan / transformers 也能單元測試核心邏輯。
+
+---
+
+## 7. 現行 Offline Evaluation 流程（N 候選 bake-off）
+
+> 取代第 5 節的舊版（那是英文二模型對比）。現行做法：多候選在同一 gold set 上排名 + 配對顯著性檢定。
+> 程式：`scripts/evaluate.py` + `ml/ml/metrics.py`，寫入 `evaluation_runs` 表。報告範本見
+> [evaluation-report-template.md](evaluation-report-template.md)。
+
+```mermaid
+flowchart TD
+    subgraph Data["資料"]
+        Gold["人工 gold set<br/>annotate.py（含 κ）"]
+        Silver["Qwen 蒸餾 silver<br/>distill_labels.py"]
+    end
+
+    subgraph Cands["候選（多個）"]
+        Base["baseline<br/>英文 zero-shot / Qwen few-shot"]
+        Tuned["微調中文模型<br/>train_classifier.py (macbert)"]
+    end
+
+    Silver --> Tuned
+    Gold --> Eval
+    Base --> Eval
+    Tuned --> Eval
+
+    subgraph Eval["evaluate.py 評估"]
+        Rank["依 macro-F1 排名 → 選 winner"]
+        Sig["winner vs 各對手：<br/>McNemar + macro-F1 差 bootstrap CI<br/>+ BH-FDR 多重比較校正"]
+        Cal["校準 ECE / Brier / NLL<br/>risk–coverage / AURC"]
+        Rank --> Sig
+        Rank --> Cal
+    end
+
+    Sig --> Rule{"差的 CI 不含 0<br/>且 BH-FDR p < 0.05?"}
+    Rule -->|是| Win["宣稱顯著優勝"]
+    Rule -->|否| Tie["打平 / 證據不足<br/>（重疊 CI 不算贏）"]
+
+    Win --> Store
+    Tie --> Store
+    Cal --> Store
+    Store[("evaluation_runs 表<br/>+ MLflow run")]
+
+    classDef data fill:#10B981,stroke:#000,color:#fff
+    classDef cand fill:#06B6D4,stroke:#000,color:#fff
+    classDef eval fill:#8B5CF6,stroke:#000,color:#fff
+    classDef store fill:#6B7280,stroke:#000,color:#fff
+    class Gold,Silver data
+    class Base,Tuned cand
+    class Rank,Sig,Cal eval
+    class Store store
+```
+
+這不是線上 A/B（無使用者流量分流），是 Offline Evaluation —— 多模型在同一份 labeled set 的配對比較
+（見 [ADR-008](decisions/008-offline-evaluation.md)）。同一套統計（McNemar + bootstrap CI + BH-FDR）
+也用於事件摘要 bake-off，只是主指標換成忠實度 + 盲測偏好。
+
+---
+
+## 8. 設計考量摘要
 
 | 設計決策 | 為什麼 |
 |---------|--------|

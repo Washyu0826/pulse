@@ -3,6 +3,7 @@ line-length = 100
 target-version = "py311"
 exclude = [
     ".venv",
+    ".claude",
     "node_modules",
     ".next",
     "alembic/versions",
