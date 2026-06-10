@@ -1,6 +1,7 @@
 """
 應用設定 - 用 pydantic-settings 從環境變數載入。
 """
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -47,6 +48,14 @@ class Settings(BaseSettings):
 
     # CORS
     cors_origins: list[str] = ["http://localhost:3000"]
+
+    # 今日事件來源檔（pipeline 產出的忠實摘要 JSONL，一行一事件）。
+    # /api/events/today 直接讀此檔（DB-optional，不查資料庫）；不存在則回 []。
+    # 環境變數用 PULSE_EVENTS_FILE（也相容 EVENTS_FILE）。
+    events_file: str = Field(
+        default="data/events_today.jsonl",
+        validation_alias=AliasChoices("PULSE_EVENTS_FILE", "EVENTS_FILE"),
+    )
 
 
 settings = Settings()
