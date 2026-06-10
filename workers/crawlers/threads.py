@@ -1,11 +1,19 @@
 """
-workers/crawlers/threads.py — Selenium 爬 Threads（Meta）的 best-effort plugin。
+workers/crawlers/threads.py — Selenium 爬 Threads（Meta）。**Pulse 的主力來源**（繁中台灣 AI 討論）。
 
-⚠️ 重要限制（誠實說明）：
-- Threads 有**登入牆 + 反爬**：未登入只看得到部分公開貼文；search/tag 常需登入。
-- DOM selector 會隨 Meta 改版而失效（本檔用保守 selector + 大量 try/except，易微調）。
-- 跟 Airflow 24/7 不合（瀏覽器重、慢、易壞）→ 定位為**選配 plugin**，非主力來源。
-- 主力來源請用免 key 的 API（HN/Dev.to/HF/GitHub）。
+為何主力：台灣是 Threads 全球第 1 大市場，台灣 AI 在地討論（工具 / 提示詞 / 變現 / AI繪圖 /
+風險）幾乎都在這 —— 這正是 Pulse 差異化於英文競品的「在地社群訊號」。
+
+門檻設計（2026-06 改）：
+- 不再要求「點名 6 模型」（那會丟掉大半不點名模型的台灣 AI 貼）。改為**廣義 AI 相關門檻**
+  （`is_ai_related`：模型 OR 提示/工具/生成/變現 等），仍保留 match_models 供模型口碑用。
+- 加**繁體過濾**（`looks_simplified`）擋掉簡體（中國）內容，純化台灣訊號。
+
+⚠️ 誠實限制：
+- 登入牆 + 反爬：search/tag 需登入（注入 sessionid cookie）。
+- DOM selector 會隨 Meta 改版失效（保守 selector + 大量 try/except，易微調）。
+- 登入抓取（sessionid）有 ToS 風險（登入＝接受條款）；合規長期路線是申請官方
+  Threads Keyword Search API（`threads_keyword_search` scope，需 App Review）。本檔為過渡實作。
 
 設計同其他爬蟲：純函式 normalize_thread_post（可測）+ crawl_threads 產生器（優雅降級）。
 輸出 dict 與其他來源同形狀（source="threads"），共用 api.services.posts.upsert_posts。
@@ -17,21 +25,53 @@ from collections.abc import AsyncIterator, Iterable
 from datetime import UTC, datetime
 from typing import Any
 
-from crawlers.keywords import match_models
+from crawlers.keywords import is_ai_related, looks_simplified, match_models
 
 __all__ = ["crawl_threads", "normalize_thread_post"]
 
 logger = logging.getLogger(__name__)
 
-# 預設用模型關鍵字當 search 查詢；Threads 的 tag 搜尋頁。
 # 註：Threads 2025 把主網域 threads.net → threads.com（cookie domain 也跟著變）。
 _DOMAIN = "threads.com"
-# 擴大查詢以提高每日新貼產量：6 模型 + 別名 + 熱門相關詞（tag 搜尋）。
-# keyword_only 仍會把「沒提到 6 模型」的貼擋掉，故這些主要是「更多入口」找到提及模型的貼。
+# 查詢詞（tag 搜尋入口）：模型輪替 + 廣義中文 AI + 台灣在地（變現/教學）+ 風險倫理（價值主題）。
+# 門檻改廣義 AI 後，這些查詢能帶回大量不點名模型、但確實在談 AI 的台灣貼文。
 DEFAULT_QUERIES: tuple[str, ...] = (
-    "claude", "claude code", "chatgpt", "gpt", "openai", "anthropic",
-    "gemini", "grok", "llama", "deepseek",
-    "copilot", "cursor", "perplexity", "ai agent", "提示詞", "ai工具",
+    # 模型 / 工具（輪替入口）
+    "claude", "claude code", "chatgpt", "gpt", "openai", "gemini", "grok", "llama",
+    "deepseek", "copilot", "cursor", "perplexity", "midjourney", "notebooklm",
+    # 廣義中文 AI（主力）
+    "AI工具", "AI繪圖", "AI生圖", "提示詞", "AI教學", "生成式AI", "ai agent",
+    # 使用方法 / 變現（台灣在地高量）
+    "AI變現", "AI副業", "AI接案", "ChatGPT教學", "AI自動化",
+    # 風險 / 倫理（價值主題）
+    "AI詐騙", "AI造假", "deepfake", "AI隱私", "AI取代",
+    # 新模型 / 熱門工具（2026 在地高頻）
+    "sora", "gpts", "gpt-5", "gemini3", "kling", "可靈", "comfyui", "stable diffusion",
+    "runway", "suno", "heygen", "notion ai", "github copilot", "claude opus",
+    # AI 繪圖 / 內容細分（台灣社群最熱）
+    "AI繪師", "AI語音", "AI影片", "文生圖", "AI寫作", "AI助理", "提示工程", "AI模型",
+    # 變現 / 學習（台灣在地）
+    "AI賺錢", "AI斜槓", "ChatGPT賺錢", "AI工作流", "AI課程",
+    # 著作權 / 監管
+    "AI著作權", "AI版權", "AI監管",
+    # 模型版本（細分入口，觸及不同貼）
+    "gpt-4o", "gpt4o", "o1", "o3", "claude 3.5", "claude sonnet", "claude haiku",
+    "gemini pro", "gemini flash", "llama 3", "mistral", "qwen", "deepseek r1",
+    "flux", "dall-e", "dalle", "ideogram", "leonardo ai", "pika", "luma", "udio",
+    "elevenlabs", "whisper", "nano banana", "wan", "即夢",
+    # AI 工具 / 應用（繁中細分）
+    "AI工具推薦", "AI應用", "AI趨勢", "ChatGPT應用", "AI寫作工具", "AI簡報",
+    "AI影片生成", "AI配音", "AI換臉", "AI去背", "AI修圖", "AI頭像", "AI模特",
+    "AI生成影片", "AI生成圖片", "AI繪圖工具", "AI聊天機器人", "AI客服",
+    # 變現 / 自媒體（台灣在地高量）
+    "AI被動收入", "AI賺錢方法", "AI電商", "AI行銷", "AI文案", "AI自媒體",
+    "AI部落格", "ChatGPT賺錢方法", "AI開店", "AI經營",
+    # Coding / agent 工具
+    "cursor教學", "windsurf", "bolt.new", "v0", "replit agent", "devin",
+    "AI寫程式", "vibe coding", "claude code教學", "AI coding",
+    # 一般詞 / 新聞 / 風險
+    "人工智慧", "機器學習", "大語言模型", "生成式AI應用", "AI新聞",
+    "AI失業", "AI法規", "AI假新聞", "AI個資", "AI偏見", "AI幻覺",
 )
 _SEARCH_URL = f"https://www.{_DOMAIN}/search?q={{q}}&serp_type=tags"
 _USER_AGENT = (
@@ -174,13 +214,17 @@ async def crawl_threads(
     headless: bool = True,
     scroll_times: int = 3,
     keyword_only: bool = True,
+    traditional_only: bool = True,
     sessionid: str | None = None,
 ) -> AsyncIterator[dict]:
     """
     用 Selenium 載入 Threads 搜尋頁、捲動、抽取貼文，yield 正規化 dict。
 
+    keyword_only：True 時用**廣義 AI 相關門檻**（模型 OR 提示/工具/生成/變現…）過濾，
+      只擋掉與 AI 無關的貼（不再要求點名特定模型）。
+    traditional_only：True 時用 looks_simplified 擋掉簡體（中國）內容，純化台灣繁中訊號。
     sessionid：Threads 登入 cookie（與 Instagram 共用）。有給 → 注入後可越過登入牆、
-    抓到較完整資料；未給 → 多半碰到登入牆、抓不到或很少（會記 log、不 crash）。
+      抓到較完整資料；未給 → 多半碰到登入牆、抓不到或很少（會記 log、不 crash）。
     """
     import asyncio
 
@@ -215,7 +259,12 @@ async def crawl_threads(
                 except Exception:  # noqa: BLE001
                     logger.exception("Threads 正規化失敗，跳過 id=%s", ext)
                     continue
-                if keyword_only and not row["models"]:
+                text = row["content"]
+                # 繁體過濾：擋掉簡體（中國）內容，純化台灣訊號。
+                if traditional_only and looks_simplified(text):
+                    continue
+                # 廣義 AI 門檻：模型 OR 廣義 AI 相關（不再要求點名模型）。
+                if keyword_only and not (row["models"] or is_ai_related(text)):
                     continue
                 kept += 1
                 yield row
