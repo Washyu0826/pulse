@@ -1,0 +1,115 @@
+<!-- @dsCard group="版型" -->
+<!DOCTYPE html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Pulse DS · 知識材料包長文閱讀版式</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#F4F7FC;--bg-card:#FFFFFF;--bg-hover:#EAF1FB;--border:#D9E2F1;
+  --ink:#1B2536;--ink-2:rgba(27,37,54,.70);--ink-3:rgba(27,37,54,.55);
+  --accent:#4D74EA;--accent-strong:#385CCC;
+  --accent-tint:rgba(77,116,234,.10);--accent-line:rgba(77,116,234,.30);
+  --src-hn:#C2410C;--src-threads:#385CCC;--src-ptt:#047857;
+  --r-card:12px;--r-panel:8px;--r-chip:6px;
+  --shadow:0 1px 2px rgba(27,37,54,.05);
+  --sans:system-ui,"Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif;
+  --mono:ui-monospace,"Cascadia Mono",Consolas,"Noto Sans TC","PingFang TC","Microsoft JhengHei",monospace;
+}
+html{-webkit-text-size-adjust:100%}
+body{background:var(--bg);color:var(--ink);font:400 15px/1.7 var(--sans)}
+.canvas{max-width:980px;margin:0 auto;padding:48px 28px 88px}
+.ds-kicker{font:600 11px/1.5 var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--accent-strong)}
+.ds-title{font-size:24px;line-height:1.4;font-weight:700;margin-top:8px}
+.ds-lede{margin-top:10px;font-size:14px;line-height:1.8;color:var(--ink-2);max-width:42em}
+.tok{font-family:var(--mono);font-size:11px;color:var(--ink-2);background:rgba(27,37,54,.045);border:1px solid var(--border);border-radius:5px;padding:2px 7px;white-space:nowrap}
+.ds-foot{margin-top:32px;font-size:11px;color:var(--ink-3)}
+.nums{font-variant-numeric:tabular-nums}
+.spec{display:flex;gap:8px;flex-wrap:wrap;margin-top:18px}
+
+/* 閱讀容器 */
+.paper{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--r-card);box-shadow:var(--shadow);margin-top:24px;padding:48px 24px 56px;display:flex;justify-content:center}
+.article{width:100%;max-width:36em;font-size:17px;line-height:1.75;letter-spacing:.01em;overflow-wrap:break-word}
+.article .kind{font:600 11px/1.5 var(--mono);letter-spacing:.1em;color:var(--accent-strong);text-transform:uppercase}
+.article h1{font-size:23px;line-height:1.4;font-weight:700;margin-top:10px;text-wrap:balance}
+.article .meta{display:flex;gap:14px;flex-wrap:wrap;margin-top:12px;padding-bottom:20px;border-bottom:1px solid var(--border);font-size:12.5px;color:var(--ink-2)}
+.article h2{font-size:19px;line-height:1.5;font-weight:700;margin:2em 0 .1em}
+.article p{margin-top:1em}
+.article ul{margin-top:1em;padding-left:1.4em}
+.article li{margin-top:.45em}
+.article li::marker{color:var(--accent)}
+.why{margin-top:1.2em;border-left:3px solid var(--accent-line);background:var(--accent-tint);padding:14px 18px;border-radius:0 var(--r-panel) var(--r-panel) 0;font-size:15px;line-height:1.8;color:var(--ink-2)}
+.why b{color:var(--accent-strong);font-size:12px;display:block;margin-bottom:2px}
+.cite{display:inline-flex;align-items:center;justify-content:center;min-width:24px;min-height:22px;padding:1px 7px;margin:0 2px;border-radius:999px;background:var(--accent-tint);border:1px solid var(--accent-line);color:var(--accent-strong);font:600 11px/1 var(--mono);text-decoration:none;vertical-align:-3px}
+.code{font-family:var(--mono);font-size:.88em;background:rgba(27,37,54,.05);border:1px solid var(--border);border-radius:5px;padding:1px 6px}
+.srcs{margin-top:2.4em;padding-top:18px;border-top:1px solid var(--border)}
+.srcs h3{font-size:13px;font-weight:700;color:var(--ink-2)}
+.srow{display:flex;align-items:center;gap:10px;min-height:44px;text-decoration:none;color:inherit;font-size:14px;border-top:1px dashed var(--border)}
+.srow:first-of-type{border-top:0}
+.srcs .srow:nth-of-type(1){margin-top:6px}
+.srow .n{flex:none;width:22px;height:22px;border-radius:50%;background:var(--accent-tint);color:var(--accent-strong);display:flex;align-items:center;justify-content:center;font:600 11px/1 var(--mono)}
+.srow .t{flex:1;color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.srow .arr{color:var(--ink-3)}
+</style>
+</head>
+<body>
+<main class="canvas">
+  <header>
+    <p class="ds-kicker">Pulse Design System · Layout</p>
+    <h1 class="ds-title">知識材料包長文閱讀版式</h1>
+    <p class="ds-lede">材料包是「會被反覆讀的長文」——排版不對，整個功能的質感就垮。硬規格：正文 17px、行高 1.75、行長 ≤40 全形字（max-width 36em）、段距 1em 不縮排、字重只用 400/600、引文引註可溯源。</p>
+  </header>
+
+  <div class="paper">
+    <article class="article" lang="zh-Hant">
+      <p class="kind">知識材料包 · Knowledge Pack</p>
+      <h1>Claude Code 自動化工作流：從收藏的 7 篇情報蒸餾</h1>
+      <div class="meta nums">
+        <span>2026-06-12 生成</span>
+        <span>7 則收藏 · 3 個來源</span>
+        <span>約 6 分鐘讀完</span>
+        <span>地端 7B 模型蒸餾</span>
+      </div>
+
+      <h2>一、為什麼是排程而不是對話</h2>
+      <p>這批收藏裡最一致的訊號：把 Claude Code 當「會寫程式的 cron job」而非聊天對象。三位作者不約而同把日常雜事（報帳、週報、log 巡檢）改寫成可重跑的指令檔，再交給排程器執行<a class="cite" href="#p-1" onclick="return false">1</a><a class="cite" href="#p-2" onclick="return false">2</a>。對話式用法的成本在於每次都要重新給上下文；排程式用法把上下文固化在 <span class="code">CLAUDE.md</span> 與指令檔裡，邊際成本趨近於零。</p>
+      <blockquote class="why"><b>收藏時你寫下的理由</b>「報帳那篇的 prompt 結構可以直接搬到我的電子報管線」——材料包生成時把這句餵進了蒸餾提示。</blockquote>
+
+      <h2>二、實測中反覆出現的三個坑</h2>
+      <p>把七篇的失敗經驗對齊後，重複出現的只有三件事：</p>
+      <ul>
+        <li><b>權限邊界</b>：無人值守執行時，一個未預期的確認提示就會卡住整條管線——先在沙箱列白名單，不要直接 <span class="code">--yolo</span><a class="cite" href="#p-3" onclick="return false">3</a>。</li>
+        <li><b>長任務的中途漂移</b>：超過 30 分鐘的批次工作要切檢查點，讓每一步可重入<a class="cite" href="#p-2" onclick="return false">2</a>。</li>
+        <li><b>繁中輸出的格式約束</b>：表格與全形標點要寫進系統提示，否則跑十次會有一次走樣<a class="cite" href="#p-4" onclick="return false">4</a>。</li>
+      </ul>
+
+      <h2>三、可以直接做的下一步</h2>
+      <p>最小可行版本是一條三步管線：早上 7 點排程喚起 → 讀固定資料夾的新檔案 → 產出摘要寄到信箱。PTT 那篇的作者用 Windows 工作排程器加一個 12 行的批次檔就完成了<a class="cite" href="#p-4" onclick="return false">4</a>，與你現有的每日電子報架構幾乎同構，移植成本最低。</p>
+
+      <div class="srcs">
+        <h3>出處（7 則收藏中被引用的 4 則）</h3>
+        <a class="srow" id="p-1" href="#" onclick="return false"><span class="n">1</span><span class="t">Threads · @automate.tw — 報帳自動化的完整 prompt 與排程設定</span><span class="arr">→</span></a>
+        <a class="srow" id="p-2" href="#" onclick="return false"><span class="n">2</span><span class="t">HN · Running Claude Code as a nightly batch worker（討論 218 則）</span><span class="arr">→</span></a>
+        <a class="srow" id="p-3" href="#" onclick="return false"><span class="n">3</span><span class="t">Dev.to · Permission pitfalls when scheduling AI agents</span><span class="arr">→</span></a>
+        <a class="srow" id="p-4" href="#" onclick="return false"><span class="n">4</span><span class="t">PTT · [心得] 用工作排程器讓 Claude Code 每天早上整理資料夾</span><span class="arr">→</span></a>
+      </div>
+    </article>
+  </div>
+
+  <div class="spec">
+    <span class="tok">正文 17px / 1.75 / ls .01em</span>
+    <span class="tok">max-width 36em ≈ 40 全形字</span>
+    <span class="tok">段距 1em · 不縮排</span>
+    <span class="tok">h2 19px/1.5 · 上 2em 下 ~0.7em</span>
+    <span class="tok">字重 400 / 600 兩檔</span>
+    <span class="tok">引註膠囊 ≥24px 命中</span>
+    <span class="tok">收藏理由（why）→ 引文塊回放</span>
+    <span class="tok">中西文間留空格＋text-autospace 漸進增強</span>
+  </div>
+
+  <p class="ds-foot">Pulse Design System · 依據 docs/ux/research 02 §(b)(c)、04 §2 · 2026-06-12</p>
+</main>
+</body>
+</html>

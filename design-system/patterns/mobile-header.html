@@ -1,0 +1,163 @@
+<!-- @dsCard group="版型" -->
+<!DOCTYPE html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Pulse DS · 行動版 Header 提案</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#F4F7FC;--bg-card:#FFFFFF;--bg-hover:#EAF1FB;--border:#D9E2F1;
+  --ink:#1B2536;--ink-2:rgba(27,37,54,.70);--ink-3:rgba(27,37,54,.55);
+  --accent:#4D74EA;--accent-strong:#385CCC;
+  --accent-tint:rgba(77,116,234,.10);--accent-line:rgba(77,116,234,.30);
+  --r-card:12px;--r-panel:8px;--r-chip:6px;
+  --shadow:0 1px 2px rgba(27,37,54,.05);
+  --sans:system-ui,"Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif;
+  --mono:ui-monospace,"Cascadia Mono",Consolas,"Noto Sans TC","PingFang TC","Microsoft JhengHei",monospace;
+}
+html{-webkit-text-size-adjust:100%}
+body{background:var(--bg);color:var(--ink);font:400 15px/1.7 var(--sans)}
+.canvas{max-width:980px;margin:0 auto;padding:48px 28px 88px}
+.ds-kicker{font:600 11px/1.5 var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--accent-strong)}
+.ds-title{font-size:24px;line-height:1.4;font-weight:700;margin-top:8px}
+.ds-lede{margin-top:10px;font-size:14px;line-height:1.8;color:var(--ink-2);max-width:42em}
+.panel{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--r-card);padding:26px 28px;box-shadow:var(--shadow);margin-top:24px}
+.panel-head{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:18px}
+.panel-head h2{font-size:15px;font-weight:700}
+.panel-head .note{font-size:12px;color:var(--ink-2)}
+.tok{font-family:var(--mono);font-size:11px;color:var(--ink-2);background:rgba(27,37,54,.045);border:1px solid var(--border);border-radius:5px;padding:2px 7px;white-space:nowrap}
+.ds-foot{margin-top:32px;font-size:11px;color:var(--ink-3)}
+.nums{font-variant-numeric:tabular-nums}
+
+.frames{display:flex;gap:28px;flex-wrap:wrap;align-items:flex-start}
+.frame{border:1px solid var(--border);border-radius:20px;background:var(--bg);overflow:hidden;box-shadow:var(--shadow);flex:none}
+.f-375{width:375px;max-width:100%}
+.f-320{width:320px;max-width:100%}
+.frame-cap{font:600 10px/1 var(--mono);letter-spacing:.08em;color:var(--ink-2);margin-bottom:10px;text-transform:uppercase}
+
+.mhead{display:flex;align-items:center;gap:8px;height:52px;padding:0 14px;background:rgba(244,247,252,.92);border-bottom:1px solid var(--border)}
+.brand{display:flex;align-items:center;gap:7px;text-decoration:none;color:var(--ink);min-height:44px}
+.pulse-dot{width:10px;height:10px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 3px var(--accent-tint);flex:none}
+.brand b{font-size:16px;font-weight:700;letter-spacing:.01em}
+.mnav{margin-left:auto;display:flex;gap:2px}
+.mnav a{display:inline-flex;align-items:center;min-height:44px;padding:0 10px;border-radius:var(--r-panel);font-size:14px;font-weight:500;color:var(--ink-2);text-decoration:none}
+.mnav a.is-cur{color:var(--accent-strong);font-weight:600;background:var(--accent-tint)}
+.fresh{font-size:11px;color:var(--ink-2);margin-left:auto}
+
+.mbody{padding:14px;min-height:104px}
+.ghost-line{height:12px;border-radius:6px;background:rgba(27,37,54,.06);margin-top:10px}
+
+.tabbar{display:flex;border-top:1px solid var(--border);background:var(--bg-card)}
+.tab{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;min-height:56px;font-size:11px;font-weight:500;color:var(--ink-2);text-decoration:none}
+.tab svg{width:21px;height:21px}
+.tab.is-cur{color:var(--accent-strong);font-weight:600}
+.safe{height:16px;background:repeating-linear-gradient(45deg,rgba(27,37,54,.05) 0 6px,transparent 6px 12px);display:flex;align-items:center;justify-content:center}
+.safe span{font:600 8.5px/1 var(--mono);color:var(--ink-3);letter-spacing:.06em;background:var(--bg-card);padding:0 6px}
+ul.notes{margin:16px 0 0 1.2em;font-size:13px;line-height:1.9;color:var(--ink-2)}
+</style>
+</head>
+<body>
+<main class="canvas">
+  <header>
+    <p class="ds-kicker">Pulse Design System · Layout</p>
+    <h1 class="ds-title">行動版 Header 提案</h1>
+    <p class="ds-lede">現況在 ≤375px 溢出（logo 96px＋三連結＋Live ≈ 376px）→ 整頁橫向捲動、sticky 錯位。兩案：A 精簡頂列（最小改動）、B 底部 tab bar（正解，拇指可達性最好）。「Live」恆亮綠點改成誠實的「更新於 HH:MM」。</p>
+  </header>
+
+  <section class="panel">
+    <div class="panel-head"><h2>方案 A：精簡頂列</h2><span class="note">藏 wordmark 標語與 Live、導覽縮短字、全部 44px 命中</span></div>
+    <div class="frames">
+      <div>
+        <p class="frame-cap">iPhone · 375px</p>
+        <div class="frame f-375">
+          <div class="mhead">
+            <a class="brand" href="#" onclick="return false"><span class="pulse-dot"></span><b>Pulse</b></a>
+            <nav class="mnav">
+              <a class="is-cur" href="#" onclick="return false" aria-current="page">今日</a>
+              <a href="#" onclick="return false">收藏</a>
+              <a href="#" onclick="return false">決策</a>
+            </nav>
+          </div>
+          <div class="mbody">
+            <div class="ghost-line" style="width:62%"></div>
+            <div class="ghost-line" style="width:88%"></div>
+            <div class="ghost-line" style="width:45%"></div>
+          </div>
+        </div>
+      </div>
+      <div>
+        <p class="frame-cap">小型 Android · 320px</p>
+        <div class="frame f-320">
+          <div class="mhead" style="padding:0 10px">
+            <a class="brand" href="#" onclick="return false"><span class="pulse-dot"></span><b>Pulse</b></a>
+            <nav class="mnav">
+              <a class="is-cur" href="#" onclick="return false" aria-current="page">今日</a>
+              <a href="#" onclick="return false">收藏</a>
+              <a href="#" onclick="return false">決策</a>
+            </nav>
+          </div>
+          <div class="mbody">
+            <div class="ghost-line" style="width:70%"></div>
+            <div class="ghost-line" style="width:90%"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <ul class="notes">
+      <li>導覽改短字：「儀表板→今日」「我的最愛→收藏」「決策報告→決策」（同步修掉舊定位用語）。</li>
+      <li>320px 仍有餘裕：brand ~88px ＋ 三連結 ~150px ＋內距 20px ≈ 258px。</li>
+    </ul>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head"><h2>方案 B：底部 tab bar（建議）</h2><span class="note">三個一級頁面正好三個 tab；頂列只剩品牌與資料新鮮度</span></div>
+    <div class="frames">
+      <div>
+        <p class="frame-cap">iPhone · 375px ＋ safe-area</p>
+        <div class="frame f-375">
+          <div class="mhead">
+            <a class="brand" href="#" onclick="return false"><span class="pulse-dot"></span><b>Pulse</b></a>
+            <span class="fresh nums">更新於 08:30</span>
+          </div>
+          <div class="mbody" style="min-height:120px">
+            <div class="ghost-line" style="width:62%"></div>
+            <div class="ghost-line" style="width:88%"></div>
+            <div class="ghost-line" style="width:74%"></div>
+            <div class="ghost-line" style="width:40%"></div>
+          </div>
+          <nav class="tabbar" aria-label="主導覽">
+            <a class="tab is-cur" href="#" onclick="return false" aria-current="page">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 22V12h6v10"/></svg>
+              今日
+            </a>
+            <a class="tab" href="#" onclick="return false">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.29 1.51 4.04 3 5.5l7 7z"/></svg>
+              收藏
+            </a>
+            <a class="tab" href="#" onclick="return false">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M16 13H8"/><path d="M16 17H8"/></svg>
+              決策
+            </a>
+          </nav>
+          <div class="safe"><span>env(safe-area-inset-bottom)</span></div>
+        </div>
+      </div>
+      <div style="max-width:380px">
+        <p class="frame-cap">規格</p>
+        <ul class="notes" style="margin-top:0">
+          <li>tab 高 56px ＋ <span class="tok">pb: env(safe-area-inset-bottom)</span>，icon 21px ＋ 11px 標籤。</li>
+          <li>現用 tab：<span class="tok">#385CCC</span> ＋ 600 字重——不只變色（aria-current="page"）。</li>
+          <li>「更新於 08:30」由 API 的 last_crawled_at 帶出，取代恆亮 Live 的過度承諾。</li>
+          <li>收藏 tab 可加未打包計數 badge（打包 nudge 的入口）。</li>
+          <li>sticky 頂列改純半透明底（低階 Android blur 合成有感時降級）。</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <p class="ds-foot">Pulse Design System · 依據 docs/ux/research 05 §1.2、01 §C7、§D3 · 2026-06-12</p>
+</main>
+</body>
+</html>

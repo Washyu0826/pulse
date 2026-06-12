@@ -1,10 +1,12 @@
 import { Fragment } from "react";
 import { Layers } from "lucide-react";
 
+import { FavoriteButton } from "@/components/favorite-button";
 import { SectionStatus } from "@/components/section-status";
 import { themeMeta } from "@/components/theme-meta";
 import { Badge } from "@/components/ui/badge";
 import { getTodayEvents } from "@/lib/api";
+import { eventToFavoritePost } from "@/lib/favorites";
 import type { EventCitation, EventSummary } from "@/lib/types";
 
 /**
@@ -35,19 +37,21 @@ function renderSummary(summary: string, citations: EventCitation[]) {
       );
     }
     return (
-      <sup key={i} className="mx-0.5 font-mono text-[10px] text-ink/40">
+      <sup key={i} className="mx-0.5 font-mono text-[10px] text-ink/70">
         [{n}]
       </sup>
     );
   });
 }
 
-/** 單則今日事件卡：標題 + 主題徽章 + 成員貼文數 + 帶行內出處的忠實摘要 + 出處清單。 */
+/** 單則今日事件卡：標題 + 主題徽章 + 成員貼文數 + 帶行內出處的忠實摘要 + 出處清單 + 收藏。 */
 function EventSummaryCard({ ev }: { ev: EventSummary }) {
   const meta = themeMeta(ev.theme);
   return (
-    <article className="card">
-      <div className="flex items-center gap-2">
+    <article className="card relative">
+      {/* 收藏：事件以「摘要＋引註出處」形狀存進最愛 → 可進知識材料包（與 FeedCard 同一顆鈕）。 */}
+      <FavoriteButton post={eventToFavoritePost(ev)} className="absolute right-1.5 top-1.5 z-10" />
+      <div className="flex items-center gap-2 pr-9">
         <span
           className={`flex h-6 w-6 items-center justify-center rounded-md ring-1 ${meta.bg} ${meta.text} ${meta.ring}`}
         >
@@ -81,7 +85,7 @@ function EventSummaryCard({ ev }: { ev: EventSummary }) {
                 [{c.n}]
               </a>
             ) : (
-              <span key={c.n} className="font-mono text-[11px] text-ink/40">
+              <span key={c.n} className="font-mono text-[11px] text-ink/70">
                 [{c.n}]
               </span>
             ),
@@ -95,12 +99,13 @@ function EventSummaryCard({ ev }: { ev: EventSummary }) {
 /**
  * 今日事件區（自帶 fetch；Suspense 邊界內串流）。
  * 把多篇相關貼文聚成事件並做忠實摘要 + 行內出處引用（產品差異化核心，非 RAG）。
- * 後端端點未上線 / 抓不到資料 → 退回「尚無今日事件」空狀態，不讓整頁掛掉。
+ * 錯誤與空狀態分開呈現：API 抓不到是「載入不了」（error），真的沒事件才是「尚無」（empty）
+ * —— 不把故障偽裝成空，使用者才分得清是要等內容還是要稍後重試。兩者都不讓整頁掛掉。
  */
 export async function TodayEvents() {
   const events = await getTodayEvents();
   if (!events.ok) {
-    return <SectionStatus kind="empty">尚無今日事件 —— 等今天的貼文累積到可聚合的事件後會出現在這裡。</SectionStatus>;
+    return <SectionStatus kind="error">今日事件暫時載入不了，稍後再試。</SectionStatus>;
   }
   if (events.data.length === 0) {
     return <SectionStatus kind="empty">尚無今日事件 —— 今天還沒有可聚合成事件的討論。</SectionStatus>;

@@ -1,7 +1,7 @@
 """
 每日實用情報 feed endpoint（定位 C 首頁核心）。
 
-以主題為主軸（新工具/使用方法/邊界），模型/情緒/來源/時間為篩選維度。
+以主題為主軸（新工具/模型動態/使用方法/風險限制/倫理法規），模型/情緒/來源/時間為篩選維度。
 - GET /api/feed          → 各主題 top N 貼文（首頁三分區 / 主題列表頁）
 - GET /api/feed/summary  → 各主題計數（首頁今日摘要列）
 """
@@ -17,8 +17,11 @@ from api.services.trending import get_trending
 router = APIRouter()
 
 Sentiment = Literal["positive", "neutral", "negative"]
-Source = Literal["hackernews", "devto", "lobsters", "threads", "reddit"]
-Theme = Literal["新工具", "使用方法", "邊界"]
+# 與前端 web/components/source-meta.tsx SOURCE_ORDER 對齊（另保留 DB 仍有的 reddit）。
+Source = Literal["hackernews", "devto", "lobsters", "threads", "ptt", "reddit"]
+# 與 ml/ml/theme.py THEME_HYPOTHESES / 前端 theme-meta.tsx THEME_ORDER 對齊（5 主題，不含「其他」）。
+# 舊「邊界」標籤不收：DB 殘留的 legacy 資料由 services/feed.py 在查詢層映射到「風險限制」。
+Theme = Literal["新工具", "模型動態", "使用方法", "風險限制", "倫理法規"]
 
 
 @router.get("/feed")

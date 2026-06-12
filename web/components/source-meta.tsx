@@ -24,36 +24,38 @@ export interface SourceMeta {
 const NEUTRAL: SourceMeta = {
   label: "其他",
   emoji: "•",
-  badge: "border-border bg-ink/[0.03] text-ink/55",
+  badge: "border-border bg-ink/[0.03] text-ink/70",
 };
 
+// 文字色一律用 -700 階：-400/-500 是暗色主題的選擇，白底 10px 全數低於 WCAG AA 4.5:1
+//（emerald-400 只有 1.9:1）。淡底 / 邊框維持 -500/10、-500/30，色相識別不變。
 export const SOURCE_META: Record<SourceLabel, SourceMeta> = {
   hackernews: {
     label: "HN",
     emoji: "🟠",
-    badge: "border-orange-500/30 bg-orange-500/10 text-orange-500",
+    badge: "border-orange-500/30 bg-orange-500/10 text-orange-700",
   },
   devto: {
     label: "Dev.to",
     emoji: "👾",
-    badge: "border-violet-500/30 bg-violet-500/10 text-violet-400",
+    badge: "border-violet-500/30 bg-violet-500/10 text-violet-700",
   },
   threads: {
     label: "Threads",
     emoji: "🧵",
-    badge: "border-accent-cyan/30 bg-accent-cyan/10 text-accent-cyan",
+    badge: "border-accent-cyan/30 bg-accent-cyan/10 text-accent-strong",
     local: true,
   },
   ptt: {
     label: "PTT",
     emoji: "🟢",
-    badge: "border-emerald-500/30 bg-emerald-500/10 text-emerald-400",
+    badge: "border-emerald-500/30 bg-emerald-500/10 text-emerald-700",
     local: true,
   },
   lobsters: {
     label: "Lobsters",
     emoji: "🦞",
-    badge: "border-red-500/30 bg-red-500/10 text-red-400",
+    badge: "border-red-500/30 bg-red-500/10 text-red-700",
   },
 };
 

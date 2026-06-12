@@ -1,4 +1,5 @@
 import { FavoriteButton } from "@/components/favorite-button";
+import { NewBadge } from "@/components/new-badge";
 import { sourceMeta } from "@/components/source-meta";
 import { Badge } from "@/components/ui/badge";
 import { relativeTime } from "@/lib/time";
@@ -11,12 +12,31 @@ const SENTIMENT_DOT: Record<Sentiment, { cls: string; word: string }> = {
   negative: { cls: "bg-sentiment-negative", word: "負面" },
 };
 
+/**
+ * 情緒色點 + 可見文字標籤。
+ * 只有色點＋title 在觸控裝置與讀屏都拿不到語意（05 §2.4），
+ * 故補一字級小字（沿用 ink 階低調呈現）並以 aria-label 給出完整語意。
+ */
 function SentimentDot({ s }: { s: Sentiment | null }) {
   if (s === null) {
-    return <span title="情緒未分析" className="h-2 w-2 shrink-0 rounded-full bg-ink/20" />;
+    return (
+      <span
+        role="img"
+        aria-label="情緒未分析"
+        title="情緒未分析"
+        className="h-2 w-2 shrink-0 rounded-full bg-ink/20"
+      />
+    );
   }
   const d = SENTIMENT_DOT[s];
-  return <span title={`情緒：${d.word}`} className={`h-2 w-2 shrink-0 rounded-full ${d.cls}`} />;
+  return (
+    <span role="img" aria-label={`情緒：${d.word}`} className="flex shrink-0 items-center gap-1">
+      <span aria-hidden className={`h-2 w-2 rounded-full ${d.cls}`} />
+      <span aria-hidden className="text-[11px] leading-none text-ink/70">
+        {d.word}
+      </span>
+    </span>
+  );
 }
 
 /**
@@ -36,8 +56,9 @@ export function FeedCard({ post }: { post: FeedPost }) {
           className="absolute inset-0 z-0 rounded-xl"
         />
       )}
-      <FavoriteButton post={post} className="absolute right-2.5 top-2.5 z-10" />
-      <div className="flex items-center gap-1.5 pr-7">
+      {/* 收藏鈕命中區擴到 44px（FavoriteButton 內處理），位置微調 + 右側留 36px 淨空避免與徽章列重疊。 */}
+      <FavoriteButton post={post} className="absolute right-1.5 top-1.5 z-10" />
+      <div className="flex items-center gap-1.5 pr-9">
         <SentimentDot s={post.sentiment} />
         {post.models.map((m) => (
           <Badge key={m} variant="accent">
@@ -48,21 +69,23 @@ export function FeedCard({ post }: { post: FeedPost }) {
           <span aria-hidden>{src.emoji}</span>
           {src.label}
         </Badge>
+        {/* NEW：晚於上次來訪的內容（client 子元件，首次來訪無基準不標）。 */}
+        <NewBadge time={post.posted_at} />
       </div>
       <h3 className="mt-2.5 line-clamp-2 text-sm font-medium leading-snug text-ink">
         {post.title_zh ?? post.title}
       </h3>
       {/* 中英並列：有譯文時，原文以小字斜體列於下方對照 */}
       {post.title_zh && (
-        <p className="mt-1 line-clamp-1 text-[11px] italic leading-snug text-ink/40">{post.title}</p>
+        <p className="mt-1 line-clamp-1 text-[11px] italic leading-snug text-ink/55">{post.title}</p>
       )}
       {(post.snippet_zh ?? post.snippet) && (post.snippet_zh ?? post.snippet) !== post.title && (
-        <p className="mt-1.5 line-clamp-2 text-[13px] leading-relaxed text-ink/55">
+        <p className="mt-1.5 line-clamp-2 text-[13px] leading-relaxed text-ink/70">
           {post.snippet_zh ?? post.snippet}
         </p>
       )}
       {post.posted_at && (
-        <time className="mt-2 block font-mono text-[11px] text-ink/40">
+        <time className="mt-2 block font-mono text-[11px] text-ink/70">
           {relativeTime(post.posted_at)}
         </time>
       )}

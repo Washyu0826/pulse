@@ -4,7 +4,16 @@ import { cn } from "@/lib/utils";
  * Pulse logo —— 藍色圓角方塊內一條脈搏波形（呼應 "Pulse" / 監測情報），加 wordmark。
  * 純展示；外層自行包 <Link>。
  */
-export function Logo({ className, markOnly = false }: { className?: string; markOnly?: boolean }) {
+export function Logo({
+  className,
+  markOnly = false,
+  wordmarkClassName,
+}: {
+  className?: string;
+  markOnly?: boolean;
+  /** 額外加在 wordmark 上的 class（如 header 在窄螢幕用 CSS 隱藏 wordmark、只留圖標）。 */
+  wordmarkClassName?: string;
+}) {
   return (
     <span className={cn("inline-flex items-center gap-2", className)}>
       <span className="animate-pulse-beat flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-accent-primary shadow-sm shadow-accent-primary/30">
@@ -22,7 +31,9 @@ export function Logo({ className, markOnly = false }: { className?: string; mark
         </svg>
       </span>
       {!markOnly && (
-        <span className="font-script text-[26px] font-bold leading-none text-ink">Pulse</span>
+        <span className={cn("font-script text-[26px] font-bold leading-none text-ink", wordmarkClassName)}>
+          Pulse
+        </span>
       )}
     </span>
   );

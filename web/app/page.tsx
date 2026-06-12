@@ -53,8 +53,8 @@ export default function HomePage({
             </Suspense>
           </aside>
 
-          {/* 中間主區：每日實用情報 */}
-          <div className="min-w-0">
+          {/* 中間主區：每日實用情報。窄螢幕單欄時排最前（05 #9：別讓模型側欄擋在情報前），lg 起恢復文件序。 */}
+          <div className="order-first min-w-0 lg:order-none">
             <FeedFilter />
             <Suspense key={`sum:${feedKey}`} fallback={<Skeleton className="h-14 w-full rounded-xl" />}>
               <FeedSummary filters={filters} />

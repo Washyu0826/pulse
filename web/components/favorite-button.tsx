@@ -31,8 +31,11 @@ export function FavoriteButton({ post, className }: { post: FeedPost; className?
         setFav(toggleFavorite(post));
       }}
       className={cn(
-        "rounded-md p-1 transition-colors hover:bg-accent-primary/10",
-        fav ? "text-accent-primary" : "text-ink/25 hover:text-accent-primary",
+        // 觸控命中區 ≥44px：視覺 p-2（32px）+ 透明外擴 6px 命中層 = 44px，
+        // 不放大 icon 本身。z 高於整卡 stretched link（由呼叫端傳 z-10），
+        // 點擊範圍內不會誤觸底下的外部連結。
+        "relative rounded-md p-2 transition-colors before:absolute before:-inset-1.5 before:content-[''] hover:bg-accent-primary/10",
+        fav ? "text-accent-primary" : "text-ink/45 hover:text-accent-primary",
         className,
       )}
     >

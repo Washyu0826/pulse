@@ -4,10 +4,10 @@
  *
  * 資料來自單一 API（/api/models/{slug}），整頁一次抓；失敗或查無 → 友善狀態 / 404。
  */
-import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, ArrowUpRight } from "lucide-react";
+import { ArrowUpRight } from "lucide-react";
 
+import { BackLink } from "@/components/back-link";
 import { TrendChart } from "@/components/charts/trend-chart";
 import { EventCard } from "@/components/event-card";
 import { ReleaseCard } from "@/components/release-card";
@@ -71,7 +71,7 @@ export default async function ModelDetailPage({ params }: { params: { slug: stri
         <main className="mx-auto max-w-4xl px-6 py-10">
           <BackLink />
           <div className="card mt-6 text-center text-sm text-sentiment-negative">
-            無法載入此模型詳情，請確認 API 是否啟動。
+            這個模型的詳情暫時載入不了，稍後再試。
           </div>
         </main>
         <SiteFooter />
@@ -93,7 +93,7 @@ export default async function ModelDetailPage({ params }: { params: { slug: stri
             <span className="text-sm text-ink/45">{m.company}</span>
             {m.role && <span className="text-sm text-ink/45">· {m.role}</span>}
           </div>
-          <p className="mt-2 text-sm text-ink/55">
+          <p className="mt-2 text-sm text-ink/70">
             這個模型在技術社群的討論熱度與口碑，過去 {m.trend_days} 天的走勢。
           </p>
         </div>
@@ -165,7 +165,7 @@ export default async function ModelDetailPage({ params }: { params: { slug: stri
                   ) : (
                     <span className="text-sm text-ink/85">{d.title}</span>
                   )}
-                  <div className="mt-1 font-mono text-[11px] text-ink/40">
+                  <div className="mt-1 font-mono text-[11px] text-ink/70">
                     {d.source} · {d.score} 分
                   </div>
                 </li>
@@ -195,17 +195,5 @@ export default async function ModelDetailPage({ params }: { params: { slug: stri
       </main>
       <SiteFooter />
     </>
-  );
-}
-
-function BackLink() {
-  return (
-    <Link
-      href="/"
-      className="inline-flex items-center gap-1 text-xs text-ink/50 transition-colors hover:text-ink"
-    >
-      <ArrowLeft className="h-3.5 w-3.5" aria-hidden />
-      回儀表板
-    </Link>
   );
 }

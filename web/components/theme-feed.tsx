@@ -1,8 +1,21 @@
+import Link from "next/link";
+
 import { FeedCard } from "@/components/feed-card";
 import { SectionStatus } from "@/components/section-status";
 import { THEME_META, THEME_ORDER } from "@/components/theme-meta";
 import { getFeed } from "@/lib/api";
 import type { FeedFilters } from "@/lib/types";
+
+/** 主題列表頁連結（把首頁當前篩選帶過去 —— 看全部後 filter 隨行）。 */
+function themeHref(label: string, filters: FeedFilters): string {
+  const q = new URLSearchParams();
+  if (filters.model) q.set("model", filters.model);
+  if (filters.sentiment) q.set("sentiment", filters.sentiment);
+  if (filters.source) q.set("source", filters.source);
+  if (filters.days) q.set("days", String(filters.days));
+  const qs = q.toString();
+  return `/theme/${encodeURIComponent(label)}${qs ? `?${qs}` : ""}`;
+}
 
 /**
  * 每日實用情報三主題分區（定位 C 門面，自帶 fetch，Suspense 內串流）。
@@ -11,7 +24,7 @@ import type { FeedFilters } from "@/lib/types";
 export async function ThemeFeed({ filters }: { filters: FeedFilters }) {
   const feed = await getFeed(filters, 4);
   if (!feed.ok) {
-    return <SectionStatus kind="error">無法載入情報，請確認 API 是否啟動</SectionStatus>;
+    return <SectionStatus kind="error">情報暫時載入不了，稍後再試。</SectionStatus>;
   }
 
   const hasAny = THEME_ORDER.some((t) => (feed.data[t]?.length ?? 0) > 0);
@@ -39,6 +52,12 @@ export async function ThemeFeed({ filters }: { filters: FeedFilters }) {
               </span>
               <h3 className="font-semibold text-ink">{label}</h3>
               <span className="ml-auto font-mono text-xs text-ink/35">{posts.length}</span>
+              <Link
+                href={themeHref(label, filters)}
+                className="shrink-0 text-[11px] text-accent-primary/80 transition-colors hover:text-accent-primary"
+              >
+                看全部 →
+              </Link>
             </div>
             {posts.length === 0 ? (
               <p className="rounded-lg border border-dashed border-border px-4 py-5 text-center text-[13px] text-ink/35">

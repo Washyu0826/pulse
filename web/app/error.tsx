@@ -26,7 +26,7 @@ export default function Error({
         ⚠️
       </span>
       <h1 className="mt-5 text-lg font-semibold text-ink">這個區塊暫時載入失敗</h1>
-      <p className="mt-2 text-sm leading-relaxed text-ink/55">
+      <p className="mt-2 text-sm leading-relaxed text-ink/70">
         可能是資料來源正在更新，或暫時連不上。你可以重試，或先回首頁看看其他情報。
       </p>
       {error.digest && (

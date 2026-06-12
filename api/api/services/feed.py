@@ -1,6 +1,6 @@
 """
-每日實用情報 feed 服務 —— 定位 C 的核心：以「主題」為主軸（新工具/使用方法/邊界），
-模型 / 情緒 / 來源 / 時間為篩選維度。供首頁三主題分區與主題列表頁共用。
+每日實用情報 feed 服務 —— 定位 C 的核心：以「主題」為主軸（新工具/模型動態/使用方法/
+風險限制/倫理法規），模型 / 情緒 / 來源 / 時間為篩選維度。供首頁主題分區與主題列表頁共用。
 
 只看高品質、非重複貼文（沿用 DQC 下游門檻 quality_post_filter），且只取「高信心」主題
 （themes.confident），「其他」不在實用情報內。
@@ -18,8 +18,25 @@ from api.models.theme import Theme
 from api.models.translation import Translation
 from api.services._quality import quality_post_filter
 
-# 實用情報的三大主題（不含「其他」）。順序＝首頁分區順序（新工具量最大擺第一）。
-ACTIONABLE_THEMES: tuple[str, ...] = ("新工具", "使用方法", "邊界")
+# 實用情報的五大主題（不含「其他」），與 ml/ml/theme.py THEME_HYPOTHESES 及前端
+# web/components/theme-meta.tsx THEME_ORDER 對齊。順序＝首頁分區順序（新工具量最大擺第一）。
+ACTIONABLE_THEMES: tuple[str, ...] = ("新工具", "模型動態", "使用方法", "風險限制", "倫理法規")
+
+# legacy 映射：2026-06 主題改版（3 類 → 5 類）前，DB themes 表仍有少量舊「邊界」標籤
+# （約 265 筆，尚未重跑分類）。「邊界」語意最接近「風險限制」（實務限制/失敗/風險），
+# 故查詢層把它映射進「風險限制」，避免這批資料默默消失；輸出一律用正規標籤。
+# 舊資料全數重跑分類後即可移除這個映射。
+LEGACY_THEME_ALIASES: dict[str, tuple[str, ...]] = {"風險限制": ("邊界",)}
+
+# 反向表：DB 舊標籤 → 正規標籤（彙總計數時用）。
+_ALIAS_TO_CANONICAL: dict[str, str] = {
+    alias: canonical for canonical, aliases in LEGACY_THEME_ALIASES.items() for alias in aliases
+}
+
+
+def _db_labels(label: str) -> tuple[str, ...]:
+    """單一正規主題在 DB 中對應的標籤集合（含 legacy 別名）。"""
+    return (label, *LEGACY_THEME_ALIASES.get(label, ()))
 
 _WS_RE = re.compile(r"\s+")
 
@@ -76,7 +93,7 @@ async def _query_theme(
         .join(Theme, Theme.post_id == Post.id)
         .outerjoin(Sentiment, Sentiment.post_id == Post.id)
         .outerjoin(Translation, Translation.post_id == Post.id)
-        .where(Theme.confident.is_(True), Theme.label == label)
+        .where(Theme.confident.is_(True), Theme.label.in_(_db_labels(label)))
         .order_by(Post.posted_at.desc(), Post.id.desc())
         .limit(limit)
     )
@@ -139,14 +156,18 @@ async def get_feed_summary(
 ) -> dict[str, int]:
     """各實用主題在篩選條件下的貼文數（給首頁今日摘要列）。"""
     cutoff = datetime.now(UTC) - timedelta(days=days)
+    all_db_labels = tuple(db for label in ACTIONABLE_THEMES for db in _db_labels(label))
     stmt = (
         select(Theme.label, func.count().label("n"))
         .join(Post, Post.id == Theme.post_id)
         .outerjoin(Sentiment, Sentiment.post_id == Post.id)
-        .where(Theme.confident.is_(True), Theme.label.in_(ACTIONABLE_THEMES))
+        .where(Theme.confident.is_(True), Theme.label.in_(all_db_labels))
         .group_by(Theme.label)
     )
     stmt = _base_filters(stmt, source=source, sentiment=sentiment, cutoff=cutoff, model=model)
     rows = (await session.execute(stmt)).all()
-    counts = {r.label: r.n for r in rows}
-    return {label: counts.get(label, 0) for label in ACTIONABLE_THEMES}
+    counts: dict[str, int] = {label: 0 for label in ACTIONABLE_THEMES}
+    for r in rows:
+        # legacy 標籤（如「邊界」）併入對應正規主題的計數
+        counts[_ALIAS_TO_CANONICAL.get(r.label, r.label)] += r.n
+    return counts

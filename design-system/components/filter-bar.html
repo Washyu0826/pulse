@@ -1,0 +1,101 @@
+<!-- @dsCard group="元件" -->
+<!DOCTYPE html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Pulse DS · 篩選列</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#F4F7FC;--bg-card:#FFFFFF;--bg-hover:#EAF1FB;--border:#D9E2F1;
+  --ink:#1B2536;--ink-2:rgba(27,37,54,.70);--ink-3:rgba(27,37,54,.55);
+  --accent:#4D74EA;--accent-strong:#385CCC;
+  --accent-tint:rgba(77,116,234,.10);--accent-line:rgba(77,116,234,.30);
+  --r-card:12px;--r-panel:8px;--r-chip:6px;
+  --shadow:0 1px 2px rgba(27,37,54,.05);
+  --sans:system-ui,"Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif;
+  --mono:ui-monospace,"Cascadia Mono",Consolas,"Noto Sans TC","PingFang TC","Microsoft JhengHei",monospace;
+}
+html{-webkit-text-size-adjust:100%}
+body{background:var(--bg);color:var(--ink);font:400 15px/1.7 var(--sans)}
+.canvas{max-width:980px;margin:0 auto;padding:48px 28px 88px}
+.ds-kicker{font:600 11px/1.5 var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--accent-strong)}
+.ds-title{font-size:24px;line-height:1.4;font-weight:700;margin-top:8px}
+.ds-lede{margin-top:10px;font-size:14px;line-height:1.8;color:var(--ink-2);max-width:42em}
+.panel{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--r-card);padding:26px 28px;box-shadow:var(--shadow);margin-top:24px}
+.panel-head{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:18px}
+.panel-head h2{font-size:15px;font-weight:700}
+.panel-head .note{font-size:12px;color:var(--ink-2)}
+.tok{font-family:var(--mono);font-size:11px;color:var(--ink-2);background:rgba(27,37,54,.045);border:1px solid var(--border);border-radius:5px;padding:2px 7px;white-space:nowrap}
+.ds-foot{margin-top:32px;font-size:11px;color:var(--ink-3)}
+.nums{font-variant-numeric:tabular-nums}
+
+.fbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.flabel{font-size:13px;font-weight:600;color:var(--ink-2);margin-right:-2px}
+.fselect{height:44px;padding:0 36px 0 14px;border:1px solid var(--border);border-radius:var(--r-panel);background-color:var(--bg-card);font:400 16px/1.2 var(--sans);color:var(--ink);appearance:none;-webkit-appearance:none;cursor:pointer;background-image:url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="%235F6672" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>');background-repeat:no-repeat;background-position:right 12px center}
+.finput{height:44px;padding:0 14px;border:1px solid var(--border);border-radius:var(--r-panel);background:var(--bg-card);font:400 16px/1.2 var(--sans);color:var(--ink);min-width:200px}
+.finput::placeholder{color:rgba(27,37,54,.45)}
+.mchip{display:inline-flex;align-items:center;min-height:44px;padding:10px 16px;border-radius:var(--r-panel);border:1px solid var(--border);background:var(--bg-card);color:var(--ink-2);font:500 14px/1.2 var(--sans);cursor:pointer}
+.mchip.is-on{background:var(--accent-tint);border-color:var(--accent-line);color:var(--accent-strong);font-weight:600}
+.clear{background:none;border:0;color:var(--accent-strong);font:600 14px/1 var(--sans);min-height:44px;padding:0 12px;cursor:pointer;border-radius:var(--r-panel)}
+
+.frame{width:375px;max-width:100%;border:1px solid var(--border);border-radius:16px;background:var(--bg);padding:16px 14px;box-shadow:var(--shadow)}
+.frame .fbar{gap:8px}
+.frame .fselect{flex:1 1 45%}
+.frame-cap{font:600 10px/1 var(--mono);letter-spacing:.08em;color:var(--ink-2);margin-bottom:10px;text-transform:uppercase}
+</style>
+</head>
+<body>
+<main class="canvas">
+  <header>
+    <p class="ds-kicker">Pulse Design System · Components</p>
+    <h1 class="ds-title">篩選列</h1>
+    <p class="ds-lede">首頁核心互動。表單控制項字級一律 <b>16px</b>——低於 16px 時 iOS Safari 聚焦會強制放大整頁（每次必踩）。高度 44px、模型 chips 與下拉同列，行動版自然折行。</p>
+  </header>
+
+  <section class="panel">
+    <div class="panel-head"><h2>桌面版</h2><span class="note">模型 chips ＋ 三組下拉 ＋ 清除</span></div>
+    <div class="fbar">
+      <span class="flabel">模型</span>
+      <button class="mchip is-on" aria-pressed="true">全部</button>
+      <button class="mchip" aria-pressed="false">Claude</button>
+      <button class="mchip" aria-pressed="false">GPT</button>
+      <button class="mchip" aria-pressed="false">Gemini</button>
+      <select class="fselect" aria-label="情緒篩選">
+        <option>情緒：全部</option><option>● 正面</option><option>● 中性</option><option>◌ 負面</option>
+      </select>
+      <select class="fselect" aria-label="來源篩選">
+        <option>來源：全部</option><option>HN</option><option>Dev.to</option><option>Threads（在地）</option><option>PTT（在地）</option><option>Lobsters</option>
+      </select>
+      <select class="fselect" aria-label="時間範圍">
+        <option>近 24 小時</option><option>近 3 天</option><option>近 7 天</option>
+      </select>
+      <button class="clear">× 清除篩選</button>
+    </div>
+    <p style="margin-top:16px"><span class="tok">font-size 16px（iOS 不縮放）</span> <span class="tok">height 44px</span> <span class="tok">radius 8px</span> <span class="tok">情緒選項用 ●／◌ 同卡片語彙，不用紅綠 emoji</span></p>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head"><h2>行動版（375px）</h2><span class="note">chips 橫向捲動、下拉折成兩欄全寬</span></div>
+    <div class="frame">
+      <p class="frame-cap">≤ 375px</p>
+      <div class="fbar" style="overflow-x:auto;flex-wrap:nowrap;padding-bottom:4px">
+        <button class="mchip is-on" aria-pressed="true">全部</button>
+        <button class="mchip" aria-pressed="false">Claude</button>
+        <button class="mchip" aria-pressed="false">GPT</button>
+        <button class="mchip" aria-pressed="false">Gemini</button>
+      </div>
+      <div class="fbar" style="margin-top:8px">
+        <select class="fselect" aria-label="情緒篩選"><option>情緒：全部</option></select>
+        <select class="fselect" aria-label="來源篩選"><option>來源：全部</option></select>
+        <select class="fselect" style="flex-basis:100%" aria-label="時間範圍"><option>近 24 小時</option></select>
+      </div>
+    </div>
+    <p style="margin-top:16px;font-size:12px;color:var(--ink-2)">「今日」label 改為「近 24 小時」（誠實命名：實際是滾動窗）。篩選變更走 router.push 進歷史、非預設時顯示「× 清除篩選」。</p>
+  </section>
+
+  <p class="ds-foot">Pulse Design System · 依據 docs/ux/research 05 §1.1、01 §D6–D7 · 2026-06-12</p>
+</main>
+</body>
+</html>

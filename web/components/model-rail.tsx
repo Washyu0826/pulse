@@ -7,7 +7,7 @@ import { getModelDashboard } from "@/lib/api";
 export async function ModelRail() {
   const models = await getModelDashboard();
   if (!models.ok) {
-    return <SectionStatus kind="error">無法載入模型</SectionStatus>;
+    return <SectionStatus kind="error">模型清單暫時載入不了，稍後再試。</SectionStatus>;
   }
 
   return (
@@ -27,7 +27,7 @@ export async function ModelRail() {
             />
           )}
           <span className="truncate text-sm text-ink/75 group-hover:text-ink">{m.name}</span>
-          <span className="ml-auto shrink-0 font-mono text-[11px] tabular-nums text-ink/40">
+          <span className="ml-auto shrink-0 font-mono text-[11px] tabular-nums text-ink/70">
             {m.posts_total.toLocaleString()}
           </span>
         </Link>

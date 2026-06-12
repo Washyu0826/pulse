@@ -73,7 +73,7 @@ export function SearchBar() {
 ## 環境變數
 
 ```
-NEXT_PUBLIC_API_URL=http://localhost:8000  # API endpoint
+NEXT_PUBLIC_API_URL=http://localhost:8010  # API endpoint（本機 API 跑在 8010）
 ```
 
 ## shadcn/ui 加元件

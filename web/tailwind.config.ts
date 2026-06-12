@@ -25,6 +25,9 @@ const config: Config = {
         // 2 色克制：冷墨(ink) + 單一藍 accent。cyan/pink 一律導向同色。
         accent: {
           primary: "#4D74EA",  // 寶藍（royal/sapphire，偏藍紫、調淡）（唯一彩色 accent）
+          // 深一階寶藍：按鈕底（白字 5.9:1 達 AA）與白底小字 accent 文字用；
+          // #4D74EA 白底只有 4.2:1，小字/按鈕不達標時改用這個。同色相、不破壞 2 色系統。
+          strong: "#385CCC",
           cyan: "#4D74EA",
           pink: "#4D74EA",
         },

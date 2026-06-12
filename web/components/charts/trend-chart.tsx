@@ -27,7 +27,7 @@ function buildPath(values: number[], h: number, max: number): { area: string; li
 export function TrendChart({ trend }: { trend: TrendPoint[] }) {
   if (trend.length === 0) {
     return (
-      <div className="card flex h-40 items-center justify-center text-sm text-ink/45">
+      <div className="card flex h-40 items-center justify-center text-sm text-ink/70">
         這段期間沒有足夠資料畫出趨勢。
       </div>
     );
@@ -59,7 +59,7 @@ export function TrendChart({ trend }: { trend: TrendPoint[] }) {
       <figure className="card">
         <figcaption className="mb-2 flex items-baseline justify-between">
           <span className="text-xs font-medium text-ink/70">每日討論量</span>
-          <span className="font-mono text-[11px] text-ink/40">
+          <span className="font-mono text-[11px] text-ink/70">
             共 {totalPosts.toLocaleString()} 篇 · 單日最高 {maxPosts}
           </span>
         </figcaption>
@@ -70,15 +70,16 @@ export function TrendChart({ trend }: { trend: TrendPoint[] }) {
           role="img"
           aria-label={`每日討論量趨勢，共 ${totalPosts} 篇`}
         >
-          <path d={area} fill="rgb(139 92 246 / 0.15)" />
-          <path d={line} fill="none" stroke="rgb(139 92 246)" strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
+          {/* 2 色系統：討論量走寶藍 accent（#4D74EA），不再用暗色主題殘留的 violet。 */}
+          <path d={area} fill="rgb(77 116 234 / 0.15)" />
+          <path d={line} fill="none" stroke="rgb(77 116 234)" strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
         </svg>
       </figure>
 
       <figure className="card">
         <figcaption className="mb-2 flex items-baseline justify-between">
           <span className="text-xs font-medium text-ink/70">每日口碑指數</span>
-          <span className="font-mono text-[11px] text-ink/40">中性線=0 · 上正下負</span>
+          <span className="font-mono text-[11px] text-ink/70">中性線=0 · 上正下負</span>
         </figcaption>
         {hasSent ? (
           <svg
@@ -88,28 +89,29 @@ export function TrendChart({ trend }: { trend: TrendPoint[] }) {
             role="img"
             aria-label="每日口碑指數趨勢"
           >
-            {/* 中性基準線 */}
+            {/* 中性基準線：ink 淺階（白卡上可見；原本的白色是暗色主題殘留、白底隱形）。 */}
             <line
               x1={PAD}
               y1={SENT_H / 2}
               x2={W - PAD}
               y2={SENT_H / 2}
-              stroke="rgb(255 255 255 / 0.12)"
+              stroke="rgb(27 37 54 / 0.15)"
               strokeWidth="1"
               strokeDasharray="3 3"
               vectorEffect="non-scaling-stroke"
             />
+            {/* 口碑線同走寶藍 accent（取代暗色主題殘留的 cyan）。 */}
             <path
               d={sentPts.join(" ")}
               fill="none"
-              stroke="rgb(6 182 212)"
+              stroke="rgb(77 116 234)"
               strokeWidth="1.5"
               strokeLinejoin="round"
               vectorEffect="non-scaling-stroke"
             />
           </svg>
         ) : (
-          <div className="flex h-20 items-center justify-center text-xs text-ink/40">
+          <div className="flex h-20 items-center justify-center text-xs text-ink/70">
             這段期間尚無情緒資料。
           </div>
         )}
