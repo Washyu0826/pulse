@@ -29,7 +29,7 @@ export function SiteNav() {
             aria-current={active ? "page" : undefined}
             className={cn(
               "rounded-md px-2.5 py-1 transition-colors",
-              active ? "bg-ink/[0.06] text-ink" : "text-ink/55 hover:text-ink",
+              active ? "bg-ink/[0.06] text-ink" : "text-ink/70 hover:text-ink",
             )}
           >
             {l.label}

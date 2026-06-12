@@ -4,7 +4,7 @@ import { ArrowRight } from "lucide-react";
 import type { ModelSummary } from "@/lib/types";
 
 function sentimentClass(idx: number): string {
-  return idx > 10 ? "text-sentiment-positive" : idx < -10 ? "text-sentiment-negative" : "text-ink/55";
+  return idx > 10 ? "text-sentiment-positive" : idx < -10 ? "text-sentiment-negative" : "text-ink/70";
 }
 
 /** 單一模型卡：累計討論數 + 口碑指數 + 近 7 天 + 發布數。整張可點 → 模型詳情頁。 */

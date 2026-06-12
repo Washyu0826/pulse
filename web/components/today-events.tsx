@@ -35,7 +35,7 @@ function renderSummary(summary: string, citations: EventCitation[]) {
       );
     }
     return (
-      <sup key={i} className="mx-0.5 font-mono text-[10px] text-ink/40">
+      <sup key={i} className="mx-0.5 font-mono text-[10px] text-ink/70">
         [{n}]
       </sup>
     );
@@ -81,7 +81,7 @@ function EventSummaryCard({ ev }: { ev: EventSummary }) {
                 [{c.n}]
               </a>
             ) : (
-              <span key={c.n} className="font-mono text-[11px] text-ink/40">
+              <span key={c.n} className="font-mono text-[11px] text-ink/70">
                 [{c.n}]
               </span>
             ),

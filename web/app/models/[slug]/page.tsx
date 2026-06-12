@@ -93,7 +93,7 @@ export default async function ModelDetailPage({ params }: { params: { slug: stri
             <span className="text-sm text-ink/45">{m.company}</span>
             {m.role && <span className="text-sm text-ink/45">· {m.role}</span>}
           </div>
-          <p className="mt-2 text-sm text-ink/55">
+          <p className="mt-2 text-sm text-ink/70">
             這個模型在技術社群的討論熱度與口碑，過去 {m.trend_days} 天的走勢。
           </p>
         </div>
@@ -165,7 +165,7 @@ export default async function ModelDetailPage({ params }: { params: { slug: stri
                   ) : (
                     <span className="text-sm text-ink/85">{d.title}</span>
                   )}
-                  <div className="mt-1 font-mono text-[11px] text-ink/40">
+                  <div className="mt-1 font-mono text-[11px] text-ink/70">
                     {d.source} · {d.score} 分
                   </div>
                 </li>

@@ -55,7 +55,8 @@ export function FeedFilter() {
     <select
       value={params.get(key) ?? fallback}
       onChange={(e) => setParam(key, e.target.value)}
-      className="rounded-md border border-border/60 bg-bg px-2 py-1 text-[12px] text-ink"
+      // 行動端 16px：iOS Safari 在表單控制項 <16px 時聚焦會強制整頁縮放（sm 以上維持 12px 緊湊）。
+      className="rounded-md border border-border/60 bg-bg px-2 py-1 text-base text-ink sm:text-[12px]"
     >
       {opts.map((o) => (
         <option key={o.value} value={o.value}>
@@ -78,7 +79,7 @@ export function FeedFilter() {
               "rounded-md border px-2.5 py-1 text-[12px] transition-colors",
               model === m.value
                 ? "border-accent-primary/50 bg-accent-primary/10 text-ink"
-                : "border-border/60 text-ink/55 hover:text-ink",
+                : "border-border/60 text-ink/70 hover:text-ink",
             )}
           >
             {m.label}

@@ -10,7 +10,7 @@ export default function NotFound() {
       <SiteHeader />
       <main className="mx-auto flex max-w-4xl flex-col items-center px-6 py-24 text-center">
         <h1 className="text-lg font-semibold text-ink">找不到這個模型</h1>
-        <p className="mt-2 text-sm text-ink/55">
+        <p className="mt-2 text-sm text-ink/70">
           目前 Pulse 監測 6 個模型：GPT、Claude、Gemini、Grok、Llama、DeepSeek。
         </p>
         <Link

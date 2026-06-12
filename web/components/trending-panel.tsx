@@ -13,7 +13,7 @@ export async function TrendingPanel() {
       <h2 className="mb-1 flex items-center gap-1.5 text-[13px] font-semibold tracking-tight text-ink/70">
         <span aria-hidden>🔥</span> 本週熱詞
       </h2>
-      <p className="mb-3 text-[11px] text-ink/40">社群這週討論異常變多的詞（每週滾動）</p>
+      <p className="mb-3 text-[11px] text-ink/70">社群這週討論異常變多的詞（每週滾動）</p>
       <ol className="space-y-0.5">
         {trending.data.map((t) => (
           <li key={t.term}>
@@ -28,7 +28,7 @@ export async function TrendingPanel() {
                 {t.rank}
               </span>
               <span className="relative truncate text-sm text-ink/80">{t.term}</span>
-              <span className="relative ml-auto shrink-0 font-mono text-[11px] tabular-nums text-ink/40">
+              <span className="relative ml-auto shrink-0 font-mono text-[11px] tabular-nums text-ink/70">
                 {t.recent_count}
               </span>
             </div>

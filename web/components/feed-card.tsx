@@ -36,8 +36,9 @@ export function FeedCard({ post }: { post: FeedPost }) {
           className="absolute inset-0 z-0 rounded-xl"
         />
       )}
-      <FavoriteButton post={post} className="absolute right-2.5 top-2.5 z-10" />
-      <div className="flex items-center gap-1.5 pr-7">
+      {/* 收藏鈕命中區擴到 44px（FavoriteButton 內處理），位置微調 + 右側留 36px 淨空避免與徽章列重疊。 */}
+      <FavoriteButton post={post} className="absolute right-1.5 top-1.5 z-10" />
+      <div className="flex items-center gap-1.5 pr-9">
         <SentimentDot s={post.sentiment} />
         {post.models.map((m) => (
           <Badge key={m} variant="accent">
@@ -54,15 +55,15 @@ export function FeedCard({ post }: { post: FeedPost }) {
       </h3>
       {/* 中英並列：有譯文時，原文以小字斜體列於下方對照 */}
       {post.title_zh && (
-        <p className="mt-1 line-clamp-1 text-[11px] italic leading-snug text-ink/40">{post.title}</p>
+        <p className="mt-1 line-clamp-1 text-[11px] italic leading-snug text-ink/55">{post.title}</p>
       )}
       {(post.snippet_zh ?? post.snippet) && (post.snippet_zh ?? post.snippet) !== post.title && (
-        <p className="mt-1.5 line-clamp-2 text-[13px] leading-relaxed text-ink/55">
+        <p className="mt-1.5 line-clamp-2 text-[13px] leading-relaxed text-ink/70">
           {post.snippet_zh ?? post.snippet}
         </p>
       )}
       {post.posted_at && (
-        <time className="mt-2 block font-mono text-[11px] text-ink/40">
+        <time className="mt-2 block font-mono text-[11px] text-ink/70">
           {relativeTime(post.posted_at)}
         </time>
       )}

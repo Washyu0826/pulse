@@ -98,7 +98,8 @@ export default async function DecidePage({
               name="topic"
               defaultValue={topic}
               placeholder="議題關鍵字（選填），例：coding agent"
-              className="flex-1 rounded-md border border-border bg-bg px-3 py-1.5 text-sm text-ink placeholder:text-ink/30"
+              // 行動端 16px：修 iOS 表單聚焦自動縮放（sm 以上維持 14px）。
+              className="flex-1 rounded-md border border-border bg-bg px-3 py-1.5 text-base text-ink placeholder:text-ink/30 sm:text-sm"
             />
             <button
               type="submit"
@@ -115,7 +116,7 @@ export default async function DecidePage({
               無法產生報告，請確認 API 是否啟動。
             </div>
           ) : report.data.models.length === 0 ? (
-            <div className="card text-center text-sm text-ink/55">查無指定的模型。</div>
+            <div className="card text-center text-sm text-ink/70">查無指定的模型。</div>
           ) : (
             <div className="space-y-3">
               <div className="rounded-lg border border-accent-primary/40 bg-accent-primary/5 p-4">
@@ -127,7 +128,7 @@ export default async function DecidePage({
                     ? report.data.summary
                     : report.data.recommendation.reason}
                 </p>
-                <p className="mt-2 font-mono text-[11px] text-ink/40">
+                <p className="mt-2 font-mono text-[11px] text-ink/70">
                   來源：{report.data.generated_by === "llm" ? "LLM 合成" : "資料驅動"} ·{" "}
                   {report.data.models.length} 模型比較
                 </p>

@@ -66,7 +66,7 @@ export function FavoritesList() {
   if (!ready) return null; // 避免 SSR/CSR 不一致閃爍
   if (favs.length === 0) {
     return (
-      <p className="rounded-xl border border-dashed border-border px-6 py-10 text-center text-sm text-ink/40">
+      <p className="rounded-xl border border-dashed border-border px-6 py-10 text-center text-sm text-ink/70">
         還沒有最愛 —— 在情報卡片右上角點 ♥ 收藏，這裡會留著（每週清空不影響）。
       </p>
     );

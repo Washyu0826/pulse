@@ -14,7 +14,7 @@ export async function FeedSummary({ filters }: { filters: FeedFilters }) {
         return (
           <div key={t} className="flex items-center gap-1.5">
             <m.Icon className={`h-3.5 w-3.5 ${m.text}`} />
-            <span className="text-[13px] text-ink/55">{t}</span>
+            <span className="text-[13px] text-ink/70">{t}</span>
             <span className="font-mono text-sm font-semibold text-ink">{summary.data[t] ?? 0}</span>
           </div>
         );

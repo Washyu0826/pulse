@@ -8,7 +8,7 @@ const badge = cva(
   {
     variants: {
       variant: {
-        neutral: "border-border bg-ink/[0.03] text-ink/55",
+        neutral: "border-border bg-ink/[0.03] text-ink/70",
         accent: "border-accent-primary/30 bg-accent-primary/10 text-accent-primary", // 模型
         cyan: "border-accent-cyan/30 bg-accent-cyan/10 text-accent-cyan", // 版本
         warn: "border-sentiment-neutral/30 bg-sentiment-neutral/10 text-sentiment-neutral", // 突增 / severity

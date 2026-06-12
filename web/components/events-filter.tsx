@@ -52,7 +52,7 @@ export function EventsFilter() {
               "rounded-md border px-2.5 py-1 text-[12px] transition-colors",
               type === t.value
                 ? "border-accent-primary/50 bg-accent-primary/10 text-ink"
-                : "border-border/60 text-ink/55 hover:text-ink",
+                : "border-border/60 text-ink/70 hover:text-ink",
             )}
           >
             {t.label}
@@ -64,7 +64,8 @@ export function EventsFilter() {
         <select
           value={model}
           onChange={(e) => setParam("model", e.target.value)}
-          className="rounded-md border border-border/60 bg-bg px-2 py-1 text-[12px] text-ink"
+          // 行動端 16px：修 iOS 聚焦自動縮放（同 feed-filter）。
+          className="rounded-md border border-border/60 bg-bg px-2 py-1 text-base text-ink sm:text-[12px]"
         >
           {MODELS.map((m) => (
             <option key={m.value} value={m.value}>

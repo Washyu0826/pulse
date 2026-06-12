@@ -27,7 +27,7 @@ function buildPath(values: number[], h: number, max: number): { area: string; li
 export function TrendChart({ trend }: { trend: TrendPoint[] }) {
   if (trend.length === 0) {
     return (
-      <div className="card flex h-40 items-center justify-center text-sm text-ink/45">
+      <div className="card flex h-40 items-center justify-center text-sm text-ink/70">
         這段期間沒有足夠資料畫出趨勢。
       </div>
     );
@@ -59,7 +59,7 @@ export function TrendChart({ trend }: { trend: TrendPoint[] }) {
       <figure className="card">
         <figcaption className="mb-2 flex items-baseline justify-between">
           <span className="text-xs font-medium text-ink/70">每日討論量</span>
-          <span className="font-mono text-[11px] text-ink/40">
+          <span className="font-mono text-[11px] text-ink/70">
             共 {totalPosts.toLocaleString()} 篇 · 單日最高 {maxPosts}
           </span>
         </figcaption>
@@ -79,7 +79,7 @@ export function TrendChart({ trend }: { trend: TrendPoint[] }) {
       <figure className="card">
         <figcaption className="mb-2 flex items-baseline justify-between">
           <span className="text-xs font-medium text-ink/70">每日口碑指數</span>
-          <span className="font-mono text-[11px] text-ink/40">中性線=0 · 上正下負</span>
+          <span className="font-mono text-[11px] text-ink/70">中性線=0 · 上正下負</span>
         </figcaption>
         {hasSent ? (
           <svg
@@ -111,7 +111,7 @@ export function TrendChart({ trend }: { trend: TrendPoint[] }) {
             />
           </svg>
         ) : (
-          <div className="flex h-20 items-center justify-center text-xs text-ink/40">
+          <div className="flex h-20 items-center justify-center text-xs text-ink/70">
             這段期間尚無情緒資料。
           </div>
         )}
