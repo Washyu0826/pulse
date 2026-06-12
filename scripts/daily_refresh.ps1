@@ -25,15 +25,17 @@ function Step($name, $block) {
 
 Set-Location "$root\api"
 
-Step "1/7 crawl Threads" { & $venvPy "$root\scripts\try_threads.py" --headless --save --max-posts 40 --scroll 5 }
-Step "2/7 DQC quality" { docker exec pulse-airflow-scheduler /opt/airflow/pulse-venv/bin/python -c 'import asyncio; from pipeline.quality import run_dqc; print(asyncio.run(run_dqc()))' }
-Step "3/7 sentiment" { & $sysPy "$root\scripts\backfill_sentiments.py" }
-Step "4/7 theme" { & $sysPy "$root\scripts\backfill_themes.py" }
-Step "5/7 weekly keywords" { & $sysPy "$root\scripts\backfill_keywords.py" --top 20 }
-Step "6/7 translation" { & $sysPy "$root\scripts\backfill_translations.py" --days 7 --limit 60 }
+Step "1/8 crawl Threads" { & $venvPy "$root\scripts\try_threads.py" --headless --save --max-posts 40 --scroll 5 }
+Step "2/8 DQC quality" { docker exec pulse-airflow-scheduler /opt/airflow/pulse-venv/bin/python -c 'import asyncio; from pipeline.quality import run_dqc; print(asyncio.run(run_dqc()))' }
+Step "3/8 sentiment" { & $sysPy "$root\scripts\backfill_sentiments.py" }
+Step "4/8 theme" { & $sysPy "$root\scripts\backfill_themes.py" }
+Step "5/8 weekly keywords" { & $sysPy "$root\scripts\backfill_keywords.py" --top 20 }
+Step "6/8 translation" { & $sysPy "$root\scripts\backfill_translations.py" --days 7 --limit 60 }
 # 電子報用系統 Python（matplotlib + diffusers + httpx + opencc）；需 .env 有 PULSE_SMTP_*。
 # 不想每天跑 SD 題圖可加 --no-cover（快很多）。
-Step "7/7 newsletter" { & $sysPy "$root\scripts\send_newsletter.py" }
+Step "7/8 newsletter" { & $sysPy "$root\scripts\send_newsletter.py" }
+# 資料流健康檢查：各來源近 24h 進貨低於門檻就 FAIL 進 log（斷流要看得見，2026-06-12 教訓）。
+Step "8/8 dataflow health" { & $sysPy "$root\scripts\check_dataflow.py" }
 
 $doneTs = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
 "[$doneTs] daily refresh complete`n" | Tee-Object -FilePath $log -Append
