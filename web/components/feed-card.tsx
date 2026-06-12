@@ -12,12 +12,31 @@ const SENTIMENT_DOT: Record<Sentiment, { cls: string; word: string }> = {
   negative: { cls: "bg-sentiment-negative", word: "負面" },
 };
 
+/**
+ * 情緒色點 + 可見文字標籤。
+ * 只有色點＋title 在觸控裝置與讀屏都拿不到語意（05 §2.4），
+ * 故補一字級小字（沿用 ink 階低調呈現）並以 aria-label 給出完整語意。
+ */
 function SentimentDot({ s }: { s: Sentiment | null }) {
   if (s === null) {
-    return <span title="情緒未分析" className="h-2 w-2 shrink-0 rounded-full bg-ink/20" />;
+    return (
+      <span
+        role="img"
+        aria-label="情緒未分析"
+        title="情緒未分析"
+        className="h-2 w-2 shrink-0 rounded-full bg-ink/20"
+      />
+    );
   }
   const d = SENTIMENT_DOT[s];
-  return <span title={`情緒：${d.word}`} className={`h-2 w-2 shrink-0 rounded-full ${d.cls}`} />;
+  return (
+    <span role="img" aria-label={`情緒：${d.word}`} className="flex shrink-0 items-center gap-1">
+      <span aria-hidden className={`h-2 w-2 rounded-full ${d.cls}`} />
+      <span aria-hidden className="text-[11px] leading-none text-ink/70">
+        {d.word}
+      </span>
+    </span>
+  );
 }
 
 /**
