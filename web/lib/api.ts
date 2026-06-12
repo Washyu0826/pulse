@@ -1,16 +1,13 @@
 import { API_URL } from "@/lib/utils";
 import type {
   DecideReport,
-  DetectedEvent,
   EventSummary,
-  EventType,
   FeedFilters,
   FeedPost,
   FeedSummary,
   FeedThemes,
   ModelDetail,
   ModelSummary,
-  ReleaseEvent,
   TrendingKeyword,
 } from "@/lib/types";
 
@@ -135,29 +132,6 @@ export function getTrending(limit = 15): Promise<ApiResult<TrendingKeyword[]>> {
  */
 export function getTodayEvents(limit = 8): Promise<ApiResult<EventSummary[]>> {
   return fetchArray<EventSummary>(`/api/events/today?limit=${limit}`);
-}
-
-type ReleaseSourceFilter = "huggingface" | "github";
-
-/** 最近的 release 事件（HF + GitHub），可選來源過濾。 */
-export function getRecentReleases(
-  limit = 20,
-  source?: ReleaseSourceFilter,
-): Promise<ApiResult<ReleaseEvent[]>> {
-  const q = new URLSearchParams({ limit: String(limit) });
-  if (source) q.set("source", source);
-  return fetchArray<ReleaseEvent>(`/api/releases/recent?${q.toString()}`);
-}
-
-/** 最近偵測到的事件，可選事件類型 / 模型 slug 過濾。 */
-export function getRecentEvents(
-  limit = 15,
-  filters?: { eventType?: EventType; model?: string },
-): Promise<ApiResult<DetectedEvent[]>> {
-  const q = new URLSearchParams({ limit: String(limit) });
-  if (filters?.eventType) q.set("event_type", filters.eventType);
-  if (filters?.model) q.set("model", filters.model);
-  return fetchArray<DetectedEvent>(`/api/events?${q.toString()}`);
 }
 
 /** 6 模型即時看板彙總。 */
