@@ -1,10 +1,12 @@
 import { Fragment } from "react";
 import { Layers } from "lucide-react";
 
+import { FavoriteButton } from "@/components/favorite-button";
 import { SectionStatus } from "@/components/section-status";
 import { themeMeta } from "@/components/theme-meta";
 import { Badge } from "@/components/ui/badge";
 import { getTodayEvents } from "@/lib/api";
+import { eventToFavoritePost } from "@/lib/favorites";
 import type { EventCitation, EventSummary } from "@/lib/types";
 
 /**
@@ -42,12 +44,14 @@ function renderSummary(summary: string, citations: EventCitation[]) {
   });
 }
 
-/** 單則今日事件卡：標題 + 主題徽章 + 成員貼文數 + 帶行內出處的忠實摘要 + 出處清單。 */
+/** 單則今日事件卡：標題 + 主題徽章 + 成員貼文數 + 帶行內出處的忠實摘要 + 出處清單 + 收藏。 */
 function EventSummaryCard({ ev }: { ev: EventSummary }) {
   const meta = themeMeta(ev.theme);
   return (
-    <article className="card">
-      <div className="flex items-center gap-2">
+    <article className="card relative">
+      {/* 收藏：事件以「摘要＋引註出處」形狀存進最愛 → 可進知識材料包（與 FeedCard 同一顆鈕）。 */}
+      <FavoriteButton post={eventToFavoritePost(ev)} className="absolute right-1.5 top-1.5 z-10" />
+      <div className="flex items-center gap-2 pr-9">
         <span
           className={`flex h-6 w-6 items-center justify-center rounded-md ring-1 ${meta.bg} ${meta.text} ${meta.ring}`}
         >
