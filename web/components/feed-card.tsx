@@ -1,4 +1,5 @@
 import { FavoriteButton } from "@/components/favorite-button";
+import { NewBadge } from "@/components/new-badge";
 import { sourceMeta } from "@/components/source-meta";
 import { Badge } from "@/components/ui/badge";
 import { relativeTime } from "@/lib/time";
@@ -49,6 +50,8 @@ export function FeedCard({ post }: { post: FeedPost }) {
           <span aria-hidden>{src.emoji}</span>
           {src.label}
         </Badge>
+        {/* NEW：晚於上次來訪的內容（client 子元件，首次來訪無基準不標）。 */}
+        <NewBadge time={post.posted_at} />
       </div>
       <h3 className="mt-2.5 line-clamp-2 text-sm font-medium leading-snug text-ink">
         {post.title_zh ?? post.title}
