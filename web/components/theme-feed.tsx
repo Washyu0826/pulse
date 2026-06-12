@@ -24,7 +24,7 @@ function themeHref(label: string, filters: FeedFilters): string {
 export async function ThemeFeed({ filters }: { filters: FeedFilters }) {
   const feed = await getFeed(filters, 4);
   if (!feed.ok) {
-    return <SectionStatus kind="error">無法載入情報，請確認 API 是否啟動</SectionStatus>;
+    return <SectionStatus kind="error">情報暫時載入不了，稍後再試。</SectionStatus>;
   }
 
   const hasAny = THEME_ORDER.some((t) => (feed.data[t]?.length ?? 0) > 0);

@@ -57,7 +57,7 @@ export function FavoritesList() {
       const result = await generateCollectionPack(selectedPosts, distill);
       setPack(result);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "生成失敗，請確認後端是否啟動。");
+      setError(e instanceof Error ? e.message : "材料包暫時生成不了，稍後再試。");
     } finally {
       setBusy(false);
     }

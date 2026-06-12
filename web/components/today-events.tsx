@@ -99,12 +99,13 @@ function EventSummaryCard({ ev }: { ev: EventSummary }) {
 /**
  * 今日事件區（自帶 fetch；Suspense 邊界內串流）。
  * 把多篇相關貼文聚成事件並做忠實摘要 + 行內出處引用（產品差異化核心，非 RAG）。
- * 後端端點未上線 / 抓不到資料 → 退回「尚無今日事件」空狀態，不讓整頁掛掉。
+ * 錯誤與空狀態分開呈現：API 抓不到是「載入不了」（error），真的沒事件才是「尚無」（empty）
+ * —— 不把故障偽裝成空，使用者才分得清是要等內容還是要稍後重試。兩者都不讓整頁掛掉。
  */
 export async function TodayEvents() {
   const events = await getTodayEvents();
   if (!events.ok) {
-    return <SectionStatus kind="empty">尚無今日事件 —— 等今天的貼文累積到可聚合的事件後會出現在這裡。</SectionStatus>;
+    return <SectionStatus kind="error">今日事件暫時載入不了，稍後再試。</SectionStatus>;
   }
   if (events.data.length === 0) {
     return <SectionStatus kind="empty">尚無今日事件 —— 今天還沒有可聚合成事件的討論。</SectionStatus>;

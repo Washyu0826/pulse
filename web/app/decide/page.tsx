@@ -113,7 +113,7 @@ export default async function DecidePage({
         {report &&
           (!report.ok ? (
             <div className="card text-center text-sm text-sentiment-negative">
-              無法產生報告，請確認 API 是否啟動。
+              報告暫時產生不了，稍後再試。
             </div>
           ) : report.data.models.length === 0 ? (
             <div className="card text-center text-sm text-ink/70">查無指定的模型。</div>

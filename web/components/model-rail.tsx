@@ -7,7 +7,7 @@ import { getModelDashboard } from "@/lib/api";
 export async function ModelRail() {
   const models = await getModelDashboard();
   if (!models.ok) {
-    return <SectionStatus kind="error">無法載入模型</SectionStatus>;
+    return <SectionStatus kind="error">模型清單暫時載入不了，稍後再試。</SectionStatus>;
   }
 
   return (

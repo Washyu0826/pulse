@@ -71,7 +71,7 @@ export default async function ModelDetailPage({ params }: { params: { slug: stri
         <main className="mx-auto max-w-4xl px-6 py-10">
           <BackLink />
           <div className="card mt-6 text-center text-sm text-sentiment-negative">
-            無法載入此模型詳情，請確認 API 是否啟動。
+            這個模型的詳情暫時載入不了，稍後再試。
           </div>
         </main>
         <SiteFooter />
