@@ -3,14 +3,22 @@ Pulse API - main entry point.
 
 啟動: uv run uvicorn api.main:app --reload
 """
+import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 
 from api.config import settings
+from api.middleware import (
+    RequestContextMiddleware,
+    SecurityHeadersMiddleware,
+    install_exception_handlers,
+)
 from api.routers import (
+    collection,
     corpus,
     decide,
     events,
@@ -20,6 +28,12 @@ from api.routers import (
     metrics,
     models,
     releases,
+)
+
+# 統一日誌格式（含時間 / level / logger）。等級走設定（PULSE LOG_LEVEL）。
+logging.basicConfig(
+    level=getattr(logging, settings.log_level.upper(), logging.INFO),
+    format="%(asctime)s %(levelname)s %(name)s %(message)s",
 )
 
 
@@ -37,8 +51,12 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     - 關閉 DB connection pool
     """
     # TODO Week 3: app.state.sentiment_pipeline = load_sentiment_model()
+    logging.getLogger("pulse.api").info(
+        "Pulse API 啟動 · env=%s · log_level=%s", settings.environment, settings.log_level
+    )
     yield
     # 清理邏輯
+    logging.getLogger("pulse.api").info("Pulse API 關閉")
 
 
 app = FastAPI(
@@ -49,14 +67,22 @@ app = FastAPI(
 )
 
 
-# CORS
+# 中介層（Starlette：後加 = 更外層）。順序刻意：
+# GZip / 安全標頭 / request context 為內層，CORS 最後加＝最外層（預檢與 CORS 標頭包住全部）。
+app.add_middleware(GZipMiddleware, minimum_size=1024)
+app.add_middleware(SecurityHeadersMiddleware, hsts=settings.environment == "production")
+app.add_middleware(RequestContextMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["X-Request-ID", "Server-Timing"],
 )
+
+# 全域例外處理（結構化錯誤 + request_id）。
+install_exception_handlers(app)
 
 
 # Routers
@@ -68,6 +94,7 @@ app.include_router(events.router, prefix="/api", tags=["events"])
 app.include_router(events_today.router, prefix="/api", tags=["events"])
 app.include_router(decide.router, prefix="/api", tags=["decide"])
 app.include_router(corpus.router, prefix="/api", tags=["corpus"])
+app.include_router(collection.router, prefix="/api", tags=["collection"])
 # Prometheus 業務指標（無 /api 前綴，scrape URL = /metrics）
 app.include_router(metrics.router, tags=["metrics"])
 
@@ -76,6 +103,7 @@ app.include_router(metrics.router, tags=["metrics"])
 async def root() -> dict[str, str]:
     return {
         "name": "Pulse API",
-        "version": "0.1.0",
+        "version": app.version,
+        "environment": settings.environment,
         "docs": "/docs",
     }
