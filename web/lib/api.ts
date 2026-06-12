@@ -5,6 +5,7 @@ import type {
   EventSummary,
   EventType,
   FeedFilters,
+  FeedPost,
   FeedSummary,
   FeedThemes,
   ModelDetail,
@@ -79,6 +80,31 @@ export async function getFeed(
     return { ok: true, data: (await res.json()) as FeedThemes };
   } catch (err) {
     console.error("[api] /api/feed fetch failed", err);
+    return { ok: false, error: String(err) };
+  }
+}
+
+/**
+ * 單一主題的完整列表（主題列表頁 /theme/[label] 用）：
+ * 後端 `?theme=` 只回該主題、量加大（limit_per_theme 上限 50）。
+ * 注意：後端 Theme Literal 只收 5 個實用主題，「其他」/未知主題請在呼叫前兜底，不要打進來。
+ */
+export async function getThemeFeed(
+  theme: string,
+  filters?: FeedFilters,
+  limit = 50,
+): Promise<ApiResult<FeedPost[]>> {
+  const qs = feedQuery(filters, { theme, limit_per_theme: String(limit) });
+  try {
+    const res = await fetch(`${BASE}/api/feed?${qs}`, {
+      next: { revalidate: 60 },
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+    });
+    if (!res.ok) return { ok: false, error: `HTTP ${res.status}` };
+    const json = (await res.json()) as FeedThemes;
+    return { ok: true, data: json[theme] ?? [] };
+  } catch (err) {
+    console.error("[api] /api/feed (theme) fetch failed", err);
     return { ok: false, error: String(err) };
   }
 }
