@@ -4,10 +4,10 @@
  *
  * 資料來自單一 API（/api/models/{slug}），整頁一次抓；失敗或查無 → 友善狀態 / 404。
  */
-import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, ArrowUpRight } from "lucide-react";
+import { ArrowUpRight } from "lucide-react";
 
+import { BackLink } from "@/components/back-link";
 import { TrendChart } from "@/components/charts/trend-chart";
 import { EventCard } from "@/components/event-card";
 import { ReleaseCard } from "@/components/release-card";
@@ -195,17 +195,5 @@ export default async function ModelDetailPage({ params }: { params: { slug: stri
       </main>
       <SiteFooter />
     </>
-  );
-}
-
-function BackLink() {
-  return (
-    <Link
-      href="/"
-      className="inline-flex items-center gap-1 text-xs text-ink/50 transition-colors hover:text-ink"
-    >
-      <ArrowLeft className="h-3.5 w-3.5" aria-hidden />
-      回儀表板
-    </Link>
   );
 }

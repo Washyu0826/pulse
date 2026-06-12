@@ -48,7 +48,8 @@ export function FeedFilter() {
     const next = new URLSearchParams(params.toString());
     if (value) next.set(key, value);
     else next.delete(key);
-    router.replace(`${pathname}?${next.toString()}`, { scroll: false });
+    // push（非 replace）：每次篩選變更留歷史紀錄 → 按上一頁可逐步退回，符合「可後退」設計。
+    router.push(`${pathname}?${next.toString()}`, { scroll: false });
   }
 
   const select = (key: string, opts: { value: string; label: string }[], fallback = "") => (
