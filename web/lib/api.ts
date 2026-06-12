@@ -20,6 +20,10 @@ export type ApiResult<T> = { ok: true; data: T } | { ok: false; error: string };
 // （日後若有 Client Component 也打這支 API，client 端會用 NEXT_PUBLIC_API_URL。）
 const BASE = process.env.API_URL_INTERNAL || API_URL;
 
+// 讀取類請求逾時上限：API 不通時不要懸掛 90 秒以上。
+// 逾時 fetch 會 throw（TimeoutError）→ 走下面各 wrapper 既有的 { ok:false } 錯誤路徑。
+const FETCH_TIMEOUT_MS = 10_000;
+
 /**
  * 共用的「抓 JSON 陣列」helper（Server Component 用）。
  * 任何失敗（網路、非 2xx、回應非陣列）都回 { ok: false }，絕不 throw 整個 route。
@@ -27,7 +31,10 @@ const BASE = process.env.API_URL_INTERNAL || API_URL;
 async function fetchArray<T>(path: string): Promise<ApiResult<T[]>> {
   try {
     // ISR：最多每 60 秒在背景重新生成（顯式指定，避免 Next 版本預設行為改變）。
-    const res = await fetch(`${BASE}${path}`, { next: { revalidate: 60 } });
+    const res = await fetch(`${BASE}${path}`, {
+      next: { revalidate: 60 },
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+    });
     if (!res.ok) {
       console.error(`[api] ${path} HTTP ${res.status}`);
       return { ok: false, error: `HTTP ${res.status}` };
@@ -64,7 +71,10 @@ export async function getFeed(
 ): Promise<ApiResult<FeedThemes>> {
   const qs = feedQuery(filters, { limit_per_theme: String(limitPerTheme) });
   try {
-    const res = await fetch(`${BASE}/api/feed?${qs}`, { next: { revalidate: 60 } });
+    const res = await fetch(`${BASE}/api/feed?${qs}`, {
+      next: { revalidate: 60 },
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+    });
     if (!res.ok) return { ok: false, error: `HTTP ${res.status}` };
     return { ok: true, data: (await res.json()) as FeedThemes };
   } catch (err) {
@@ -78,6 +88,7 @@ export async function getFeedSummary(filters?: FeedFilters): Promise<ApiResult<F
   try {
     const res = await fetch(`${BASE}/api/feed/summary?${feedQuery(filters)}`, {
       next: { revalidate: 60 },
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     });
     if (!res.ok) return { ok: false, error: `HTTP ${res.status}` };
     return { ok: true, data: (await res.json()) as FeedSummary };
@@ -136,6 +147,7 @@ export async function getModelDetail(
   try {
     const res = await fetch(`${BASE}/api/models/${encodeURIComponent(slug)}?trend_days=${trendDays}`, {
       next: { revalidate: 60 },
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     });
     if (!res.ok) {
       return { ok: false, error: `HTTP ${res.status}` };
@@ -154,7 +166,10 @@ export async function getDecideReport(
   const q = new URLSearchParams({ models });
   if (topic) q.set("topic", topic);
   try {
-    const res = await fetch(`${BASE}/api/decide?${q.toString()}`, { next: { revalidate: 60 } });
+    const res = await fetch(`${BASE}/api/decide?${q.toString()}`, {
+      next: { revalidate: 60 },
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+    });
     if (!res.ok) {
       return { ok: false, error: `HTTP ${res.status}` };
     }

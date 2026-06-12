@@ -70,8 +70,9 @@ export function TrendChart({ trend }: { trend: TrendPoint[] }) {
           role="img"
           aria-label={`每日討論量趨勢，共 ${totalPosts} 篇`}
         >
-          <path d={area} fill="rgb(139 92 246 / 0.15)" />
-          <path d={line} fill="none" stroke="rgb(139 92 246)" strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
+          {/* 2 色系統：討論量走寶藍 accent（#4D74EA），不再用暗色主題殘留的 violet。 */}
+          <path d={area} fill="rgb(77 116 234 / 0.15)" />
+          <path d={line} fill="none" stroke="rgb(77 116 234)" strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
         </svg>
       </figure>
 
@@ -88,21 +89,22 @@ export function TrendChart({ trend }: { trend: TrendPoint[] }) {
             role="img"
             aria-label="每日口碑指數趨勢"
           >
-            {/* 中性基準線 */}
+            {/* 中性基準線：ink 淺階（白卡上可見；原本的白色是暗色主題殘留、白底隱形）。 */}
             <line
               x1={PAD}
               y1={SENT_H / 2}
               x2={W - PAD}
               y2={SENT_H / 2}
-              stroke="rgb(255 255 255 / 0.12)"
+              stroke="rgb(27 37 54 / 0.15)"
               strokeWidth="1"
               strokeDasharray="3 3"
               vectorEffect="non-scaling-stroke"
             />
+            {/* 口碑線同走寶藍 accent（取代暗色主題殘留的 cyan）。 */}
             <path
               d={sentPts.join(" ")}
               fill="none"
-              stroke="rgb(6 182 212)"
+              stroke="rgb(77 116 234)"
               strokeWidth="1.5"
               strokeLinejoin="round"
               vectorEffect="non-scaling-stroke"

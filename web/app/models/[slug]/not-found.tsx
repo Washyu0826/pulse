@@ -15,7 +15,7 @@ export default function NotFound() {
         </p>
         <Link
           href="/"
-          className="mt-6 rounded-md bg-accent-primary px-4 py-1.5 text-sm font-medium text-ink transition-colors hover:bg-accent-primary/90"
+          className="mt-6 rounded-md bg-accent-strong px-4 py-1.5 text-sm font-medium text-white transition-colors hover:bg-accent-strong/90"
         >
           回儀表板
         </Link>
