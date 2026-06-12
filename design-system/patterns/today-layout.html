@@ -1,0 +1,184 @@
+<!-- @dsCard group="版型" -->
+<!DOCTYPE html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Pulse DS · 「今日」首屏版型縮影</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#F4F7FC;--bg-card:#FFFFFF;--bg-hover:#EAF1FB;--border:#D9E2F1;
+  --ink:#1B2536;--ink-2:rgba(27,37,54,.70);--ink-3:rgba(27,37,54,.55);
+  --accent:#4D74EA;--accent-strong:#385CCC;
+  --accent-tint:rgba(77,116,234,.10);--accent-line:rgba(77,116,234,.30);
+  --positive:#4D74EA;--neutral:#8A97AC;--negative:#5A6677;
+  --src-hn:#C2410C;--src-threads:#385CCC;--src-ptt:#047857;
+  --r-card:12px;--r-panel:8px;--r-chip:6px;
+  --shadow:0 1px 2px rgba(27,37,54,.05);
+  --sans:system-ui,"Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif;
+  --mono:ui-monospace,"Cascadia Mono",Consolas,"Noto Sans TC","PingFang TC","Microsoft JhengHei",monospace;
+}
+html{-webkit-text-size-adjust:100%}
+body{background:var(--bg);color:var(--ink);font:400 15px/1.7 var(--sans)}
+.canvas{max-width:980px;margin:0 auto;padding:48px 28px 88px}
+.ds-kicker{font:600 11px/1.5 var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--accent-strong)}
+.ds-title{font-size:24px;line-height:1.4;font-weight:700;margin-top:8px}
+.ds-lede{margin-top:10px;font-size:14px;line-height:1.8;color:var(--ink-2);max-width:42em}
+.tok{font-family:var(--mono);font-size:11px;color:var(--ink-2);background:rgba(27,37,54,.045);border:1px solid var(--border);border-radius:5px;padding:2px 7px;white-space:nowrap}
+.ds-foot{margin-top:32px;font-size:11px;color:var(--ink-3)}
+.nums{font-variant-numeric:tabular-nums}
+.spec{display:flex;gap:8px;flex-wrap:wrap;margin-top:18px}
+
+/* 縮影頁框 */
+.page{max-width:720px;margin:24px auto 0;border:1px solid var(--border);border-radius:16px;background:var(--bg);box-shadow:var(--shadow);overflow:hidden}
+.phead{display:flex;align-items:center;gap:8px;height:50px;padding:0 18px;background:rgba(255,255,255,.75);border-bottom:1px solid var(--border)}
+.pulse-dot{width:9px;height:9px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 3px var(--accent-tint)}
+.phead b{font-size:15px}
+.phead .tag{font-size:12px;color:var(--ink-2)}
+.phead .fresh{margin-left:auto;font-size:11px;color:var(--ink-2)}
+.pbody{padding:18px}
+
+/* 摘要列（封閉感＋錨點） */
+.sumbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.sumchip{display:inline-flex;align-items:center;gap:6px;min-height:36px;padding:6px 12px;border-radius:999px;border:1px solid var(--border);background:var(--bg-card);font-size:12.5px;font-weight:500;color:var(--ink-2);text-decoration:none}
+.sumchip svg{width:13px;height:13px;color:var(--accent)}
+.sumchip b{color:var(--ink);font-weight:700}
+.sumnote{font-size:11px;color:var(--ink-2);margin-left:auto}
+
+/* 今日事件 */
+.sect{margin-top:18px}
+.sect-h{display:flex;align-items:baseline;gap:8px}
+.sect-h svg{width:15px;height:15px;color:var(--accent);align-self:center}
+.sect-h h3{font-size:15px;font-weight:700}
+.sect-h .cnt{font-size:11.5px;color:var(--ink-2)}
+.sect-h .all{margin-left:auto;font-size:12.5px;font-weight:600;color:var(--accent-strong);text-decoration:none;min-height:32px;display:inline-flex;align-items:center}
+.ecard{margin-top:10px;background:var(--bg-card);border:1px solid var(--accent-line);border-radius:var(--r-card);box-shadow:var(--shadow);padding:14px 16px}
+.badge{display:inline-flex;align-items:center;gap:5px;height:20px;padding:0 7px;border-radius:var(--r-chip);border:1px solid;font:600 10.5px/1 var(--sans)}
+.badge .d{width:4px;height:4px;border-radius:50%;background:currentColor}
+.b-event{color:var(--accent-strong);background:var(--accent-tint);border-color:var(--accent-line)}
+.b-threads{color:var(--src-threads);background:rgba(77,116,234,.10);border-color:rgba(77,116,234,.30)}
+.b-ptt{color:var(--src-ptt);background:rgba(16,185,129,.10);border-color:rgba(16,185,129,.30)}
+.b-hn{color:var(--src-hn);background:rgba(249,115,22,.10);border-color:rgba(249,115,22,.30)}
+.ecard h4{margin-top:8px;font-size:15px;line-height:1.5;font-weight:700}
+.ecard p{margin-top:5px;font-size:13px;line-height:1.75;color:var(--ink-2)}
+.cite{display:inline-flex;align-items:center;justify-content:center;min-width:20px;padding:1px 6px;margin:0 2px;border-radius:999px;background:var(--accent-tint);border:1px solid var(--accent-line);color:var(--accent-strong);font:600 10px/1.4 var(--mono);text-decoration:none;vertical-align:-2px}
+
+/* NEW 分隔線 */
+.newline{display:flex;align-items:center;gap:12px;margin:22px 0 4px}
+.newline::before,.newline::after{content:"";flex:1;border-top:2px dashed var(--accent-line)}
+.newline span{font:600 11px/1 var(--mono);color:var(--accent-strong);background:var(--accent-tint);border:1px solid var(--accent-line);border-radius:999px;padding:6px 12px;white-space:nowrap}
+
+/* 主題列 */
+.mini{margin-top:10px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--r-panel);padding:10px 14px;display:flex;gap:10px;align-items:flex-start}
+.mini .dot{flex:none;width:8px;height:8px;border-radius:50%;margin-top:7px}
+.dot-pos{background:var(--positive)}
+.dot-neu{background:var(--neutral)}
+.dot-neg{background:transparent;border:2px solid var(--negative)}
+.mini .tt{flex:1;font-size:13.5px;line-height:1.55;font-weight:500}
+.mini .tt .sub{display:block;margin-top:2px;font-size:11px;font-weight:400;color:var(--ink-2)}
+.mini .bb{flex:none;display:flex;gap:5px;align-items:center;margin-top:2px}
+.new{font:700 9px/1 var(--mono);letter-spacing:.06em;color:var(--accent-strong);background:var(--accent-tint);border:1px solid var(--accent-line);padding:3px 5px;border-radius:999px}
+.seen{opacity:.78}
+</style>
+</head>
+<body>
+<main class="canvas">
+  <header>
+    <p class="ds-kicker">Pulse Design System · Layout</p>
+    <h1 class="ds-title">「今日」首屏版型縮影</h1>
+    <p class="ds-lede">三個鐵律：① 今日事件置頂（差異化核心先講）；② NEW 分隔線回答「哪些是我上次之後的新內容」（localStorage last-visit）；③ 主題分區順序永不變——每日回訪靠肌肉記憶。摘要列計數給「看完就是看完了」的封閉感。</p>
+  </header>
+
+  <div class="page">
+    <div class="phead">
+      <span class="pulse-dot"></span><b>Pulse</b><span class="tag">每天的 AI 實用情報</span>
+      <span class="fresh nums">更新於 08:30</span>
+    </div>
+    <div class="pbody">
+
+      <div class="sumbar">
+        <a class="sumchip" href="#t-tool" onclick="return false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 5.8a2 2 0 0 0 1.3 1.3L21 12l-5.8 1.9a2 2 0 0 0-1.3 1.3L12 21l-1.9-5.8a2 2 0 0 0-1.3-1.3L3 12l5.8-1.9a2 2 0 0 0 1.3-1.3L12 3z"/></svg>新工具 <b class="nums">8</b></a>
+        <a class="sumchip" href="#t-how" onclick="return false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>使用方法 <b class="nums">5</b></a>
+        <a class="sumchip" href="#t-risk" onclick="return false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.73 18l-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>風險限制 <b class="nums">4</b></a>
+        <span class="sumnote nums">今天共 17 則 · 掃完即完</span>
+      </div>
+
+      <section class="sect">
+        <div class="sect-h">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h7l-1 8 11-12h-7l1-8z"/></svg>
+          <h3>今日事件</h3><span class="cnt nums">1 起聚合事件</span>
+        </div>
+        <article class="ecard">
+          <span class="badge b-event"><span class="d"></span>今日事件</span>
+          <h4>Claude Opus 4.5 發布：定價下修、長文能力升級</h4>
+          <p>輸入定價較前代下修約 33%<a class="cite" href="#" onclick="return false">1</a>；長上下文指令遵循實測改善<a class="cite" href="#" onclick="return false">2</a>，繁中輸出偶有簡體混入需提示約束<a class="cite" href="#" onclick="return false">3</a>。</p>
+        </article>
+      </section>
+
+      <div class="newline" role="separator" aria-label="以上為上次造訪後的新內容"><span>▲ 上次造訪（昨天 21:40）之後的新內容</span></div>
+
+      <section class="sect" id="t-tool">
+        <div class="sect-h">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 5.8a2 2 0 0 0 1.3 1.3L21 12l-5.8 1.9a2 2 0 0 0-1.3 1.3L12 21l-1.9-5.8a2 2 0 0 0-1.3-1.3L3 12l5.8-1.9a2 2 0 0 0 1.3-1.3L12 3z"/></svg>
+          <h3>新工具</h3><span class="cnt nums">8 則</span>
+          <a class="all" href="#" onclick="return false">看全部 (8) →</a>
+        </div>
+        <div class="mini">
+          <span class="dot dot-pos"></span>
+          <span class="tt">MCP 檔案總管外掛開源：讓任何模型安全讀寫本機資料夾<span class="sub nums">2 小時前 · 約 1 分鐘</span></span>
+          <span class="bb"><span class="new">NEW</span><span class="badge b-hn"><span class="d"></span>HN</span></span>
+        </div>
+        <div class="mini seen">
+          <span class="dot dot-neu"></span>
+          <span class="tt">本地端字幕工具 v2：M 系列晶片即時轉寫繁中<span class="sub nums">昨天 18:02 · 約 2 分鐘</span></span>
+          <span class="bb"><span class="badge b-threads"><span class="d"></span>Threads</span></span>
+        </div>
+      </section>
+
+      <section class="sect" id="t-how">
+        <div class="sect-h">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+          <h3>使用方法</h3><span class="cnt nums">5 則</span>
+          <a class="all" href="#" onclick="return false">看全部 (5) →</a>
+        </div>
+        <div class="mini">
+          <span class="dot dot-pos"></span>
+          <span class="tt">用 Claude Code 接手日常雜事：報帳到週報的 5 個自動化範例<span class="sub nums">2 小時前 · 約 1 分鐘</span></span>
+          <span class="bb"><span class="new">NEW</span><span class="badge b-threads"><span class="d"></span>Threads</span></span>
+        </div>
+        <div class="mini seen">
+          <span class="dot dot-neu"></span>
+          <span class="tt">長提示的分段技巧：先綱要後展開，輸出穩定度提升的實測<span class="sub nums">昨天 16:40 · 約 3 分鐘</span></span>
+          <span class="bb"><span class="badge b-hn"><span class="d"></span>HN</span></span>
+        </div>
+      </section>
+
+      <section class="sect" id="t-risk">
+        <div class="sect-h">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.73 18l-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+          <h3>風險限制</h3><span class="cnt nums">4 則</span>
+          <a class="all" href="#" onclick="return false">看全部 (4) →</a>
+        </div>
+        <div class="mini">
+          <span class="dot dot-neg"></span>
+          <span class="tt">[心得] Gemini 3 Pro 跑繁中長文摘要，表格格式還是會跑掉<span class="sub nums">5 小時前 · 約 2 分鐘</span></span>
+          <span class="bb"><span class="new">NEW</span><span class="badge b-ptt"><span class="d"></span>PTT</span></span>
+        </div>
+      </section>
+
+    </div>
+  </div>
+
+  <div class="spec">
+    <span class="tok">順序鐵律：今日事件 → 新工具 → 使用方法 → 風險限制</span>
+    <span class="tok">NEW 分隔線 = localStorage last-visit</span>
+    <span class="tok">摘要列 = 錨點＋計數（封閉感）</span>
+    <span class="tok">每區固定名額＋「看全部 (N) →」修 IA 斷頭</span>
+    <span class="tok">已看過內容降 22% 透明度</span>
+  </div>
+
+  <p class="ds-foot">Pulse Design System · 依據 docs/ux/research 02 #1–#3、01 §A4–A5 · 2026-06-12</p>
+</main>
+</body>
+</html>

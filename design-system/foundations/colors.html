@@ -1,0 +1,144 @@
+<!-- @dsCard group="色彩" -->
+<!DOCTYPE html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Pulse DS · 色彩 token 總覽</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#F4F7FC;--bg-card:#FFFFFF;--bg-hover:#EAF1FB;--border:#D9E2F1;
+  --ink:#1B2536;--ink-2:rgba(27,37,54,.70);--ink-3:rgba(27,37,54,.55);--ink-4:rgba(27,37,54,.35);
+  --accent:#4D74EA;--accent-strong:#385CCC;--accent-deep:#2E4DAD;
+  --accent-tint:rgba(77,116,234,.10);--accent-line:rgba(77,116,234,.30);
+  --src-ptt:#047857;--src-lob:#B91C1C;
+  --r-card:12px;--r-panel:8px;--r-chip:6px;
+  --shadow:0 1px 2px rgba(27,37,54,.05);
+  --sans:system-ui,"Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif;
+  --mono:ui-monospace,"Cascadia Mono",Consolas,"Noto Sans TC","PingFang TC","Microsoft JhengHei",monospace;
+}
+html{-webkit-text-size-adjust:100%}
+body{background:var(--bg);color:var(--ink);font:400 15px/1.7 var(--sans)}
+.canvas{max-width:980px;margin:0 auto;padding:48px 28px 88px}
+.ds-kicker{font:600 11px/1.5 var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--accent-strong)}
+.ds-title{font-size:24px;line-height:1.4;font-weight:700;margin-top:8px}
+.ds-lede{margin-top:10px;font-size:14px;line-height:1.8;color:var(--ink-2);max-width:42em}
+.panel{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--r-card);padding:26px 28px;box-shadow:var(--shadow);margin-top:24px}
+.panel-head{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:18px}
+.panel-head h2{font-size:15px;font-weight:700}
+.panel-head .note{font-size:12px;color:var(--ink-2)}
+.tok{font-family:var(--mono);font-size:11px;color:var(--ink-2);background:rgba(27,37,54,.045);border:1px solid var(--border);border-radius:5px;padding:2px 7px;white-space:nowrap}
+.pass{color:var(--src-ptt);font-weight:600}
+.warn{color:var(--src-lob);font-weight:600}
+.ds-foot{margin-top:32px;font-size:11px;color:var(--ink-3)}
+
+/* swatch rows */
+.swrow{display:grid;grid-template-columns:170px 1fr;gap:20px;align-items:center;padding:16px 0;border-top:1px solid var(--border)}
+.swrow:first-of-type{border-top:0;padding-top:0}
+.swrow:last-of-type{padding-bottom:0}
+.sw{height:58px;border-radius:var(--r-panel);border:1px solid rgba(27,37,54,.10);display:flex;align-items:center;justify-content:center;background:#fff;font-weight:600;font-size:17px}
+.sw-name{font-size:14px;font-weight:700}
+.sw-name small{font-weight:400;color:var(--ink-2);margin-left:8px;font-size:12px}
+.sw-toks{display:flex;gap:6px;flex-wrap:wrap;margin-top:7px}
+
+/* ramp */
+.ramp{display:flex;border-radius:var(--r-panel);overflow:hidden;border:1px solid rgba(27,37,54,.08)}
+.ramp>div{flex:1;height:76px;display:flex;align-items:flex-end;padding:9px;font:600 11px/1.3 var(--mono)}
+.ramp-notes{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-top:12px}
+.ramp-notes div{font-size:12px;line-height:1.6;color:var(--ink-2)}
+.ramp-notes b{display:block;font-size:12px;color:var(--ink)}
+
+/* surfaces */
+.surface-demo{background:var(--bg);border:1px solid var(--border);border-radius:var(--r-panel);padding:20px}
+.surface-card{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--r-panel);padding:18px;margin-top:12px;box-shadow:var(--shadow)}
+.surface-hover{background:var(--bg-hover);border:1px solid var(--accent-line);border-radius:var(--r-chip);padding:12px 14px;margin-top:12px}
+.surface-label{font:600 12px/1.5 var(--sans)}
+.surface-label .tok{margin-left:8px}
+@media (max-width:640px){.swrow{grid-template-columns:1fr}.ramp-notes{grid-template-columns:1fr 1fr}}
+</style>
+</head>
+<body>
+<main class="canvas">
+  <header>
+    <p class="ds-kicker">Pulse Design System · Foundations</p>
+    <h1 class="ds-title">色彩 token 總覽</h1>
+    <p class="ds-lede">維持「冷墨 ink ＋ 單一寶藍」的 2 色克制。本次演進：ink 透明度從 10 檔收斂成 4 檔語意層；寶藍補一個深階 <code class="tok">accent-strong</code>，讓小字與按鈕白字過 WCAG AA。</p>
+  </header>
+
+  <section class="panel">
+    <div class="panel-head">
+      <h2>Ink 文字階層</h2>
+      <span class="note">10 檔透明度 → 4 檔語意層（對比為白卡上實算近似值）</span>
+    </div>
+    <div class="swrow">
+      <div class="sw" style="color:#1B2536">今日共 23 則</div>
+      <div>
+        <p class="sw-name">主文字 ink<small>標題、計數、按鈕文字</small></p>
+        <div class="sw-toks"><span class="tok">--ink</span><span class="tok">#1B2536</span><span class="tok pass">14.6:1 ✓</span></div>
+      </div>
+    </div>
+    <div class="swrow">
+      <div class="sw" style="color:rgba(27,37,54,.70);font-weight:400;font-size:14px">摘要與描述文字</div>
+      <div>
+        <p class="sw-name">次文字 ink/70<small>snippet、描述——13px 以下次要文字的底線</small></p>
+        <div class="sw-toks"><span class="tok">--ink-2</span><span class="tok">rgba(27,37,54,.70) ≈ #5F6672</span><span class="tok pass">5.3:1 ✓ AA</span></div>
+      </div>
+    </div>
+    <div class="swrow">
+      <div class="sw" style="color:rgba(27,37,54,.55);font-weight:400;font-size:19px">大字輔助說明</div>
+      <div>
+        <p class="sw-name">弱文字 ink/55<small>僅限 ≥18px 或非必要資訊；小字禁用（3.6:1 不過 AA）</small></p>
+        <div class="sw-toks"><span class="tok">--ink-3</span><span class="tok">rgba(27,37,54,.55) ≈ #828790</span><span class="tok">3.6:1（限大字）</span></div>
+      </div>
+    </div>
+    <div class="swrow">
+      <div class="sw" style="color:rgba(27,37,54,.35);font-weight:400">· · · 分隔 · · ·</div>
+      <div>
+        <p class="sw-name">裝飾 ink/35<small>分隔符、純裝飾；不承載資訊（時間戳一律升到 ink/70）</small></p>
+        <div class="sw-toks"><span class="tok">--ink-4</span><span class="tok">rgba(27,37,54,.35) ≈ #AFB3B9</span><span class="tok">不承載文字資訊</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head">
+      <h2>寶藍主色階</h2>
+      <span class="note">品牌色不變；新增深階供小字與按鈕底使用</span>
+    </div>
+    <div class="ramp">
+      <div style="background:#2E4DAD;color:#fff">#2E4DAD</div>
+      <div style="background:#385CCC;color:#fff">#385CCC</div>
+      <div style="background:#4D74EA;color:#fff">#4D74EA</div>
+      <div style="background:#C9D6F9;color:#1B2536">30%</div>
+      <div style="background:#EDF1FD;color:#1B2536">10%</div>
+    </div>
+    <div class="ramp-notes">
+      <div><b>accent-deep</b>hover／按下態</div>
+      <div><b>accent-strong</b>小字連結、按鈕底（白字 5.9:1 ✓）</div>
+      <div><b>accent（品牌）</b>icon、焦點環、圖形、≥18px 大字（白底 4.2:1，小字禁用）</div>
+      <div><b>accent/30</b>選中框、徽章邊線</div>
+      <div><b>accent/10</b>選中底、淡色襯底</div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head">
+      <h2>表面色</h2>
+      <span class="note">冷調淺藍白紙底，層次靠表面而非陰影</span>
+    </div>
+    <div class="surface-demo">
+      <p class="surface-label">bg 畫布<span class="tok">#F4F7FC</span></p>
+      <div class="surface-card">
+        <p class="surface-label">bg-card 卡片<span class="tok">#FFFFFF</span><span class="tok">border #D9E2F1</span><span class="tok">shadow 0 1px 2px ink/5%</span></p>
+        <div class="surface-hover">
+          <p class="surface-label">bg-hover 懸停／選中<span class="tok">#EAF1FB</span></p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <p class="ds-foot">Pulse Design System · 依據 docs/ux/research 04 §1.1、§4 · 2026-06-12</p>
+</main>
+</body>
+</html>

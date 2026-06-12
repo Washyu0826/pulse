@@ -1,0 +1,140 @@
+<!-- @dsCard group="元件" -->
+<!DOCTYPE html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Pulse DS · 收藏按鈕三態</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#F4F7FC;--bg-card:#FFFFFF;--bg-hover:#EAF1FB;--border:#D9E2F1;
+  --ink:#1B2536;--ink-2:rgba(27,37,54,.70);--ink-3:rgba(27,37,54,.55);
+  --accent:#4D74EA;--accent-strong:#385CCC;
+  --accent-tint:rgba(77,116,234,.10);--accent-line:rgba(77,116,234,.30);
+  --src-threads:#385CCC;
+  --r-card:12px;--r-panel:8px;--r-chip:6px;
+  --shadow:0 1px 2px rgba(27,37,54,.05);
+  --sans:system-ui,"Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif;
+  --mono:ui-monospace,"Cascadia Mono",Consolas,"Noto Sans TC","PingFang TC","Microsoft JhengHei",monospace;
+}
+html{-webkit-text-size-adjust:100%}
+body{background:var(--bg);color:var(--ink);font:400 15px/1.7 var(--sans)}
+.canvas{max-width:980px;margin:0 auto;padding:48px 28px 88px}
+.ds-kicker{font:600 11px/1.5 var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--accent-strong)}
+.ds-title{font-size:24px;line-height:1.4;font-weight:700;margin-top:8px}
+.ds-lede{margin-top:10px;font-size:14px;line-height:1.8;color:var(--ink-2);max-width:42em}
+.panel{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--r-card);padding:26px 28px;box-shadow:var(--shadow);margin-top:24px}
+.panel-head{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:18px}
+.panel-head h2{font-size:15px;font-weight:700}
+.panel-head .note{font-size:12px;color:var(--ink-2)}
+.tok{font-family:var(--mono);font-size:11px;color:var(--ink-2);background:rgba(27,37,54,.045);border:1px solid var(--border);border-radius:5px;padding:2px 7px;white-space:nowrap}
+.ds-foot{margin-top:32px;font-size:11px;color:var(--ink-3)}
+.nums{font-variant-numeric:tabular-nums}
+
+/* 三態 */
+.states{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px}
+.state{border:1px solid var(--border);border-radius:var(--r-panel);padding:22px 18px 18px;text-align:center}
+.fav{position:relative;display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;border-radius:10px;border:0;background:transparent;cursor:pointer;color:var(--ink-2)}
+.fav svg{width:21px;height:21px}
+.fav.is-on{color:var(--accent)}
+.fav .pk-check{position:absolute;right:5px;bottom:5px;width:15px;height:15px;border-radius:50%;background:var(--accent-strong);display:flex;align-items:center;justify-content:center}
+.fav .pk-check svg{width:9px;height:9px;color:#fff}
+.hitring{display:inline-flex;border:2px dashed var(--accent-line);border-radius:12px}
+.state b{display:block;margin-top:12px;font-size:14px}
+.state p{font-size:12px;line-height:1.7;color:var(--ink-2);margin-top:4px}
+
+/* 佈局示範 */
+.lay{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+.laycol>h3{font-size:13px;font-weight:700;margin-bottom:10px}
+.mini{position:relative;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--r-card);box-shadow:var(--shadow);overflow:hidden}
+.mini .linkzone{display:block;padding:16px 16px 12px;text-decoration:none;color:inherit}
+.mini .meta{display:flex;gap:6px;align-items:center}
+.badge{display:inline-flex;align-items:center;gap:5px;height:22px;padding:0 8px;border-radius:var(--r-chip);border:1px solid;font:600 11px/1 var(--sans)}
+.badge .d{width:5px;height:5px;border-radius:50%;background:currentColor}
+.b-threads{color:var(--src-threads);background:rgba(77,116,234,.10);border-color:rgba(77,116,234,.30)}
+.mini h4{margin-top:9px;font-size:15px;line-height:1.5;font-weight:600}
+.mini .foot{display:flex;align-items:center;gap:10px;padding:4px 8px 6px 16px;border-top:1px solid var(--border)}
+.mini .t{font-size:11px;color:var(--ink-2)}
+.mini .foot .fav{margin-left:auto}
+.bad-overlay{position:absolute;right:8px;top:8px;width:24px;height:24px;display:flex;align-items:center;justify-content:center;color:rgba(27,37,54,.25)}
+.bad-overlay svg{width:16px;height:16px}
+.verdict-ok{font-size:12px;font-weight:700;color:#047857}
+.verdict-no{font-size:12px;font-weight:700;color:#B91C1C}
+@media (max-width:720px){.lay{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<main class="canvas">
+  <header>
+    <p class="ds-kicker">Pulse Design System · Components</p>
+    <h1 class="ds-title">收藏按鈕三態</h1>
+    <p class="ds-lede">收藏不是終點，是進入「知識材料包」的入口——所以狀態是三段：未收藏 → 已收藏（待打包）→ 已打包（歸檔）。命中區一律 44×44px，且移出整卡連結的疊層。</p>
+  </header>
+
+  <section class="panel">
+    <div class="panel-head"><h2>三態</h2><span class="note">aria-pressed ＋ aria-label 隨態更新</span></div>
+    <div class="states">
+      <div class="state">
+        <span class="hitring"><button class="fav" aria-pressed="false" aria-label="收藏這則情報">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.29 1.51 4.04 3 5.5l7 7z"/></svg>
+        </button></span>
+        <b>未收藏</b>
+        <p>描邊愛心 <span class="tok">ink/70</span><br>（升自 ink/25——1.7:1 連 UI 件 3:1 都不過）</p>
+      </div>
+      <div class="state">
+        <span class="hitring"><button class="fav is-on" aria-pressed="true" aria-label="取消收藏">
+          <svg viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.29 1.51 4.04 3 5.5l7 7z"/></svg>
+        </button></span>
+        <b>已收藏（待打包）</b>
+        <p>實心寶藍 <span class="tok">#4D74EA</span><br>停在收藏匣，等著被蒸成材料包</p>
+      </div>
+      <div class="state">
+        <span class="hitring"><button class="fav" aria-pressed="true" aria-label="已打包進材料包，點擊查看">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="M3.3 7l8.7 5 8.7-5"/><path d="M12 22V12"/></svg>
+          <span class="pk-check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></span>
+        </button></span>
+        <b>已打包（歸檔）</b>
+        <p>紙箱＋勾——打包後自動歸檔<br>收藏匣保持「待處理」的緊張感</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head"><h2>佈局：不再疊在整卡連結上</h2><span class="note">手機頭號痛點修正——按不準愛心就直接彈去原文</span></div>
+    <div class="lay">
+      <div class="laycol">
+        <h3><span class="verdict-no">✗ 現況</span>　24px 愛心浮在 stretched link 上</h3>
+        <div class="mini">
+          <a class="linkzone" href="#" onclick="return false" style="padding-bottom:16px">
+            <span class="meta"><span class="badge b-threads"><span class="d"></span>Threads</span></span>
+            <h4>用 Claude Code 重構十年老 codebase 的實戰筆記</h4>
+            <span class="t" style="display:block;margin-top:8px">3 小時前</span>
+          </a>
+          <span class="bad-overlay" title="24px、壓在連結上"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.29 1.51 4.04 3 5.5l7 7z"/></svg></span>
+        </div>
+        <p style="font-size:12px;color:var(--ink-2);margin-top:8px;line-height:1.7">命中區 24px、淡到看不見、四周全是外連結——誤觸即離站。</p>
+      </div>
+      <div class="laycol">
+        <h3><span class="verdict-ok">✓ 改良</span>　獨立動作列，與連結區分離</h3>
+        <div class="mini">
+          <a class="linkzone" href="#" onclick="return false">
+            <span class="meta"><span class="badge b-threads"><span class="d"></span>Threads</span></span>
+            <h4>用 Claude Code 重構十年老 codebase 的實戰筆記</h4>
+          </a>
+          <div class="foot">
+            <span class="t nums">3 小時前 · 約 2 分鐘</span>
+            <button class="fav" aria-pressed="false" aria-label="收藏這則情報">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.29 1.51 4.04 3 5.5l7 7z"/></svg>
+            </button>
+          </div>
+        </div>
+        <p style="font-size:12px;color:var(--ink-2);margin-top:8px;line-height:1.7">連結只覆蓋內容區；動作列在分隔線下、44px 命中區、與連結 ≥8px 安全距。</p>
+      </div>
+    </div>
+  </section>
+
+  <p class="ds-foot">Pulse Design System · 依據 docs/ux/research 02 §(c)、05 §1.3 #3 · 2026-06-12</p>
+</main>
+</body>
+</html>

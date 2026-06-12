@@ -1,0 +1,150 @@
+<!-- @dsCard group="卡片" -->
+<!DOCTYPE html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Pulse DS · FeedCard 改良版</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#F4F7FC;--bg-card:#FFFFFF;--bg-hover:#EAF1FB;--border:#D9E2F1;
+  --ink:#1B2536;--ink-2:rgba(27,37,54,.70);--ink-3:rgba(27,37,54,.55);
+  --accent:#4D74EA;--accent-strong:#385CCC;
+  --accent-tint:rgba(77,116,234,.10);--accent-line:rgba(77,116,234,.30);
+  --positive:#4D74EA;--neutral:#8A97AC;--negative:#5A6677;
+  --src-hn:#C2410C;--src-threads:#385CCC;--src-ptt:#047857;
+  --r-card:12px;--r-panel:8px;--r-chip:6px;
+  --shadow:0 1px 2px rgba(27,37,54,.05);--shadow-hover:0 6px 16px rgba(27,37,54,.08);
+  --sans:system-ui,"Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif;
+  --mono:ui-monospace,"Cascadia Mono",Consolas,"Noto Sans TC","PingFang TC","Microsoft JhengHei",monospace;
+}
+html{-webkit-text-size-adjust:100%}
+body{background:var(--bg);color:var(--ink);font:400 15px/1.7 var(--sans)}
+.canvas{max-width:1080px;margin:0 auto;padding:48px 28px 88px}
+.ds-kicker{font:600 11px/1.5 var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--accent-strong)}
+.ds-title{font-size:24px;line-height:1.4;font-weight:700;margin-top:8px}
+.ds-lede{margin-top:10px;font-size:14px;line-height:1.8;color:var(--ink-2);max-width:42em}
+.panel{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--r-card);padding:26px 28px;box-shadow:var(--shadow);margin-top:24px}
+.panel-head{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:18px}
+.panel-head h2{font-size:15px;font-weight:700}
+.panel-head .note{font-size:12px;color:var(--ink-2)}
+.tok{font-family:var(--mono);font-size:11px;color:var(--ink-2);background:rgba(27,37,54,.045);border:1px solid var(--border);border-radius:5px;padding:2px 7px;white-space:nowrap}
+.ds-foot{margin-top:32px;font-size:11px;color:var(--ink-3)}
+.nums{font-variant-numeric:tabular-nums}
+
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:16px}
+.fcard{display:flex;flex-direction:column;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--r-card);box-shadow:var(--shadow);overflow:hidden}
+.fcard.is-hover{box-shadow:var(--shadow-hover);border-color:var(--accent-line);transform:translateY(-2px)}
+.fbody{flex:1;display:block;padding:16px 16px 12px;text-decoration:none;color:inherit}
+.meta{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.badge{display:inline-flex;align-items:center;gap:5px;height:22px;padding:0 8px;border-radius:var(--r-chip);border:1px solid;font:600 11px/1 var(--sans)}
+.badge .d{width:5px;height:5px;border-radius:50%;background:currentColor}
+.b-hn{color:var(--src-hn);background:rgba(249,115,22,.10);border-color:rgba(249,115,22,.30)}
+.b-threads{color:var(--src-threads);background:rgba(77,116,234,.10);border-color:rgba(77,116,234,.30)}
+.b-ptt{color:var(--src-ptt);background:rgba(16,185,129,.10);border-color:rgba(16,185,129,.30)}
+.badge .loc{font-size:10px;font-weight:700;color:#fff;border-radius:4px;padding:2px 5px;margin:0 -3px 0 2px}
+.b-threads .loc{background:var(--src-threads)}
+.b-ptt .loc{background:var(--src-ptt)}
+.b-model{color:var(--accent-strong);background:var(--accent-tint);border-color:var(--accent-line)}
+.new{margin-left:auto;font:700 10px/1 var(--mono);letter-spacing:.07em;color:var(--accent-strong);background:var(--accent-tint);border:1px solid var(--accent-line);padding:4px 7px;border-radius:999px}
+.ftitle{margin-top:10px;font-size:16px;line-height:1.5;font-weight:600;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.forig{margin-top:4px;font-size:12px;line-height:1.5;color:var(--ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fsnip{margin-top:8px;font-size:13px;line-height:1.7;letter-spacing:.01em;color:var(--ink-2);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.ffoot{display:flex;align-items:center;gap:10px;padding:4px 6px 4px 16px;border-top:1px solid var(--border)}
+.sent{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:500;color:var(--ink-2)}
+.dot{width:8px;height:8px;border-radius:50%;flex:none}
+.dot-pos{background:var(--positive)}
+.dot-neu{background:var(--neutral)}
+.dot-neg{background:transparent;border:2px solid var(--negative)}
+.ftime{font-size:11px;color:var(--ink-2)}
+.fav{display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;border-radius:10px;border:0;background:transparent;cursor:pointer;color:var(--ink-2);margin-left:auto}
+.fav svg{width:20px;height:20px}
+.fav.is-on{color:var(--accent)}
+.anno{display:flex;gap:8px;flex-wrap:wrap;margin-top:18px}
+</style>
+</head>
+<body>
+<main class="canvas">
+  <header>
+    <p class="ds-kicker">Pulse Design System · Cards</p>
+    <h1 class="ds-title">FeedCard 改良版</h1>
+    <p class="ds-lede">變更：NEW 標記（上次造訪後的新內容）、情緒「圓點＋文字」、原文對照去斜體、標題升 16px/1.5、snippet 升 ink/70、時間＋閱讀時間入動作列、收藏鈕 44px 獨立於連結之外。</p>
+  </header>
+
+  <section class="panel">
+    <div class="panel-head"><h2>三種典型內容</h2><span class="note">在地來源 · 負面情緒 · 中英對照</span></div>
+    <div class="grid">
+
+      <article class="fcard is-hover">
+        <a class="fbody" href="#" onclick="return false">
+          <span class="meta">
+            <span class="badge b-threads"><span class="d"></span>Threads<span class="loc">在地</span></span>
+            <span class="badge b-model">Claude</span>
+            <span class="new">NEW</span>
+          </span>
+          <h3 class="ftitle">用 Claude Code 接手日常雜事：從報帳到週報的 5 個自動化範例</h3>
+          <p class="fsnip">作者把報帳單據丟給排程跑的 Claude Code，自動分類、填表、產出週報草稿，每天省下約 40 分鐘，附完整 prompt。</p>
+        </a>
+        <div class="ffoot">
+          <span class="sent"><span class="dot dot-pos"></span>正面</span>
+          <span class="ftime nums">2 小時前 · 約 1 分鐘</span>
+          <button class="fav is-on" aria-pressed="true" aria-label="取消收藏">
+            <svg viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.29 1.51 4.04 3 5.5l7 7z"/></svg>
+          </button>
+        </div>
+      </article>
+
+      <article class="fcard">
+        <a class="fbody" href="#" onclick="return false">
+          <span class="meta">
+            <span class="badge b-ptt"><span class="d"></span>PTT<span class="loc">在地</span></span>
+            <span class="badge b-model">Gemini</span>
+            <span class="new">NEW</span>
+          </span>
+          <h3 class="ftitle">[心得] Gemini 3 Pro 跑繁中長文摘要，表格格式還是會跑掉</h3>
+          <p class="fsnip">餵 2 萬字會議逐字稿要求表格摘要，欄位會自己增減；同樣 prompt 在短文上沒問題，推測是長上下文的指令衰減。</p>
+        </a>
+        <div class="ffoot">
+          <span class="sent"><span class="dot dot-neg"></span>負面</span>
+          <span class="ftime nums">5 小時前 · 約 2 分鐘</span>
+          <button class="fav" aria-pressed="false" aria-label="收藏這則情報">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.29 1.51 4.04 3 5.5l7 7z"/></svg>
+          </button>
+        </div>
+      </article>
+
+      <article class="fcard">
+        <a class="fbody" href="#" onclick="return false">
+          <span class="meta">
+            <span class="badge b-hn"><span class="d"></span>HN</span>
+            <span class="badge b-model">GPT</span>
+          </span>
+          <h3 class="ftitle">LLM 代理在生產環境的可觀測性實踐</h3>
+          <p class="forig">Observability for LLM Agents in Production</p>
+          <p class="fsnip">整理 tracing、評估迴圈與成本監控三層，作者建議從 trace 一條完整 agent 路徑開始，不要先買平台。</p>
+        </a>
+        <div class="ffoot">
+          <span class="sent"><span class="dot dot-neu"></span>中性</span>
+          <span class="ftime nums">昨天 22:14 · 約 3 分鐘</span>
+          <button class="fav" aria-pressed="false" aria-label="收藏這則情報">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.29 1.51 4.04 3 5.5l7 7z"/></svg>
+          </button>
+        </div>
+      </article>
+
+    </div>
+    <div class="anno">
+      <span class="tok">標題 16px/1.5/600 · clamp 2 行</span>
+      <span class="tok">原文對照 12px ink/55 · 去 italic</span>
+      <span class="tok">snippet 13px/1.7 ink/70 ✓AA</span>
+      <span class="tok">NEW = localStorage last-visit</span>
+      <span class="tok">情緒：點＋字（負面空心）</span>
+      <span class="tok">收藏 44×44 · 不疊連結</span>
+    </div>
+  </section>
+
+  <p class="ds-foot">Pulse Design System · 依據 docs/ux/research 02 #3 #7 #13、04 §2、05 §1.3 · 2026-06-12</p>
+</main>
+</body>
+</html>

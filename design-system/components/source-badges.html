@@ -1,0 +1,113 @@
+<!-- @dsCard group="元件" -->
+<!DOCTYPE html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Pulse DS · 來源徽章</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#F4F7FC;--bg-card:#FFFFFF;--border:#D9E2F1;
+  --ink:#1B2536;--ink-2:rgba(27,37,54,.70);--ink-3:rgba(27,37,54,.55);
+  --accent:#4D74EA;--accent-strong:#385CCC;
+  --accent-tint:rgba(77,116,234,.10);--accent-line:rgba(77,116,234,.30);
+  --src-hn:#C2410C;--src-devto:#6D28D9;--src-threads:#385CCC;--src-ptt:#047857;--src-lob:#B91C1C;
+  --r-card:12px;--r-panel:8px;--r-chip:6px;
+  --shadow:0 1px 2px rgba(27,37,54,.05);
+  --sans:system-ui,"Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif;
+  --mono:ui-monospace,"Cascadia Mono",Consolas,"Noto Sans TC","PingFang TC","Microsoft JhengHei",monospace;
+}
+html{-webkit-text-size-adjust:100%}
+body{background:var(--bg);color:var(--ink);font:400 15px/1.7 var(--sans)}
+.canvas{max-width:980px;margin:0 auto;padding:48px 28px 88px}
+.ds-kicker{font:600 11px/1.5 var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--accent-strong)}
+.ds-title{font-size:24px;line-height:1.4;font-weight:700;margin-top:8px}
+.ds-lede{margin-top:10px;font-size:14px;line-height:1.8;color:var(--ink-2);max-width:42em}
+.panel{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--r-card);padding:26px 28px;box-shadow:var(--shadow);margin-top:24px}
+.panel-head{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:18px}
+.panel-head h2{font-size:15px;font-weight:700}
+.panel-head .note{font-size:12px;color:var(--ink-2)}
+.tok{font-family:var(--mono);font-size:11px;color:var(--ink-2);background:rgba(27,37,54,.045);border:1px solid var(--border);border-radius:5px;padding:2px 7px;white-space:nowrap}
+.pass{color:var(--src-ptt);font-weight:600}
+.fail{color:var(--src-lob);font-weight:600}
+.ds-foot{margin-top:32px;font-size:11px;color:var(--ink-3)}
+
+.badge{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 9px;border-radius:var(--r-chip);border:1px solid;font:600 11px/1 var(--sans)}
+.badge .d{width:6px;height:6px;border-radius:50%;background:currentColor}
+.badge .loc{font-size:10px;font-weight:700;color:#fff;border-radius:4px;padding:2px 5px;margin:0 -3px 0 2px}
+.b-threads .loc{background:var(--src-threads)}
+.b-ptt .loc{background:var(--src-ptt)}
+.b-hn{color:var(--src-hn);background:rgba(249,115,22,.10);border-color:rgba(249,115,22,.30)}
+.b-devto{color:var(--src-devto);background:rgba(139,92,246,.10);border-color:rgba(139,92,246,.30)}
+.b-threads{color:var(--src-threads);background:rgba(77,116,234,.10);border-color:rgba(77,116,234,.30)}
+.b-ptt{color:var(--src-ptt);background:rgba(16,185,129,.10);border-color:rgba(16,185,129,.30)}
+.b-lob{color:var(--src-lob);background:rgba(239,68,68,.10);border-color:rgba(239,68,68,.30)}
+.b-other{color:var(--ink-2);background:rgba(27,37,54,.03);border-color:var(--border)}
+.old-badge{opacity:.999}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.cmp{display:grid;grid-template-columns:110px 1fr 1fr;gap:14px;align-items:center;padding:12px 0;border-top:1px dashed var(--border)}
+.cmp:first-of-type{border-top:0;padding-top:0}
+.cmp .who{font-size:13px;font-weight:600}
+.cmp .cell{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.cmp .v{font:600 11px/1 var(--mono)}
+.colhead{display:grid;grid-template-columns:110px 1fr 1fr;gap:14px;font-size:11px;font-weight:700;color:var(--ink-2);padding-bottom:10px;border-bottom:1px solid var(--border);margin-bottom:4px}
+@media (max-width:640px){.cmp,.colhead{grid-template-columns:80px 1fr 1fr}}
+</style>
+</head>
+<body>
+<main class="canvas">
+  <header>
+    <p class="ds-kicker">Pulse Design System · Components</p>
+    <h1 class="ds-title">來源徽章</h1>
+    <p class="ds-lede">色相沿用約定俗成識別（HN 橘、PTT 綠、Dev.to 紫…），三項修正：文字色全面升 -700 階過 AA、emoji 換成 currentColor 圓點（跨平台一致）、字級 10px → 11px。中文在地來源（Threads／PTT）加「在地」實心標——這是產品差異化主軸，要一眼可辨。</p>
+  </header>
+
+  <section class="panel">
+    <div class="panel-head"><h2>全套（修正後）</h2><span class="note">字 11px/600 · 底 -500/10 · 框 -500/30 · 文字 -700</span></div>
+    <div class="row">
+      <span class="badge b-hn"><span class="d"></span>HN</span>
+      <span class="badge b-devto"><span class="d"></span>Dev.to</span>
+      <span class="badge b-threads"><span class="d"></span>Threads<span class="loc">在地</span></span>
+      <span class="badge b-ptt"><span class="d"></span>PTT<span class="loc">在地</span></span>
+      <span class="badge b-lob"><span class="d"></span>Lobsters</span>
+      <span class="badge b-other"><span class="d"></span>其他</span>
+    </div>
+    <p style="margin-top:16px;font-size:12px;color:var(--ink-2)">「其他」為未知來源兜底（絕不回 undefined 的慣例保留）；「在地」標同時寫進 aria-label，不只靠 tooltip。</p>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head"><h2>修正前 → 修正後</h2><span class="note">對比值為白底實算近似（11px 小字需 4.5:1）</span></div>
+    <div class="colhead"><span></span><span>修正前（-400/-500 暗色主題遺留）</span><span>修正後（-700）</span></div>
+    <div class="cmp">
+      <span class="who">HN</span>
+      <span class="cell"><span class="badge old-badge" style="color:#F97316;background:rgba(249,115,22,.10);border-color:rgba(249,115,22,.30)">🟠 HN</span><span class="v fail">2.8:1 ✗</span></span>
+      <span class="cell"><span class="badge b-hn"><span class="d"></span>HN</span><span class="v pass">5.0:1 ✓</span></span>
+    </div>
+    <div class="cmp">
+      <span class="who">Dev.to</span>
+      <span class="cell"><span class="badge old-badge" style="color:#A78BFA;background:rgba(139,92,246,.10);border-color:rgba(139,92,246,.30)">👾 Dev.to</span><span class="v fail">3.0:1 ✗</span></span>
+      <span class="cell"><span class="badge b-devto"><span class="d"></span>Dev.to</span><span class="v pass">7.7:1 ✓</span></span>
+    </div>
+    <div class="cmp">
+      <span class="who">Threads</span>
+      <span class="cell"><span class="badge old-badge" style="color:#4D74EA;background:rgba(77,116,234,.10);border-color:rgba(77,116,234,.30)">🧵 Threads</span><span class="v fail">4.2:1 △</span></span>
+      <span class="cell"><span class="badge b-threads"><span class="d"></span>Threads<span class="loc">在地</span></span><span class="v pass">5.9:1 ✓</span></span>
+    </div>
+    <div class="cmp">
+      <span class="who">PTT</span>
+      <span class="cell"><span class="badge old-badge" style="color:#34D399;background:rgba(16,185,129,.10);border-color:rgba(16,185,129,.30)">🟢 PTT</span><span class="v fail">1.8:1 ✗</span></span>
+      <span class="cell"><span class="badge b-ptt"><span class="d"></span>PTT<span class="loc">在地</span></span><span class="v pass">5.4:1 ✓</span></span>
+    </div>
+    <div class="cmp">
+      <span class="who">Lobsters</span>
+      <span class="cell"><span class="badge old-badge" style="color:#F87171;background:rgba(239,68,68,.10);border-color:rgba(239,68,68,.30)">🦞 Lobsters</span><span class="v fail">2.6:1 ✗</span></span>
+      <span class="cell"><span class="badge b-lob"><span class="d"></span>Lobsters</span><span class="v pass">6.0:1 ✓</span></span>
+    </div>
+    <p style="margin-top:16px;font-size:12px;color:var(--ink-2)">emoji 移除理由：跨平台形色不一致（Windows／macOS／Android 差很大）、與徽章色重複編碼、SR 會逐字唸。</p>
+  </section>
+
+  <p class="ds-foot">Pulse Design System · 依據 docs/ux/research 04 §3.2、05 §2.2 · 2026-06-12</p>
+</main>
+</body>
+</html>

@@ -1,0 +1,126 @@
+<!-- @dsCard group="元件" -->
+<!DOCTYPE html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Pulse DS · 按鈕</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#F4F7FC;--bg-card:#FFFFFF;--bg-hover:#EAF1FB;--border:#D9E2F1;
+  --ink:#1B2536;--ink-2:rgba(27,37,54,.70);--ink-3:rgba(27,37,54,.55);
+  --accent:#4D74EA;--accent-strong:#385CCC;--accent-deep:#2E4DAD;
+  --accent-tint:rgba(77,116,234,.10);--accent-line:rgba(77,116,234,.30);
+  --src-ptt:#047857;--src-lob:#B91C1C;
+  --r-card:12px;--r-panel:8px;--r-chip:6px;
+  --shadow:0 1px 2px rgba(27,37,54,.05);
+  --sans:system-ui,"Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif;
+  --mono:ui-monospace,"Cascadia Mono",Consolas,"Noto Sans TC","PingFang TC","Microsoft JhengHei",monospace;
+}
+html{-webkit-text-size-adjust:100%}
+body{background:var(--bg);color:var(--ink);font:400 15px/1.7 var(--sans)}
+.canvas{max-width:980px;margin:0 auto;padding:48px 28px 88px}
+.ds-kicker{font:600 11px/1.5 var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--accent-strong)}
+.ds-title{font-size:24px;line-height:1.4;font-weight:700;margin-top:8px}
+.ds-lede{margin-top:10px;font-size:14px;line-height:1.8;color:var(--ink-2);max-width:42em}
+.panel{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--r-card);padding:26px 28px;box-shadow:var(--shadow);margin-top:24px}
+.panel-head{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:18px}
+.panel-head h2{font-size:15px;font-weight:700}
+.panel-head .note{font-size:12px;color:var(--ink-2)}
+.tok{font-family:var(--mono);font-size:11px;color:var(--ink-2);background:rgba(27,37,54,.045);border:1px solid var(--border);border-radius:5px;padding:2px 7px;white-space:nowrap}
+.pass{color:var(--src-ptt);font-weight:600}
+.fail{color:var(--src-lob);font-weight:600}
+.ds-foot{margin-top:32px;font-size:11px;color:var(--ink-3, rgba(27,37,54,.55))}
+
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:44px;padding:0 22px;border-radius:var(--r-panel);border:1px solid transparent;font:600 16px/1 var(--sans);cursor:pointer;text-decoration:none}
+.btn svg{width:17px;height:17px}
+.btn-primary{background:var(--accent-strong);color:#fff}
+.btn-primary.is-hover{background:var(--accent-deep)}
+.btn-secondary{background:var(--bg-card);border-color:var(--border);color:var(--ink)}
+.btn-secondary.is-hover{background:var(--bg-hover);border-color:var(--accent-line)}
+.btn-ghost{background:transparent;color:var(--accent-strong)}
+.btn-ghost.is-hover{background:var(--accent-tint)}
+.is-disabled{cursor:not-allowed}
+.btn-primary.is-disabled{background:#E6EBF5;color:rgba(27,37,54,.40)}
+.btn-secondary.is-disabled{color:rgba(27,37,54,.35);border-color:var(--border)}
+.btn-ghost.is-disabled{color:rgba(27,37,54,.35)}
+
+.bgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:24px}
+.bcol h3{font-size:13px;font-weight:700;margin-bottom:4px}
+.bcol .use{font-size:12px;color:var(--ink-2);margin-bottom:14px;min-height:40px}
+.bstate{display:flex;flex-direction:column;gap:12px;align-items:flex-start}
+.bstate .st{font:600 10px/1 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--ink-2);margin-bottom:-6px}
+.fixnote{display:flex;gap:10px;align-items:flex-start;background:var(--accent-tint);border:1px solid var(--accent-line);border-radius:var(--r-panel);padding:14px 16px;font-size:13px;line-height:1.7;color:var(--ink)}
+@media (max-width:720px){.bgrid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<main class="canvas">
+  <header>
+    <p class="ds-kicker">Pulse Design System · Components</p>
+    <h1 class="ds-title">按鈕</h1>
+    <p class="ds-lede">三種層級，高度一律 44px（觸控達標）、文字 16px/600（iOS 不觸發縮放）。主按鈕白字壓深寶藍 <code class="tok">#385CCC</code>（5.9:1 ✓ AA）——修正現況「text-ink 壓寶藍（2:1）」與「#4D74EA 白字 4.2:1 差一點」兩個問題。</p>
+  </header>
+
+  <section class="panel">
+    <div class="panel-head"><h2>三層級 × 三狀態</h2><span class="note">hover／disabled 為靜態展示</span></div>
+    <div class="bgrid">
+      <div class="bcol">
+        <h3>Primary</h3>
+        <p class="use">一頁最多一顆。主 CTA：生成材料包、再試一次。</p>
+        <div class="bstate">
+          <span class="st">Default</span>
+          <button class="btn btn-primary"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="M3.3 7l8.7 5 8.7-5"/><path d="M12 22V12"/></svg>生成材料包</button>
+          <span class="st">Hover</span>
+          <button class="btn btn-primary is-hover">生成材料包</button>
+          <span class="st">Disabled</span>
+          <button class="btn btn-primary is-disabled" disabled>生成材料包</button>
+        </div>
+        <p style="margin-top:14px"><span class="tok">bg #385CCC</span> <span class="tok">text #FFF</span> <span class="tok pass">5.9:1 ✓</span></p>
+      </div>
+      <div class="bcol">
+        <h3>Secondary</h3>
+        <p class="use">並列動作：看昨天的情報、下載 sources.jsonl。</p>
+        <div class="bstate">
+          <span class="st">Default</span>
+          <button class="btn btn-secondary">看昨天的情報</button>
+          <span class="st">Hover</span>
+          <button class="btn btn-secondary is-hover">看昨天的情報</button>
+          <span class="st">Disabled</span>
+          <button class="btn btn-secondary is-disabled" disabled>看昨天的情報</button>
+        </div>
+        <p style="margin-top:14px"><span class="tok">bg card</span> <span class="tok">border #D9E2F1</span> <span class="tok">text ink</span></p>
+      </div>
+      <div class="bcol">
+        <h3>Ghost</h3>
+        <p class="use">低承諾動作：清除篩選、看全部 →。</p>
+        <div class="bstate">
+          <span class="st">Default</span>
+          <button class="btn btn-ghost">清除篩選</button>
+          <span class="st">Hover</span>
+          <button class="btn btn-ghost is-hover">清除篩選</button>
+          <span class="st">Disabled</span>
+          <button class="btn btn-ghost is-disabled" disabled>清除篩選</button>
+        </div>
+        <p style="margin-top:14px"><span class="tok">text #385CCC</span> <span class="tok pass">5.9:1 ✓</span> <span class="tok">hover bg accent/10</span></p>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head"><h2>修正對照</h2></div>
+    <div class="fixnote">
+      <svg style="flex:none;width:18px;height:18px;color:var(--accent-strong);margin-top:3px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+      <div>
+        <p><b>修正 1</b>：decide 頁提交鈕 <span class="fail">bg-accent-primary + text-ink（2:1 ✗）</span> → 全站統一 <span class="pass">text-white</span>，按鈕樣式抽成單一元件，不再 5 處手刻。</p>
+        <p style="margin-top:6px"><b>修正 2</b>：主按鈕底色由 #4D74EA（白字 4.2:1 △）加深一階至 <span class="pass">#385CCC（5.9:1 ✓）</span>；#4D74EA 保留給品牌圖形與大字。</p>
+        <p style="margin-top:6px"><b>修正 3</b>：高度從 ~32px 提到 <span class="pass">44px</span>、字級 14px → 16px。</p>
+      </div>
+    </div>
+  </section>
+
+  <p class="ds-foot">Pulse Design System · 依據 docs/ux/research 01 §C1、05 §1.3、§2.8 · 2026-06-12</p>
+</main>
+</body>
+</html>

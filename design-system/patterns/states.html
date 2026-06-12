@@ -1,0 +1,130 @@
+<!-- @dsCard group="狀態" -->
+<!DOCTYPE html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Pulse DS · 空／錯誤／載入三態</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#F4F7FC;--bg-card:#FFFFFF;--bg-hover:#EAF1FB;--border:#D9E2F1;
+  --ink:#1B2536;--ink-2:rgba(27,37,54,.70);--ink-3:rgba(27,37,54,.55);
+  --accent:#4D74EA;--accent-strong:#385CCC;--accent-deep:#2E4DAD;
+  --accent-tint:rgba(77,116,234,.10);--accent-line:rgba(77,116,234,.30);
+  --src-lob:#B91C1C;
+  --r-card:12px;--r-panel:8px;--r-chip:6px;
+  --shadow:0 1px 2px rgba(27,37,54,.05);
+  --sans:system-ui,"Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif;
+  --mono:ui-monospace,"Cascadia Mono",Consolas,"Noto Sans TC","PingFang TC","Microsoft JhengHei",monospace;
+}
+html{-webkit-text-size-adjust:100%}
+body{background:var(--bg);color:var(--ink);font:400 15px/1.7 var(--sans)}
+.canvas{max-width:1080px;margin:0 auto;padding:48px 28px 88px}
+.ds-kicker{font:600 11px/1.5 var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--accent-strong)}
+.ds-title{font-size:24px;line-height:1.4;font-weight:700;margin-top:8px}
+.ds-lede{margin-top:10px;font-size:14px;line-height:1.8;color:var(--ink-2);max-width:42em}
+.panel{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--r-card);padding:26px 28px;box-shadow:var(--shadow);margin-top:24px}
+.panel-head{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:18px}
+.panel-head h2{font-size:15px;font-weight:700}
+.panel-head .note{font-size:12px;color:var(--ink-2)}
+.tok{font-family:var(--mono);font-size:11px;color:var(--ink-2);background:rgba(27,37,54,.045);border:1px solid var(--border);border-radius:5px;padding:2px 7px;white-space:nowrap}
+.ds-foot{margin-top:32px;font-size:11px;color:var(--ink-3)}
+
+.tri{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px}
+.scard{border:1px solid var(--border);border-radius:var(--r-card);background:var(--bg-card);padding:28px 22px;display:flex;flex-direction:column;align-items:center;text-align:center;min-height:300px}
+.scard .lbl{align-self:flex-start;font:600 10px/1 var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--ink-2);margin-bottom:18px}
+.illu{width:72px;height:72px;border-radius:50%;background:var(--accent-tint);display:flex;align-items:center;justify-content:center;color:var(--accent);margin-bottom:16px}
+.illu svg{width:32px;height:32px}
+.scard h3{font-size:16px;font-weight:700;line-height:1.5}
+.scard p{margin-top:6px;font-size:13px;line-height:1.8;color:var(--ink-2);max-width:24em}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:44px;padding:0 20px;border-radius:var(--r-panel);border:1px solid transparent;font:600 15px/1 var(--sans);cursor:pointer;margin-top:16px}
+.btn-primary{background:var(--accent-strong);color:#fff}
+.btn-secondary{background:var(--bg-card);border-color:var(--border);color:var(--ink)}
+
+/* skeleton */
+.skwrap{width:100%;text-align:left}
+.sk{background:linear-gradient(90deg,rgba(27,37,54,.06) 25%,rgba(27,37,54,.11) 50%,rgba(27,37,54,.06) 75%);background-size:200% 100%;animation:sk 1.4s ease infinite;border-radius:6px}
+@keyframes sk{from{background-position:200% 0}to{background-position:-200% 0}}
+@media (prefers-reduced-motion:reduce){.sk{animation:none}}
+.skcard{border:1px solid var(--border);border-radius:var(--r-card);padding:16px;background:var(--bg-card)}
+.skcard+.skcard{margin-top:12px}
+
+.copytable{width:100%;border-collapse:collapse;margin-top:4px}
+.copytable th{font-size:11px;font-weight:700;color:var(--ink-2);text-align:left;padding:8px 12px 8px 0;border-bottom:1px solid var(--border)}
+.copytable td{font-size:13px;line-height:1.7;padding:11px 12px 11px 0;border-bottom:1px dashed var(--border);vertical-align:top}
+.copytable tr:last-child td{border-bottom:0}
+.no{color:var(--src-lob);font-weight:600}
+.yes{color:#047857;font-weight:600}
+</style>
+</head>
+<body>
+<main class="canvas">
+  <header>
+    <p class="ds-kicker">Pulse Design System · States</p>
+    <h1 class="ds-title">空／錯誤／載入三態</h1>
+    <p class="ds-lede">原則：錯誤 ≠ 空狀態（分開文案、分開行為）；文案說使用者的語言，不說「API」；每個狀態都給下一步。插畫式樣＝accent 淡底圓＋單色線性 icon，克制不搶戲。</p>
+  </header>
+
+  <section class="panel">
+    <div class="panel-head"><h2>三態並列</h2></div>
+    <div class="tri">
+
+      <div class="scard">
+        <span class="lbl">Loading · 載入中</span>
+        <div class="skwrap" role="status" aria-label="載入中">
+          <div class="skcard">
+            <div class="sk" style="width:38%;height:14px"></div>
+            <div class="sk" style="width:90%;height:18px;margin-top:12px"></div>
+            <div class="sk" style="width:74%;height:18px;margin-top:6px"></div>
+            <div class="sk" style="width:55%;height:12px;margin-top:12px"></div>
+          </div>
+          <div class="skcard">
+            <div class="sk" style="width:30%;height:14px"></div>
+            <div class="sk" style="width:84%;height:18px;margin-top:12px"></div>
+            <div class="sk" style="width:48%;height:12px;margin-top:12px"></div>
+          </div>
+        </div>
+        <p style="margin-top:14px">骨架與實際版型同構（避免載入後跳動）；<br>動畫尊重 prefers-reduced-motion。</p>
+      </div>
+
+      <div class="scard">
+        <span class="lbl">Empty · 空狀態</span>
+        <div class="illu">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg>
+        </div>
+        <h3>今天還沒有新情報</h3>
+        <p>內容每天早上更新。<br>可以先回顧昨天的重點，或放寬時間範圍。</p>
+        <button class="btn btn-secondary">← 看昨天的情報</button>
+      </div>
+
+      <div class="scard">
+        <span class="lbl">Error · 錯誤</span>
+        <div class="illu" style="background:rgba(185,28,28,.07);color:#B91C1C">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7.5 19H18a4 4 0 0 0 .58-7.96 7 7 0 0 0-11.3-4.12"/><path d="M3 3l18 18"/><path d="M5.78 9.3A7 7 0 0 0 5 12.81 4.5 4.5 0 0 0 7.5 19"/></svg>
+        </div>
+        <h3>資料暫時載入不了</h3>
+        <p>可能是資料來源正在更新。<br>稍等一下再試，已載入的區塊不受影響。</p>
+        <button class="btn btn-primary">再試一次</button>
+      </div>
+
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head"><h2>文案修正對照</h2><span class="note">使用者語言，開發細節留 console</span></div>
+    <table class="copytable">
+      <thead><tr><th style="width:42%">現況（開發者導向）</th><th>修正後（使用者語言）</th></tr></thead>
+      <tbody>
+        <tr><td class="no">「無法載入情報，請確認 API 是否啟動」</td><td class="yes">「資料暫時載入不了，稍等一下再試」＋〔再試一次〕</td></tr>
+        <tr><td class="no">API 掛掉與真的沒資料顯示同一句「尚無今日事件」</td><td class="yes">錯誤→可重試錯誤卡；真空→「今天的事件還在聚合中」＋降級顯示昨日事件</td></tr>
+        <tr><td class="no">材料包失敗直接吐「HTTP 500」</td><td class="yes">「生成失敗了，稍後再試」（429 →「請稍後再試」），狀態碼留 console</td></tr>
+        <tr><td class="no">次要區塊（摘要列／熱詞）故障時整塊靜默消失</td><td class="yes">降級成淡化 placeholder——同一次故障全站行為一致</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <p class="ds-foot">Pulse Design System · 依據 docs/ux/research 01 §B1–B7 · 2026-06-12</p>
+</main>
+</body>
+</html>
