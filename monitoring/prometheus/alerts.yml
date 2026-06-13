@@ -1,0 +1,66 @@
+# Prometheus 告警規則 —— 對應 2026-06-12 斷流事故（靜默兩天無人知）。
+#
+# 指標來源：
+#   - airflow_* ：Airflow StatsD → statsd-exporter（見 monitoring/statsd/statsd_mapping.yml）。
+#   - pulse_*   ：FastAPI /metrics 業務量 gauge（見 api/routers/metrics.py）。
+#
+# 註：Alertmanager 路由尚未接（compose 無 alertmanager service）→ 觸發的告警只會在
+#     Prometheus /alerts 顯示，不會外送 Slack/Email。接 Alertmanager + Slack 是後續工作
+#     （follow-up）；現階段交付物是「規則本身」，搭配既有 Grafana 面板即可肉眼巡檢。
+
+groups:
+  - name: airflow
+    rules:
+      # DAG task 失敗：近 10 分鐘出現任何 failed 狀態的 task instance。
+      - alert: AirflowTaskFailed
+        expr: increase(airflow_ti_finish_total{state="failed"}[10m]) > 0
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Airflow task 失敗（dag={{ $labels.dag_id }} task={{ $labels.task_id }}）"
+          description: "近 10 分鐘有 task instance 以 failed 結束，請查 Airflow UI / log。"
+
+      # Scheduler 心跳消失：5 分鐘內完全沒有心跳 counter 增長 → scheduler 可能掛了/容器停了
+      #（正是 2026-06-12 斷流的直接成因之一）。
+      - alert: AirflowSchedulerHeartbeatMissing
+        expr: increase(airflow_scheduler_heartbeat_total[5m]) == 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Airflow scheduler 心跳消失"
+          description: "5 分鐘內無 scheduler 心跳 —— scheduler 容器可能停止，排程不會觸發。檢查 `docker ps`。"
+
+      # 指標源消失：statsd-exporter 或 Airflow metrics 整個不見（vector 無資料）。
+      - alert: AirflowMetricsAbsent
+        expr: absent(airflow_scheduler_heartbeat_total)
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Airflow 指標完全消失"
+          description: "Prometheus 抓不到任何 airflow_scheduler_heartbeat_total —— statsd-exporter 或 scheduler 異常。"
+
+  - name: dataflow
+    rules:
+      # 資料新鮮度 / lag：近 24h 進貨量為 0（業務 DB 端視角，比 Airflow 指標更貼近「真的有沒有進貨」）。
+      # 閾值含義見 scripts/check_dataflow.py 的 THRESHOLDS（盤中偵測同源）。
+      - alert: PulseNoFreshPosts
+        expr: pulse_posts_last_24h == 0
+        for: 30m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Pulse 近 24h 零進貨（資料斷流）"
+          description: "pulse_posts_last_24h 為 0 持續 30 分鐘 —— 爬蟲/DAG 可能全斷。檢查 Airflow 與 THREADS_SESSIONID。"
+
+      # API /metrics 端點抓不到（host 上 FastAPI 沒開，或埠對不上）→ 業務指標全失明。
+      - alert: PulseApiMetricsDown
+        expr: up{job="pulse-api"} == 0
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Pulse API /metrics 抓取失敗"
+          description: "Prometheus 抓不到 pulse-api（host 上 FastAPI 未啟動或埠不符，預設 8010）。"
