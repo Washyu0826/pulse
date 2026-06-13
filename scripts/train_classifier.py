@@ -289,8 +289,14 @@ def main() -> None:
     train_ds, val_ds = _to_ds(train_ex), _to_ds(val_ex)
 
     model = AutoModelForSequenceClassification.from_pretrained(
-        args.base_model, num_labels=len(labels), id2label=id2label, label2id=label2id
+        args.base_model, num_labels=len(labels), id2label=id2label, label2id=label2id,
+        # 允許從帶分類頭的 ckpt 微調（如 mDeBERTa-v3-mnli 3 類 → 本任務 6 類）：
+        # 頭部 size 不符時重新初始化，而非報錯（transformers 5.x 預設會 raise）。
+        ignore_mismatched_sizes=True,
     )
+    # 強制 fp32 master weights：部分 ckpt（如 mDeBERTa-v3-mnli）以 fp16 存，
+    # 直接微調會與 Float 損失權重衝突（expected Half but found Float）。fine-tune 本就用 fp32。
+    model = model.float()
 
     def compute_metrics(eval_pred) -> dict:
         logits, gold_ids = eval_pred
