@@ -102,6 +102,40 @@ def _encode(pair: tuple[str, str], tokenizer, max_length: int) -> dict:
     return {"input_ids": input_ids, "labels": labels, "attention_mask": [1] * len(input_ids)}
 
 
+def _resolve_resume(resume: str | None, output_dir: Path) -> str | bool | None:
+    """把 --resume-from-checkpoint 轉成 Trainer.train 接受的值。
+    None→不續跑；'auto'→True（HF 自動找最後 checkpoint，無則回 None）；否則→該路徑字串。"""
+    if not resume:
+        return None
+    if resume.lower() == "auto":
+        has_ckpt = output_dir.is_dir() and any(output_dir.glob("checkpoint-*"))
+        if not has_ckpt:
+            print(f"ℹ️ --resume-from-checkpoint auto：{output_dir} 下無 checkpoint，從頭訓練。")
+            return None
+        return True
+    return resume
+
+
+def _run_train(trainer, resume: str | bool | None) -> None:
+    """跑訓練，把 OOM / 中斷轉成可讀錯誤而非裸 traceback（呼應靜默死在 94% 的事故）。"""
+    try:
+        trainer.train(resume_from_checkpoint=resume)
+    except RuntimeError as e:
+        msg = str(e).lower()
+        if "out of memory" in msg or ("cuda" in msg and "memory" in msg):
+            sys.exit(
+                "❌ GPU 記憶體不足（OOM）。7B QLoRA 在 8GB 卡上建議：調小 --max-length（如 768/640）、"
+                "確認 --load-4bit 開著、--batch-size 1 靠 --grad-accum 補；最近 checkpoint 已存於 "
+                "output_dir，可 --resume-from-checkpoint auto 續跑。原始錯誤：" + str(e)
+            )
+        raise
+    except KeyboardInterrupt:
+        sys.exit(
+            "\n⏹️ 訓練被中斷。最近一個 epoch 的 LoRA checkpoint 已存於 output_dir，"
+            "下次可 --resume-from-checkpoint auto 續跑（不必從頭）。"
+        )
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description="LoRA 微調 Qwen2.5-1.5B 忠實事件摘要器")
     ap.add_argument("--silver", type=Path, default=None, help="silver JSONL（訓練集）")
@@ -125,6 +159,15 @@ def main() -> None:
     ap.add_argument("--lora-alpha", type=int, default=32)
     ap.add_argument("--lora-dropout", type=float, default=0.05)
     ap.add_argument("--seed", type=int, default=42)
+    ap.add_argument(
+        "--resume-from-checkpoint", default=None,
+        help="從 checkpoint 續跑：傳 checkpoint 目錄，或 'auto' 自動找 output_dir 下最後一個。"
+             "7B QLoRA 訓練長，中斷/OOM 後靠此續跑（呼應 theme 第三訓靜默死在 94% 的事故）",
+    )
+    ap.add_argument(
+        "--save-total-limit", type=int, default=2,
+        help="最多保留幾個 checkpoint（含 best），其餘自動清掉省碟",
+    )
     ap.add_argument("--mlflow", action="store_true")
     ap.add_argument("--offline", action="store_true", help="完全離線（base model 已快取時用）")
     args = ap.parse_args()
@@ -141,6 +184,8 @@ def main() -> None:
     except ImportError:
         pass
 
+    import random
+
     import numpy as np
     import torch
     from datasets import Dataset
@@ -154,7 +199,13 @@ def main() -> None:
         set_seed,
     )
 
+    # 可重現：set_seed 一併設 random/numpy/torch(+cuda)；下面顯式再設一次（不留隱性隨機）。
     set_seed(args.seed)
+    random.seed(args.seed)
+    np.random.seed(args.seed)
+    torch.manual_seed(args.seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(args.seed)
 
     silver = _load_records(args.silver, args.min_faithfulness)
     gold = _load_records(args.gold, 0.0)
@@ -255,7 +306,13 @@ def main() -> None:
         # 4-bit 用 paged 8-bit optimizer 省顯存（需 bitsandbytes）；一般路用標準 AdamW。
         optim="paged_adamw_8bit" if args.load_4bit else "adamw_torch",
         eval_strategy="epoch",
-        save_strategy="no",
+        # 每 epoch 存 LoRA checkpoint + 結束載回最佳（依 eval_loss，越低越好）。7B QLoRA 訓練長，
+        # 中斷/OOM 後可 --resume-from-checkpoint 續跑，不再像 theme 第三訓靜默死在 94% 卻無 checkpoint。
+        save_strategy="epoch",
+        save_total_limit=args.save_total_limit,
+        load_best_model_at_end=True,
+        metric_for_best_model="eval_loss",
+        greater_is_better=False,
         logging_steps=10,
         seed=args.seed,
         report_to=[],
@@ -267,7 +324,7 @@ def main() -> None:
         eval_dataset=val_ds,
         data_collator=collate,
     )
-    trainer.train()
+    _run_train(trainer, _resolve_resume(args.resume_from_checkpoint, args.out / "_hf"))
 
     eval_metrics = trainer.evaluate()
     val_loss = float(eval_metrics.get("eval_loss", float("nan")))

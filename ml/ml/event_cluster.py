@@ -26,6 +26,16 @@ from dataclasses import dataclass, field
 Vector = Sequence[float]
 EmbedFn = Callable[[str], Vector]
 
+# ---- 事件聚類 / 抽句的調參門檻（集中於此，附依據；改動會改變分群與抽句行為）----
+# single-link 門檻分群的餘弦門檻：兩貼文 BGE-M3 向量餘弦 >= 此值才視為「同一事件」。
+# BGE-M3 已 L2 正規化、同主題貼文餘弦多落在 0.6~0.8；0.6 是「寧可漏合也別錯合」的保守值
+# （每日量小、single-link 鏈式特性易擴張，門檻偏高以免把鄰近事件併成一團）。調高→群更純更碎。
+DEFAULT_CLUSTER_THRESHOLD = 0.6
+# MMR 的相關性 vs 多樣性權衡 λ：score = λ·sim(候選,query) − (1−λ)·max sim(候選,已選)。
+# 0.7 偏重相關性但保留可觀多樣性（Carbonell & Goldstein 1998 原文示例即取 λ≈0.7），
+# 避免抽到一堆近重複句（Threads 轉貼多）。調高→更貼題但更易重複；調低→更分散。
+DEFAULT_MMR_LAMBDA = 0.7
+
 
 # ---------------------------------------------------------------------------
 # 向量輔助（純算術，stdlib + math）
@@ -185,7 +195,7 @@ def mmr_select(
     query_vector: Vector,
     *,
     k: int,
-    lambda_: float = 0.7,
+    lambda_: float = DEFAULT_MMR_LAMBDA,
 ) -> list[int]:
     """
     Maximal Marginal Relevance —— 在相關性與多樣性間取捨地選 k 個候選。
@@ -289,7 +299,7 @@ def extract_key_sentences(
     embed_fn: EmbedFn,
     *,
     k: int = 8,
-    lambda_: float = 0.7,
+    lambda_: float = DEFAULT_MMR_LAMBDA,
 ) -> list[KeySentence]:
     """
     對一個事件群（posts：含 text 的 dict 清單）抽 k 句代表句。
@@ -330,7 +340,7 @@ def cluster_events(
     posts: Sequence[dict],
     embed_fn: EmbedFn,
     *,
-    threshold: float = 0.6,
+    threshold: float = DEFAULT_CLUSTER_THRESHOLD,
     min_size: int = 2,
 ) -> list[EventCluster]:
     """

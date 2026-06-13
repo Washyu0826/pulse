@@ -13,6 +13,7 @@ from __future__ import annotations
 import logging
 import os
 import re
+from typing import Any
 
 from opencc import OpenCC
 
@@ -62,7 +63,8 @@ class Translator:
         self.host = host
         self.timeout = timeout
 
-    async def translate(self, text: str, client=None) -> str | None:
+    async def translate(self, text: str, client: Any = None) -> str | None:
+        # client: httpx.AsyncClient（lazy import，故型別以 Any 標避免模組頂層 import httpx）。
         """翻一段英文 → 繁中。需要翻才翻；失敗回 None（呼叫端略過、不 crash）。"""
         if not needs_translation(text):
             return None

@@ -26,6 +26,7 @@ from dataclasses import dataclass, field
 from typing import Callable, Sequence
 
 __all__ = [
+    "GenerateFn",
     "KeySentence",
     "EventSummary",
     "SummaryIssues",
@@ -38,6 +39,9 @@ __all__ = [
 ]
 
 logger = logging.getLogger(__name__)
+
+# generate_fn 型別：吃組好的 prompt（str）→ 回 LLM 文字（str）。生產為 Ollama，測試注入 fake。
+GenerateFn = Callable[[str], str]
 
 _OLLAMA = os.environ.get("OLLAMA_HOST", "http://127.0.0.1:11434").rstrip("/")
 _MODEL = os.environ.get("PULSE_SUMMARIZE_MODEL", "qwen2.5:7b")
@@ -255,7 +259,7 @@ def validate_summary(summary: EventSummary, *, n_sources: int) -> SummaryIssues:
 
 def summarize_event(
     key_sentences: Sequence[KeySentence | dict | str],
-    generate_fn: Callable[[str], str],
+    generate_fn: GenerateFn,
     *,
     max_sentences: int = 8,
     lang: str = "zh-Hant",

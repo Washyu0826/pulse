@@ -124,6 +124,42 @@ def _class_weights(train_ex: list[tuple[str, str]], labels: list[str], scheme: s
     return torch.tensor(w, dtype=torch.float32)
 
 
+def _resolve_resume(resume: str | None, output_dir: Path) -> str | bool | None:
+    """把 --resume-from-checkpoint 轉成 Trainer.train 接受的值。
+    None→不續跑（None）；'auto'→True（HF 自動找 output_dir 下最後 checkpoint）；否則→該路徑字串。
+    'auto' 但 output_dir 下無 checkpoint → 回 None（當作從頭跑，不報錯）。"""
+    if not resume:
+        return None
+    if resume.lower() == "auto":
+        has_ckpt = output_dir.is_dir() and any(output_dir.glob("checkpoint-*"))
+        if not has_ckpt:
+            print(f"ℹ️ --resume-from-checkpoint auto：{output_dir} 下無 checkpoint，從頭訓練。")
+            return None
+        return True
+    return resume
+
+
+def _run_train(trainer, resume: str | bool | None) -> None:
+    """跑訓練，把 OOM / 中斷轉成可讀錯誤而非裸 traceback（呼應靜默死在 94% 的事故）。
+    OOM 與 KeyboardInterrupt 時提示「已存的 checkpoint 可 --resume-from-checkpoint 續跑」。"""
+    try:
+        trainer.train(resume_from_checkpoint=resume)
+    except RuntimeError as e:
+        msg = str(e).lower()
+        if "out of memory" in msg or "cuda" in msg and "memory" in msg:
+            sys.exit(
+                "❌ GPU 記憶體不足（OOM）。建議：調小 --batch-size 或 --max-length；"
+                "若已跑過幾個 epoch，最近的 checkpoint 已存在 output_dir，可 "
+                "--resume-from-checkpoint auto 續跑。原始錯誤：" + str(e)
+            )
+        raise
+    except KeyboardInterrupt:
+        sys.exit(
+            "\n⏹️ 訓練被中斷。最近一個 epoch 的 checkpoint 已存於 output_dir，"
+            "下次可 --resume-from-checkpoint auto 續跑（不必從頭）。"
+        )
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description="微調 chinese-macbert 分類器")
     ap.add_argument("--task", choices=["sentiment", "theme"], required=True)
@@ -137,6 +173,15 @@ def main() -> None:
     ap.add_argument("--val-frac", type=float, default=0.2, help="無 gold 時，從 silver 切多少當 val")
     ap.add_argument("--out", type=Path, required=True, help="模型輸出目錄")
     ap.add_argument("--seed", type=int, default=42)
+    ap.add_argument(
+        "--resume-from-checkpoint", default=None,
+        help="從 checkpoint 續跑：傳 checkpoint 目錄，或 'auto' 自動找 output_dir 下最後一個 "
+             "（呼應 theme 第三訓曾靜默死在 94%、無 checkpoint 的事故）",
+    )
+    ap.add_argument(
+        "--save-total-limit", type=int, default=2,
+        help="最多保留幾個 checkpoint（含 best），其餘自動清掉省碟",
+    )
     ap.add_argument("--mlflow", action="store_true", help="記錄到 MLflow")
     # ---- 類別不平衡處理（theme 等偏斜任務用）----
     ap.add_argument(
@@ -169,6 +214,8 @@ def main() -> None:
     except ImportError:
         pass
 
+    import random
+
     import numpy as np
     import torch
     from datasets import Dataset
@@ -181,7 +228,14 @@ def main() -> None:
         set_seed,
     )
 
+    # 可重現：transformers.set_seed 會一併設 random / numpy / torch(+cuda)；下面再顯式設一次，
+    # 確保即使未來 transformers 改行為，random/numpy/torch 三處仍由 --seed 決定（不留隱性隨機）。
     set_seed(args.seed)
+    random.seed(args.seed)
+    np.random.seed(args.seed)
+    torch.manual_seed(args.seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(args.seed)
     labels = LABELS[args.task]
     label2id = {lbl: i for i, lbl in enumerate(labels)}
     id2label = dict(enumerate(labels))
@@ -257,7 +311,13 @@ def main() -> None:
         per_device_eval_batch_size=max(args.batch_size, 32),
         learning_rate=args.lr,
         eval_strategy="epoch",
-        save_strategy="no",
+        # 每個 epoch 存一次 checkpoint + 結束載回最佳（依 f1_macro）。中斷/OOM 後可 --resume-from-checkpoint
+        # 續跑，不再像 theme 第三訓那樣靜默死在 94% 卻無任何 checkpoint 可救。
+        save_strategy="epoch",
+        save_total_limit=args.save_total_limit,
+        load_best_model_at_end=True,
+        metric_for_best_model="f1_macro",
+        greater_is_better=True,
         logging_steps=50,
         seed=args.seed,
         report_to=[],
@@ -290,7 +350,7 @@ def main() -> None:
         compute_metrics=compute_metrics,
         data_collator=data_collator,
     )
-    trainer.train()
+    _run_train(trainer, _resolve_resume(args.resume_from_checkpoint, args.out / "_hf"))
 
     # 最終 val 預測 → 指標 + 溫度校準（Guo 2017）。
     pred = trainer.predict(val_ds)

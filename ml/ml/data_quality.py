@@ -127,6 +127,21 @@ _AI_CONTEXT_ZH_RE = re.compile(
     r"(生成|提示詞|提示|模型|訓練|微調|部署|推理|開源|智能體|智慧體|代理|"
     r"工具|外掛|擴充|對話|提問|寫程式|編程|程式碼|代碼|向量|語料|多模態)"
 )
+# ---- 結構/版面雜訊偵測門檻（集中於此，附調參依據；改動需重跑 DQC 抽查）----
+# 內文「URL 字元佔比」> 此值 → LINK_HEAVY（純導流貼）。0.6＝過半篇幅是連結。
+LINK_RATIO_MAX = 0.6
+# 表情符號數 > 此值 → EMOJI_SPAM。8 個是「正常人偶爾加表情」與「洗版/廣告式堆表情」的
+# 經驗分界（對既有語料抽查調出）；中文社群貼文常帶 1–3 個表情，故門檻設較寬鬆避免誤殺。
+EMOJI_COUNT_MAX = 8
+# 大寫英文詞佔比 > 此值（且樣本 >=4 詞）→ ALL_CAPS（情緒化/廣告式吼叫）。0.6＝逾半全大寫。
+CAPS_RATIO_MAX = 0.6
+# SEO 關鍵字堆砌：某 token 重複 >= 此次數 **且** 佔非停用詞 token 比例 > 此密度 → 判堆砌。
+# 用密度而非絕對次數（長文自然重複），5 次/8% 為高精度分界（見 _keyword_stuffed）。
+STUFF_MIN_REPEAT = 5
+STUFF_MIN_DENSITY = 0.08
+# 主題實質長度（標題+去雜訊內文，壓空白後）< 此字元數 → TOO_SHORT（無資訊量碎貼）。
+SUBSTANCE_MIN_CHARS = 20
+
 # SEO 關鍵字堆砌量測用的小型 stopword（非語言偵測，只為避免 the/and 觸發堆砌判定）。
 STOPWORDS = frozenset(
     "the a an and or but for to of in on at is are be was were this that with as it "
@@ -143,6 +158,11 @@ class QualityResult:
 
 
 # 各 flag 的扣分（DELETED 為硬性歸零、SARCASM_DETECTED/去重 flag 為 0 不扣分）。
+# 扣分尺度依「ADR-009 扣分制 + 對下游門檻 30/60 的調參」：50/60/75 級＝單一訊號即足以
+# 把貼文壓到顯示門檻（30）以下（硬訊號：太短、徵才、機器人、無 AI 脈絡的離題）；
+# 30/40 級＝強嫌疑、需與其它訊號疊加才落榜（廣告/SEO/連結過多）；10/15 級＝弱訊號、
+# 只在多項同時命中時生效（標點濫用、全大寫、帶過一次的弱關鍵字）。各值非理論最佳、係
+# 對既有語料人工抽查調出的「分檔」常數，集中於此一處以便整批重調（改動需重跑 DQC 抽查）。
 FLAG_DEDUCTIONS: dict[str, int] = {
     "TOO_SHORT": 50,
     "LINK_HEAVY": 40,
@@ -194,13 +214,13 @@ def _keyword_stuffed(text: str, exclude: frozenset[str] = frozenset()) -> bool:
     """
     SEO 關鍵字堆砌偵測：用**密度**而非絕對次數（長文自然會重複詞，絕對次數會誤判）。
     排除 stopword 與 exclude（如模型別名 —— 談主題本就會重複其名）。
-    判定：某 token 重複 >= 5 次 **且** 佔非停用詞 token 比例 > 8%。
+    判定：某 token 重複 >= STUFF_MIN_REPEAT 次 **且** 佔非停用詞 token 比例 > STUFF_MIN_DENSITY。
     """
     toks = [t for t in re.findall(r"[a-z]{4,}", text.lower()) if t not in STOPWORDS and t not in exclude]
-    if len(toks) < 5:
+    if len(toks) < STUFF_MIN_REPEAT:
         return False
     count = Counter(toks).most_common(1)[0][1]
-    return count >= 5 and count / len(toks) > 0.08
+    return count >= STUFF_MIN_REPEAT and count / len(toks) > STUFF_MIN_DENSITY
 
 
 def _relevance_flags(title: str, body_clean: str, models: list[str], source: str = "") -> set[str]:
@@ -271,15 +291,15 @@ def score_post(post: dict, models: list[str]) -> QualityResult:
     substance = f"{title}\n{body_clean}".strip()
 
     # ---- 結構 ----
-    if len(re.sub(r"\s+", " ", substance)) < 20:
+    if len(re.sub(r"\s+", " ", substance)) < SUBSTANCE_MIN_CHARS:
         flags.add("TOO_SHORT")
-    if _link_ratio(content) > 0.6:
+    if _link_ratio(content) > LINK_RATIO_MAX:
         flags.add("LINK_HEAVY")
 
     # ---- 垃圾 / 版面雜訊 ----
-    if _emoji_count(raw) > 8:
+    if _emoji_count(raw) > EMOJI_COUNT_MAX:
         flags.add("EMOJI_SPAM")
-    if _caps_ratio(raw) > 0.6:
+    if _caps_ratio(raw) > CAPS_RATIO_MAX:
         flags.add("ALL_CAPS")
     if re.search(r"[!?]{3,}|!{5,}", raw):
         flags.add("EXCESSIVE_PUNCT")

@@ -94,14 +94,21 @@ def _predict_finetuned(texts: list[str], model_dir: Path, temperature: float) ->
     model.to(device).eval()
     id2label = {i: model.config.id2label[i] for i in range(len(model.config.id2label))}
     out: list[Pred] = []
-    for i in range(0, len(texts), 32):
-        chunk = [(t or " ")[:2000] for t in texts[i : i + 32]]
-        enc = tok(chunk, return_tensors="pt", truncation=True, max_length=256, padding=True).to(device)
-        with torch.no_grad():
-            logits = model(**enc).logits / max(temperature, 1e-3)  # 溫度校準
-        for row in torch.softmax(logits, dim=-1).cpu().tolist():
-            scores = {id2label[j]: float(row[j]) for j in range(len(row))}
-            out.append((max(scores, key=scores.get), scores))
+    try:
+        for i in range(0, len(texts), 32):
+            chunk = [(t or " ")[:2000] for t in texts[i : i + 32]]
+            enc = tok(chunk, return_tensors="pt", truncation=True, max_length=256, padding=True).to(device)
+            with torch.no_grad():
+                logits = model(**enc).logits / max(temperature, 1e-3)  # 溫度校準
+            for row in torch.softmax(logits, dim=-1).cpu().tolist():
+                scores = {id2label[j]: float(row[j]) for j in range(len(row))}
+                out.append((max(scores, key=scores.get), scores))
+    finally:
+        # 釋放 VRAM：bake-off 會接連評多個候選（baseline + 數個微調模型），每個都載一份權重；
+        # 跑完即釋放，避免後續候選因前一個沒釋放而 OOM。CPU 路徑無 cuda cache，僅 del。
+        del model
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
     return out
 
 
@@ -113,10 +120,23 @@ def _predict_qwen(texts: list[str], task: str) -> list[Pred]:
 
         d = Distiller()
         res: list[Pred] = []
+        n_failed = 0  # 解析失敗 / 呼叫例外的筆數（仍補 fallback 標籤，不中斷整批）
         async with httpx.AsyncClient(timeout=d.timeout) as client:
-            for t in texts:
-                lbl = await d.label(t, task, client=client)
-                res.append((lbl or LABELS[task][0], None))  # 無機率
+            for i, t in enumerate(texts):
+                # 逐筆容錯：單筆失敗（連線中斷 / 逾時 / 解析不出）只記錄並補 fallback，
+                # 絕不讓整批 bake-off 崩掉（Distiller.label 內已吞例外回 None，這裡再加一層
+                # 防 client 級例外，雙保險）。
+                try:
+                    lbl = await d.label(t, task, client=client)
+                except Exception as e:  # noqa: BLE001 — 單筆失敗不中斷整批評測
+                    lbl = None
+                    print(f"   ⚠️ qwen-fewshot 第 {i + 1}/{len(texts)} 筆失敗，補 fallback：{e}")
+                if lbl is None:
+                    n_failed += 1
+                    lbl = LABELS[task][0]  # fallback 標籤（會被計入混淆矩陣，誠實反映失敗）
+                res.append((lbl, None))  # 無機率
+        if n_failed:
+            print(f"   ℹ️ qwen-fewshot：{n_failed}/{len(texts)} 筆未能取得有效標籤（已補 fallback）。")
         return res
 
     return asyncio.run(_run())

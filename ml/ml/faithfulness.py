@@ -39,10 +39,21 @@ __all__ = [
     "FaithfulnessReport",
     "faithfulness_report",
     "build_nli_fn",
+    "DEFAULT_ENTAIL_THRESHOLD",
+    "DEFAULT_CONTRADICT_THRESHOLD",
 ]
 
 # nli_fn 的型別：給 (premise, hypothesis) 回傳三類機率。premise=來源、hypothesis=摘要句。
 NliFn = Callable[[str, str], dict]
+
+# ---- 忠實度判定門檻（集中於此，附依據）----
+# 句級「被蘊含」門檻：NLI entailment 機率 >= 此值才算該句有來源支持（計入 frac_entailed）。
+# 三類 softmax（entail/neutral/contradict）下，0.5 代表「蘊含類機率過半 = 多數證據指向被支持」，
+# 是三類分類的自然決策界；偏向 precision（寧可少算一句被支持，也別把站不住的句子算成有依據）。
+DEFAULT_ENTAIL_THRESHOLD = 0.5
+# 句級「被矛盾」門檻：NLI contradiction 機率 >= 此值即標為矛盾（最強的幻覺/扭曲訊號）。
+# 同採 0.5 多數決；矛盾是最嚴重的錯誤，命中即列入 contradicted_sentences 供人工複查。
+DEFAULT_CONTRADICT_THRESHOLD = 0.5
 
 # 行內引用標記：抓 [1]、[2][3]、[1,2]、[1, 2] 等。一個 [...] 裡可含多個逗號分隔的數字。
 _CITATION_TOKEN = re.compile(r"\[\s*\d+(?:\s*,\s*\d+)*\s*\]")
@@ -233,8 +244,8 @@ def faithfulness_report(
     sources: list[str],
     nli_fn: NliFn,
     *,
-    entail_threshold: float = 0.5,
-    contradict_threshold: float = 0.5,
+    entail_threshold: float = DEFAULT_ENTAIL_THRESHOLD,
+    contradict_threshold: float = DEFAULT_CONTRADICT_THRESHOLD,
 ) -> FaithfulnessReport:
     """
     把上面各面向匯總成一份 FaithfulnessReport（純編排，模型由 nli_fn 注入）。
@@ -311,6 +322,11 @@ def build_nli_fn(
 
     回傳的 nli_fn(premise, hypothesis) 會跑一次 NLI，回 {"entailment","neutral","contradiction"}
     三類機率（softmax 後、和為 1）。沒有任何測試依賴本函式真的能跑。
+
+    VRAM 成本：mDeBERTa-v3-base（~280M 參數）fp32 在 GPU 上約佔 1.1–1.3GB（含啟用），對
+    8GB 4060 不重；但若同一程序又載了 BGE-M3 + Qwen 等，總和可能逼近上限。模型由回傳的
+    closure 持有（推論期間必須常駐，故不在此 del）；批次跑完不再需要時，呼叫
+    `nli_fn.release()` 釋放權重並清 CUDA 快取，或讓整個 closure 被 GC 掉。
     """
     try:
         import torch  # noqa: F401  （惰性載入，僅在此函式內需要）
@@ -359,4 +375,12 @@ def build_nli_fn(
                 out[name] = float(p)
         return out
 
+    def _release() -> None:  # pragma: no cover - 需重模型才有意義
+        """釋放 NLI 權重並清 CUDA 快取（批次評測跑完後呼叫，避免與其它重模型搶 VRAM）。"""
+        nonlocal model, tokenizer
+        del model, tokenizer
+        if dev == "cuda" and torch.cuda.is_available():
+            torch.cuda.empty_cache()
+
+    _nli_fn.release = _release  # type: ignore[attr-defined]
     return _nli_fn
