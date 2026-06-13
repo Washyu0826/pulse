@@ -63,6 +63,9 @@ jobs:
       - name: Lint
         working-directory: web
         run: npm run lint
+      - name: Test
+        working-directory: web
+        run: npm test  # vitest run（前端單元測試：lib 工具 / TrendChart / FeedFilter / FavoriteButton）
       - name: Build
         working-directory: web
         run: npm run build

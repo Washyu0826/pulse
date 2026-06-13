@@ -110,8 +110,11 @@
 |------|------|------|
 | 來源 / 語料庫 | 多源爬蟲（HN / Dev.to + Threads / PTT Selenium）、`bulk_backfill.py` 逐月切窗、跨源去重、DQC、熱詞、翻譯 | ✅ 已建，**DB ~59.7k 篇**（HN ~52k / Dev.to ~6.4k / Threads ~1k 繁中 / PTT ~330 繁中） |
 | 分類 | 主題 5 類 zero-shot（mDeBERTa）、情緒（RoBERTa, GPU）、前端 feed | ✅ 已建並跑過 HN/Dev.to 量體；**誠實發現：主題分布嚴重偏向「新工具」**——這正是下一步要監督式微調 `chinese-macbert-base` 的動機（前端 5 類顯示與 backfill 待補） |
-| 評測基建 | `metrics.py`（F1 / McNemar / bootstrap CI / ECE / Brier / AURC / BH-FDR）、`evaluate.py` N-候選 bake-off、`evaluation_runs` 表、標註器 | ✅ 已建（純函式皆有測試） |
+| 評測基建 | `metrics.py`（F1 / McNemar / bootstrap CI / ECE / Brier / AURC / BH-FDR）、`evaluate.py` N-候選 bake-off、`evaluation_runs` 表、標註器 | ✅ 已建（純函式皆有測試；McNemar/ECE/Brier/BH-FDR 已加已知數值回歸測試鎖定） |
 | 電子報 | 純函式組版 + 圖表 + SD 封面 + SMTP 編排 | ✅ 已建 |
+| 可觀測性 / 可靠性 | Prometheus 自訂指標 + Grafana 面板、`alerts.yml` 告警（DAG 失敗 / scheduler 心跳 / 資料新鮮度）、監控服務 healthcheck、`check_dataflow.py` 盤中 `--lag-only`、`daily_refresh.ps1` 失敗彙總並 exit 1、Threads 爬蟲 fallback selector + 零結果告警 | ✅ 已建（Sprint 4；Alertmanager 路由與 Airflow 排程 `--lag-only` 仍 🔜） |
+| 訓練可重現 | 訓練腳本 checkpoint / load_best / 中斷續跑、torch/numpy/random 三處 seed、可讀 OOM / 中斷錯誤 | ✅ 已建（Sprint 4；**LoRA 實際訓練尚未跑**，見下方 Step 3） |
+| 前端測試 | Vitest 單元測試（lib 工具、URL 參數生成、SVG 邊界、localStorage、API 錯誤在地化），首次前端測試覆蓋 | ✅ 已建（Sprint 4，7 檔 45 測試） |
 | 事件摘要管線 | 四階段純模組——聚類 + 抽句（`event_cluster.py`）、兩段式帶引用生成（`summarize.py`）、句級 NLI 忠實度查核（`faithfulness.py`），加端到端膠合 `event_pipeline.run_pipeline` | ✅ 已建，純邏輯**完整單元測試**（`test_event_cluster` 36 / `test_summarize` 25 / `test_faithfulness` 35，注入假 embedder/LLM/NLI）；僅重模型路徑待跑 |
 | 事件摘要 Step 1 | 接真實 BGE-M3 + 本機 Qwen + mDeBERTa 跑第一批真摘要，上電子報「今日事件」 | 🔜 進行中（管線就緒，待接重模型） |
 | 深 NLP Step 2 | 人工標 200–500 筆 gold（κ > 0.8）+ Qwen 蒸餾 silver + NLI 過濾 | 🔜 待資料 |
