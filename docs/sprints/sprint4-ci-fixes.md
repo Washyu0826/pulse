@@ -21,7 +21,11 @@
 
 - **症狀**：`npm ci can only install when package.json and package-lock.json are in sync. Missing: @emnapi/core@1.11.1, @emnapi/runtime@1.11.1 from lock file`。
 - **根因**：Sprint 4 web agent 在 **Windows** 導入 Vitest 並重生 lockfile。`@napi-rs/wasm-runtime`（eslint resolver 的 `unrs-resolver` 在無原生 binding 平台的 wasm fallback）要 `@emnapi ^1.7.1`，但 Windows 生成的 lockfile 把解析版本釘成 **1.10.0**，Linux CI 解析 `^1.7.1` 卻要 **1.11.1** → 版本歪斜、`npm ci`（嚴格）報缺。經典 npm 跨平台 optional 相依不完整問題。
-- **修法**：刪除 `package-lock.json` 後以 npm 11.6.1 完整重生，讓整棵相依樹一致釘版（@emnapi 為平台無關的 wasm，重生後對所有平台一致）。
+- **嘗試與最終修法**：目標是產生「Linux 完整」的 lockfile 以保留嚴格 `npm ci`，但從 **Windows 開發機**做不到：
+  1. Windows 端 `npm install --package-lock-only` 重生 → lockfile 仍**只有 @emnapi 需求、無套件節點**（Windows 用原生 binding，裁掉 wasm fallback 分支）。
+  2. 加 `--os=linux --cpu=x64 --libc=glibc` 旗標重生 → 仍 0 個 @emnapi 節點。
+  3. Docker node:20 容器產生（掛 `workers/ca-certs/local.crt` + `NODE_EXTRA_CA_CERTS`，保留 TLS）→ **Docker daemon 未啟動**，不可行。
+  - **最終修法**：CI web job 改用 `npm install --no-audit --no-fund`（非 `npm ci`）。`npm install` 會在 CI 的 Linux 平台自行補齊缺漏的 optional 相依，容忍跨平台 lockfile 落差。代價：略失 `npm ci` 的嚴格可重現性——對個人作品集、且前端非主賣點可接受。若日後要復原 `npm ci`，需在 Linux/容器（daemon 開啟）重生 lockfile 後提交。
 - **為何本機假綠**：本機 `npm install`/`npm run build` 不走 `npm ci` 的嚴格鎖檔比對；且 Windows 解析時用本機原生 binding，不觸發 wasm fallback 的 @emnapi 路徑。
 
 ## 共同教訓
