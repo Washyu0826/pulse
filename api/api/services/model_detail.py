@@ -19,7 +19,7 @@ from api.models.models import Model, PostModel
 from api.models.posts import Post
 from api.models.release import ReleaseEvent
 from api.models.sentiment import Sentiment
-from api.services.models import _SENTIMENT_SHRINK, get_model_dashboard
+from api.services.models import _sentiment_index, get_model_summary
 
 # 趨勢圖預設天數窗口（與看板「近 7 天」不同：趨勢需要更長脈絡才看得出走勢）。
 _TREND_DAYS = 30
@@ -28,8 +28,143 @@ _RECENT_EVENTS = 8
 _LATEST_RELEASES = 5
 
 
-def _daily_volume(rows) -> dict[date, int]:
+async def _daily_volume(
+    session: AsyncSession, model_id: int, start: datetime
+) -> dict[date, int]:
+    """逐日討論量（依 posted_at 的日期分桶）。"""
+    rows = (
+        await session.execute(
+            select(
+                func.date(Post.posted_at).label("day"),
+                func.count().label("n"),
+            )
+            .join(PostModel, PostModel.post_id == Post.id)
+            .where(PostModel.model_id == model_id, Post.posted_at >= start)
+            .group_by(func.date(Post.posted_at))
+        )
+    ).all()
     return {r.day: r.n for r in rows}
+
+
+async def _daily_sentiment(
+    session: AsyncSession, model_id: int, start: datetime
+) -> dict[date, int]:
+    """逐日口碑指數（信心加權 soft + 小樣本收縮，與看板同公式）。"""
+    rows = (
+        await session.execute(
+            select(
+                func.date(Post.posted_at).label("day"),
+                func.count().label("n"),
+                func.sum(
+                    Sentiment.score * (Sentiment.p_positive - Sentiment.p_negative)
+                ).label("num"),
+                func.sum(Sentiment.score).label("den"),
+            )
+            .join(PostModel, PostModel.post_id == Post.id)
+            .join(Sentiment, Sentiment.post_id == Post.id)
+            .where(PostModel.model_id == model_id, Post.posted_at >= start)
+            .group_by(func.date(Post.posted_at))
+        )
+    ).all()
+    out: dict[date, int] = {}
+    for r in rows:
+        idx = _sentiment_index(r.num, r.den, r.n)
+        if idx is not None:
+            out[r.day] = idx
+    return out
+
+
+def _build_trend(
+    start: datetime,
+    trend_days: int,
+    volume: dict[date, int],
+    sentiment_by_day: dict[date, int],
+) -> list[dict]:
+    """補滿每一天（含 0 討論的日子）→ 前端不必自己補洞，趨勢線連續。"""
+    trend: list[dict] = []
+    for i in range(trend_days + 1):
+        d = (start + timedelta(days=i)).date()
+        trend.append(
+            {
+                "date": d.isoformat(),
+                "posts": volume.get(d, 0),
+                "sentiment_index": sentiment_by_day.get(d),
+            }
+        )
+    return trend
+
+
+async def _recent_events(session: AsyncSession, model_id: int, slug: str) -> list[dict]:
+    """近期事件（discussion_spike / launch / sentiment_flip），最新優先。"""
+    rows = (
+        await session.execute(
+            select(Event)
+            .where(Event.model_id == model_id)
+            .order_by(Event.occurred_at.desc(), Event.id.desc())
+            .limit(_RECENT_EVENTS)
+        )
+    ).scalars().all()
+    return [
+        {
+            "id": ev.id,
+            "event_type": ev.event_type,
+            "model": slug,
+            "title": ev.title,
+            "description": ev.description,
+            "score": ev.score,
+            "occurred_at": ev.occurred_at.isoformat(),
+            "extra": ev.extra,
+        }
+        for ev in rows
+    ]
+
+
+async def _top_discussions(session: AsyncSession, model_id: int) -> list[dict]:
+    """熱門討論（依分數）。"""
+    rows = (
+        await session.execute(
+            select(Post.title, Post.score, Post.url, Post.permalink, Post.source)
+            .join(PostModel, PostModel.post_id == Post.id)
+            .where(PostModel.model_id == model_id)
+            .order_by(Post.score.desc())
+            .limit(_TOP_DISCUSSIONS)
+        )
+    ).all()
+    return [
+        {
+            "title": r.title,
+            "score": r.score,
+            "url": r.url or r.permalink,
+            "source": r.source,
+        }
+        for r in rows
+    ]
+
+
+async def _latest_releases(session: AsyncSession, model_id: int, slug: str) -> list[dict]:
+    """最新發布。"""
+    rows = (
+        await session.execute(
+            select(ReleaseEvent)
+            .where(ReleaseEvent.model_id == model_id)
+            .order_by(ReleaseEvent.published_at.desc())
+            .limit(_LATEST_RELEASES)
+        )
+    ).scalars().all()
+    return [
+        {
+            "id": r.id,
+            "source": r.source,
+            "model": slug,
+            "title": r.title,
+            "repo": r.repo,
+            "kind": r.kind,
+            "version": r.version,
+            "url": r.url,
+            "published_at": r.published_at.isoformat(),
+        }
+        for r in rows
+    ]
 
 
 async def get_model_detail(
@@ -42,141 +177,31 @@ async def get_model_detail(
     if model is None:
         return None
 
-    # 彙總指標：直接從看板取同一筆（口碑/討論量定義一致，single source of truth）。
-    dashboard = {d["slug"]: d for d in await get_model_dashboard(session)}
-    summary = dashboard.get(slug)
+    # 彙總指標：直接查本模型那一筆（同看板定義，single source of truth），
+    # 不撈整盤 6 模型再過濾，省下 5 個模型的彙總計算。
+    summary = await get_model_summary(session, model)
 
     now = datetime.now(UTC)
     start = now - timedelta(days=trend_days)
 
-    # --- 逐日討論量（依 posted_at 的日期分桶）---
-    vol_rows = (
-        await session.execute(
-            select(
-                func.date(Post.posted_at).label("day"),
-                func.count().label("n"),
-            )
-            .join(PostModel, PostModel.post_id == Post.id)
-            .where(PostModel.model_id == model.id, Post.posted_at >= start)
-            .group_by(func.date(Post.posted_at))
-        )
-    ).all()
-    volume = _daily_volume(vol_rows)
-
-    # --- 逐日口碑指數（信心加權 soft + 小樣本收縮，與看板同公式）---
-    sent_rows = (
-        await session.execute(
-            select(
-                func.date(Post.posted_at).label("day"),
-                func.count().label("n"),
-                func.sum(
-                    Sentiment.score * (Sentiment.p_positive - Sentiment.p_negative)
-                ).label("num"),
-                func.sum(Sentiment.score).label("den"),
-            )
-            .join(PostModel, PostModel.post_id == Post.id)
-            .join(Sentiment, Sentiment.post_id == Post.id)
-            .where(PostModel.model_id == model.id, Post.posted_at >= start)
-            .group_by(func.date(Post.posted_at))
-        )
-    ).all()
-    sentiment_by_day: dict[date, int] = {}
-    for r in sent_rows:
-        if r.den and r.den > 0 and r.n:
-            soft = r.num / r.den
-            shrunk = soft * r.n / (r.n + _SENTIMENT_SHRINK)
-            sentiment_by_day[r.day] = round(shrunk * 100)
-
-    # 補滿每一天（含 0 討論的日子）→ 前端不必自己補洞，趨勢線連續。
-    trend: list[dict] = []
-    for i in range(trend_days + 1):
-        d = (start + timedelta(days=i)).date()
-        trend.append(
-            {
-                "date": d.isoformat(),
-                "posts": volume.get(d, 0),
-                "sentiment_index": sentiment_by_day.get(d),
-            }
-        )
-
-    # --- 近期事件 ---
-    event_rows = (
-        await session.execute(
-            select(Event)
-            .where(Event.model_id == model.id)
-            .order_by(Event.occurred_at.desc(), Event.id.desc())
-            .limit(_RECENT_EVENTS)
-        )
-    ).scalars().all()
-    events = [
-        {
-            "id": ev.id,
-            "event_type": ev.event_type,
-            "model": slug,
-            "title": ev.title,
-            "description": ev.description,
-            "score": ev.score,
-            "occurred_at": ev.occurred_at.isoformat(),
-            "extra": ev.extra,
-        }
-        for ev in event_rows
-    ]
-
-    # --- 熱門討論（依分數）---
-    disc_rows = (
-        await session.execute(
-            select(Post.title, Post.score, Post.url, Post.permalink, Post.source)
-            .join(PostModel, PostModel.post_id == Post.id)
-            .where(PostModel.model_id == model.id)
-            .order_by(Post.score.desc())
-            .limit(_TOP_DISCUSSIONS)
-        )
-    ).all()
-    top_discussions = [
-        {
-            "title": r.title,
-            "score": r.score,
-            "url": r.url or r.permalink,
-            "source": r.source,
-        }
-        for r in disc_rows
-    ]
-
-    # --- 最新發布 ---
-    rel_rows = (
-        await session.execute(
-            select(ReleaseEvent)
-            .where(ReleaseEvent.model_id == model.id)
-            .order_by(ReleaseEvent.published_at.desc())
-            .limit(_LATEST_RELEASES)
-        )
-    ).scalars().all()
-    releases = [
-        {
-            "id": r.id,
-            "source": r.source,
-            "model": slug,
-            "title": r.title,
-            "repo": r.repo,
-            "kind": r.kind,
-            "version": r.version,
-            "url": r.url,
-            "published_at": r.published_at.isoformat(),
-        }
-        for r in rel_rows
-    ]
+    volume = await _daily_volume(session, model.id, start)
+    sentiment_by_day = await _daily_sentiment(session, model.id, start)
+    trend = _build_trend(start, trend_days, volume, sentiment_by_day)
+    events = await _recent_events(session, model.id, slug)
+    top_discussions = await _top_discussions(session, model.id)
+    releases = await _latest_releases(session, model.id, slug)
 
     return {
         "slug": model.slug,
         "name": model.name,
         "company": model.company,
         "role": model.role,
-        "posts_total": summary["posts_total"] if summary else 0,
-        "posts_recent": summary["posts_recent"] if summary else 0,
-        "releases_total": summary["releases_total"] if summary else 0,
-        "latest_release_at": summary["latest_release_at"] if summary else None,
-        "spike_severity": summary["spike_severity"] if summary else None,
-        "sentiment_index": summary["sentiment_index"] if summary else None,
+        "posts_total": summary["posts_total"],
+        "posts_recent": summary["posts_recent"],
+        "releases_total": summary["releases_total"],
+        "latest_release_at": summary["latest_release_at"],
+        "spike_severity": summary["spike_severity"],
+        "sentiment_index": summary["sentiment_index"],
         "trend_days": trend_days,
         "trend": trend,
         "events": events,

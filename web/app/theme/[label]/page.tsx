@@ -17,7 +17,7 @@ import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { OTHER_THEME, THEME_META, THEME_ORDER } from "@/components/theme-meta";
 import { CardGridSkeleton } from "@/components/ui/skeleton";
-import { getThemeFeed } from "@/lib/api";
+import { friendlyError, getThemeFeed } from "@/lib/api";
 import type { FeedFilters, Sentiment, ThemeLabel } from "@/lib/types";
 
 const SENTIMENTS: Sentiment[] = ["positive", "neutral", "negative"];
@@ -134,7 +134,7 @@ export default function ThemePage({
 async function ThemePostList({ label, filters }: { label: ThemeLabel; filters: FeedFilters }) {
   const feed = await getThemeFeed(label, filters, LIST_LIMIT);
   if (!feed.ok) {
-    return <SectionStatus kind="error">情報暫時載入不了，稍後再試。</SectionStatus>;
+    return <SectionStatus kind="error">{friendlyError(feed.error, "情報暫時載入不了，稍後再試。")}</SectionStatus>;
   }
   if (feed.data.length === 0) {
     return (

@@ -10,6 +10,11 @@
 
 ## 1. 高層次系統架構
 
+> 🛑 **歷史 / 已淘汰 — 不代表現況。** 本節為 pivot 前的 v4 規劃（Reddit / HackerNews 來源、
+> Anthropic Claude API、英文 RoBERTa、Resend）。現行高層架構請改看
+> **[§5b 資料取得與語料庫](#5b-資料取得與語料庫現況597k-篇)**、
+> **[§6 事件忠實摘要管線](#6-事件忠實摘要管線現行技術核心)** 與 [README](../README.md)。保留此圖僅供演進對照。
+
 ```mermaid
 graph TB
     subgraph SOURCES["📡 資料來源層"]
@@ -109,6 +114,10 @@ graph TB
 
 ## 2. 資料流：單篇貼文生命週期
 
+> 🛑 **歷史 / 已淘汰 — 不代表現況。** 此序列圖以 Reddit（praw）為來源、英文 RoBERTa 情緒、
+> BERTopic 主題，皆非現行做法。現行資料流（多源 UPSERT → 跨源去重 → DQC → 情緒 / 主題）
+> 請看 **[§5b](#5b-資料取得與語料庫現況597k-篇)**。
+
 ```mermaid
 sequenceDiagram
     autonumber
@@ -164,6 +173,11 @@ sequenceDiagram
 
 ## 3. 部署架構（Railway）
 
+> 🛑 **歷史 / 已淘汰 — 不代表現況。** 專案**未**部署於 Railway，亦不依賴 Anthropic / Reddit /
+> HackerNews / Resend 等雲端服務。現行為**地端執行**：Docker Compose 起 PostgreSQL / Airflow /
+> 監控堆疊，ML 推論走系統 Python（GPU）+ 本機 Ollama / Stable Diffusion，分發走 Gmail SMTP。
+> 執行方式見 [README「如何執行」](../README.md#如何執行)。此圖**不代表現況**。
+
 ```mermaid
 graph LR
     subgraph Railway["🚂 Railway Pro Plan ($10/月)"]
@@ -214,6 +228,10 @@ graph LR
 
 ## 4. DQC 內部流程
 
+> ⚠️ **部分過時 — 以現況程式為準。** DQC 多層扣分制的精神仍在（見 `ml/ml/data_quality.py`），
+> 但本圖 Layer 2「語言 = 英文」與現行**繁中優先**取向相反：現行以**廣義 AI 門檻 + 繁體過濾擋簡中**，
+> 不再以「英文」為通過條件。具體層級與扣分以 `ml/ml/data_quality.py` 為準。
+
 ```mermaid
 flowchart TD
     Start([新貼文進入 DQC]) --> L1{Layer 1<br/>長度 >= 20?<br/>非 [deleted]?}
@@ -250,6 +268,11 @@ flowchart TD
 ---
 
 ## 5. Offline Evaluation 流程
+
+> 🛑 **歷史 / 已淘汰 — 已被 §7 取代。** 此為舊版「英文兩模型對比」（twitter-roberta vs
+> twitter-xlm-roberta）。現行為**多候選 bake-off**（macro-F1 排名 + McNemar + bootstrap CI +
+> BH-FDR + 校準 ECE/Brier/AURC），請改看
+> **[§7 現行 Offline Evaluation 流程](#7-現行-offline-evaluation-流程n-候選-bake-off)**。
 
 ```mermaid
 flowchart LR

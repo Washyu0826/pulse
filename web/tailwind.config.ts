@@ -1,7 +1,8 @@
 import type { Config } from "tailwindcss";
 
 const config: Config = {
-  darkMode: "class",
+  // 刻意不啟用暗色模式：設計系統只有單一暖底淺色主題，無切換 UI、無 dark: class。
+  // （移除先前殘留的 darkMode:"class" 宣告，避免誤導成「支援暗色」。）
   content: [
     "./app/**/*.{js,ts,jsx,tsx,mdx}",
     "./components/**/*.{js,ts,jsx,tsx,mdx}",

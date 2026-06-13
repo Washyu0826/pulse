@@ -74,6 +74,13 @@ DEFAULT_QUERIES: tuple[str, ...] = (
     "AI失業", "AI法規", "AI假新聞", "AI個資", "AI偏見", "AI幻覺",
 )
 _SEARCH_URL = f"https://www.{_DOMAIN}/search?q={{q}}&serp_type=tags"
+# 貼文容器 selector（依序嘗試；Meta 改版常只動其一）。primary 失效時退到下一個，
+# 避免「DOM 一變就靜默回 0 筆」。改版時優先在此清單調整/補新 selector。
+_CONTAINER_SELECTORS: tuple[str, ...] = (
+    "div[data-pressable-container='true']",  # 2026-06 主用
+    "div[role='article']",                   # 語意化 fallback（貼文常標 article role）
+    "article",                               # 最寬鬆 fallback
+)
 _USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
     "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
@@ -167,8 +174,28 @@ def _extract_posts(driver, query: str, max_posts: int) -> list[dict]:
     from selenium.webdriver.common.by import By
 
     out: list[dict] = []
-    # Threads 貼文容器（保守選 data-pressable-container；改版時調這裡）。
-    containers = driver.find_elements(By.CSS_SELECTOR, "div[data-pressable-container='true']")
+    # Threads 貼文容器：依序試多個 selector，第一個抓到非空就用（抗 Meta 改版）。
+    containers: list = []
+    used_selector = None
+    for sel in _CONTAINER_SELECTORS:
+        containers = driver.find_elements(By.CSS_SELECTOR, sel)
+        if containers:
+            used_selector = sel
+            break
+    if not containers:
+        # 全部 selector 皆 0 → 多半是 Meta 改了 DOM（或登入牆/空結果）。明確告警，不要靜默。
+        logger.warning(
+            "Threads：所有容器 selector 皆抓到 0 個元素（query=%s）—— "
+            "可能 Meta 改版需更新 _CONTAINER_SELECTORS，或碰到登入牆/無結果。",
+            query,
+        )
+        return out
+    if used_selector != _CONTAINER_SELECTORS[0]:
+        # 退到 fallback selector 也記一筆，提示 primary selector 可能已失效。
+        logger.warning(
+            "Threads：primary selector 失效，改用 fallback '%s'（query=%s）—— 建議盡快更新。",
+            used_selector, query,
+        )
     for el in containers[:max_posts]:
         try:
             text = el.text or ""
@@ -268,6 +295,32 @@ async def crawl_threads(
                     continue
                 kept += 1
                 yield row
-            logger.info("Threads query=%s：抽 %d 則，保留 %d 則", query, len(raw_posts), kept)
+            if not raw_posts:
+                # 0 筆抽取 → 斷流疑慮（DOM 變動 / 登入牆 / cookie 失效）。WARNING 讓它看得見，
+                # 不被海量 INFO 淹沒；有 SLACK_WEBHOOK_URL 時順手送一則訊號（best-effort，不 crash）。
+                logger.warning("Threads query=%s：抽到 0 筆 —— selector 失效或登入牆？", query)
+                _notify_zero_result(query)
+            else:
+                logger.info("Threads query=%s：抽 %d 則，保留 %d 則", query, len(raw_posts), kept)
     finally:
         await asyncio.to_thread(driver.quit)
+
+
+def _notify_zero_result(query: str) -> None:
+    """0 筆結果時送一則 Slack 訊號（best-effort）。無 webhook / 送失敗都只記 log，不中斷爬取。"""
+    import os
+
+    webhook = os.environ.get("SLACK_WEBHOOK_URL")
+    if not webhook:
+        return
+    try:
+        import httpx
+
+        httpx.post(
+            webhook,
+            json={"text": f":warning: Threads 爬蟲 query=`{query}` 抽到 0 筆 —— "
+                          "可能 selector 失效或 cookie 過期，請查 workers/crawlers/threads.py。"},
+            timeout=5.0,
+        )
+    except Exception:  # noqa: BLE001 — 告警本身失敗不該影響爬取
+        logger.debug("Threads 0 筆 Slack 告警送出失敗（query=%s）", query)

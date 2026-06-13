@@ -5,7 +5,7 @@ import { FavoriteButton } from "@/components/favorite-button";
 import { SectionStatus } from "@/components/section-status";
 import { themeMeta } from "@/components/theme-meta";
 import { Badge } from "@/components/ui/badge";
-import { getTodayEvents } from "@/lib/api";
+import { friendlyError, getTodayEvents } from "@/lib/api";
 import { eventToFavoritePost } from "@/lib/favorites";
 import type { EventCitation, EventSummary } from "@/lib/types";
 
@@ -105,7 +105,7 @@ function EventSummaryCard({ ev }: { ev: EventSummary }) {
 export async function TodayEvents() {
   const events = await getTodayEvents();
   if (!events.ok) {
-    return <SectionStatus kind="error">今日事件暫時載入不了，稍後再試。</SectionStatus>;
+    return <SectionStatus kind="error">{friendlyError(events.error, "今日事件暫時載入不了，稍後再試。")}</SectionStatus>;
   }
   if (events.data.length === 0) {
     return <SectionStatus kind="empty">尚無今日事件 —— 今天還沒有可聚合成事件的討論。</SectionStatus>;

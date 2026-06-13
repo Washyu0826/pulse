@@ -57,5 +57,39 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("PULSE_EVENTS_FILE", "EVENTS_FILE"),
     )
 
+    # ---- 啟用某功能所需金鑰的延遲驗證（lazy / at-use）----
+    # 設計取捨：所有金鑰皆為選配，缺值時不該讓整個 app 啟動失敗（多數來源/通知是 best-effort）。
+    # 改採「用到才驗」：呼叫端在真正要用某功能前呼叫對應 require_*()，缺值即 fail fast 給清楚訊息。
+    def require_reddit(self) -> tuple[str, str]:
+        """取得 Reddit API 憑證；缺任一即報錯（給 Reddit 爬蟲用）。"""
+        if not self.reddit_client_id or not self.reddit_client_secret:
+            raise RuntimeError(
+                "Reddit 爬蟲需要 REDDIT_CLIENT_ID 與 REDDIT_CLIENT_SECRET，"
+                "請於 .env 設定後再啟用 Reddit 來源。"
+            )
+        return self.reddit_client_id, self.reddit_client_secret
+
+    def require_threads(self) -> str:
+        """取得 Threads sessionid；缺則報錯（給需登入的 Threads 爬蟲用）。"""
+        if not self.threads_sessionid:
+            raise RuntimeError(
+                "Threads 登入爬蟲需要 THREADS_SESSIONID，請於 .env 設定後再啟用。"
+            )
+        return self.threads_sessionid
+
+    def require_anthropic(self) -> str:
+        """取得 Anthropic API key；缺則報錯（給 decide 的 LLM 合成層用）。"""
+        if not self.anthropic_api_key:
+            raise RuntimeError(
+                "此功能需要 ANTHROPIC_API_KEY；未設定時請改用資料驅動的模板輸出。"
+            )
+        return self.anthropic_api_key
+
+    def require_slack(self) -> str:
+        """取得 Slack webhook URL；缺則報錯（給告警通知用）。"""
+        if not self.slack_webhook_url:
+            raise RuntimeError("Slack 通知需要 SLACK_WEBHOOK_URL，請於 .env 設定後再啟用。")
+        return self.slack_webhook_url
+
 
 settings = Settings()

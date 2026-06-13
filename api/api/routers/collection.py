@@ -7,6 +7,7 @@
 重用 monorepo 的 ml 純函式（與 scripts 同作法：把 D:\\pulse\\ml 加進 path）。LLM 為阻塞式
 httpx 呼叫 → 丟 threadpool，避免卡住 async event loop。
 """
+import asyncio
 import os
 import sys
 from pathlib import Path
@@ -27,6 +28,10 @@ router = APIRouter()
 
 _PACK_MODEL = os.environ.get("PULSE_PACK_MODEL", "qwen2.5:7b")
 _MAX_POSTS = 100  # 防止超大 prompt / 過長生成
+# 地端 Ollama 逾時：單次生成上限（秒）+ 整包蒸餾的牆鐘上限（多主題 × 單次）。
+# 超過即視為 Ollama 卡住，回 504 而非無限掛住 async event loop。
+_OLLAMA_CALL_TIMEOUT_S = 60.0
+_PACK_WALL_TIMEOUT_S = 240.0
 
 
 class PackPost(BaseModel):
@@ -67,10 +72,21 @@ async def make_collection_pack(req: PackRequest) -> PackResponse:
     generate_fn = None
     if req.distill:
         try:
-            generate_fn = build_ollama_generate_fn(model=_PACK_MODEL)
+            generate_fn = build_ollama_generate_fn(
+                model=_PACK_MODEL, timeout=_OLLAMA_CALL_TIMEOUT_S
+            )
         except Exception:
             generate_fn = None  # 缺 httpx 等 → 退確定性
 
-    # build_pack 內含阻塞式 Ollama 呼叫 → threadpool 執行。
-    pack = await run_in_threadpool(build_pack, posts, generate_fn, title=req.title)
+    # build_pack 內含阻塞式 Ollama 呼叫 → threadpool 執行；再加整體牆鐘逾時，
+    # 避免本機 Ollama 卡死時請求無限掛起（超時回 504，前端可退回確定性條列）。
+    try:
+        pack = await asyncio.wait_for(
+            run_in_threadpool(build_pack, posts, generate_fn, title=req.title),
+            timeout=_PACK_WALL_TIMEOUT_S,
+        )
+    except TimeoutError as e:
+        raise HTTPException(
+            status_code=504, detail="地端模型生成逾時，請稍後再試或關閉蒸餾。"
+        ) from e
     return PackResponse(**pack)

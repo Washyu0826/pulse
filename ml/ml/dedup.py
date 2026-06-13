@@ -30,8 +30,16 @@ __all__ = [
     "MIN_TITLE_TOKENS",
 ]
 
+# ---- 近似重複判定門檻（雙重門檻，保守偏向「少誤合」）----
+# SimHash 兩指紋的最大 Hamming 距離。64-bit SimHash 上 <=3 對應「絕大多數 token 相同」；
+# 經典 SimHash 去重（Manku et al. 2007, WWW）用 k=3 作 web 近重門檻，這裡沿用且更保守
+# （再加 Jaccard 第二道）。調大→召回升、誤合升；調小→更嚴。
 SIMHASH_MAX_HAMMING = 3
+# token Jaccard 下限：標題實際 token 重疊需 >=80% 才接受為同故事。SimHash 過桶後的二次確認，
+# 擋掉「指紋碰巧接近但用字差很多」的偽陽。0.8 是常見的高精度近重門檻（偏 precision）。
 JACCARD_MIN = 0.8
+# 進 SimHash 分桶的最小標題 token 數。太短（<4 字詞）的標題語意稀薄、SimHash 不穩，
+# 易把不相干短標題誤合 → 直接略過，只靠 URL 完全相同那條證據。
 MIN_TITLE_TOKENS = 4
 
 # 純分析用、可安全移除的追蹤參數。

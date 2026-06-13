@@ -10,17 +10,27 @@ $venvPy = "$root\.venv\Scripts\python.exe"          # selenium + DB（爬蟲）
 $sysPy = "C:\Users\xiang\AppData\Local\Programs\Python\Python311\python.exe"  # GPU + jieba + httpx（ML）
 $log = "$root\scripts\daily_refresh.log"
 
+# 失敗步驟彙整：每步仍照跑（單步失敗不擋後續），但任何一步失敗就讓整體以非零碼結束、
+# 並在結尾印一份醒目 FAIL 摘要 —— 排程器/人眼才看得出「這次跑壞了」（2026-06-12 教訓）。
+$failedSteps = @()
+
 function Step($name, $block) {
   $ts = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
   "[$ts] START $name" | Tee-Object -FilePath $log -Append
   $global:LASTEXITCODE = 0
+  $failed = $false
   try {
     & $block 2>&1 | Tee-Object -FilePath $log -Append
     if ($LASTEXITCODE -ne 0) {
+      $failed = $true
       "[$ts] FAIL $name exit code: $LASTEXITCODE" | Tee-Object -FilePath $log -Append
     }
   }
-  catch { "[$ts] FAIL $name error: $_" | Tee-Object -FilePath $log -Append }
+  catch {
+    $failed = $true
+    "[$ts] FAIL $name error: $_" | Tee-Object -FilePath $log -Append
+  }
+  if ($failed) { $script:failedSteps += $name }
 }
 
 Set-Location "$root\api"
@@ -38,4 +48,13 @@ Step "7/8 newsletter" { & $sysPy "$root\scripts\send_newsletter.py" }
 Step "8/8 dataflow health" { & $sysPy "$root\scripts\check_dataflow.py" }
 
 $doneTs = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-"[$doneTs] daily refresh complete`n" | Tee-Object -FilePath $log -Append
+if ($failedSteps.Count -gt 0) {
+  # 醒目 FAIL 摘要 + 非零碼：讓工作排程器把這次標記為失敗，斷流/壞步驟不再無聲。
+  "========================================" | Tee-Object -FilePath $log -Append
+  "[$doneTs] daily refresh FAILED —— $($failedSteps.Count) 步失敗：$($failedSteps -join ', ')" |
+    Tee-Object -FilePath $log -Append
+  "========================================`n" | Tee-Object -FilePath $log -Append
+  exit 1
+}
+"[$doneTs] daily refresh complete (all steps OK)`n" | Tee-Object -FilePath $log -Append
+exit 0

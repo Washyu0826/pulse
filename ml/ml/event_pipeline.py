@@ -123,15 +123,15 @@ def summarize_one_event(
     cluster: event_cluster.EventCluster,
     posts: Sequence[dict],
     embed_fn: event_cluster.EmbedFn,
-    generate_fn,
-    nli_fn,
+    generate_fn: summarize.GenerateFn,
+    nli_fn: faithfulness.NliFn,
     *,
     k: int = 8,
-    lambda_: float = 0.7,
+    lambda_: float = event_cluster.DEFAULT_MMR_LAMBDA,
     max_sentences: int = 8,
     lang: str = "zh-Hant",
-    entail_threshold: float = 0.5,
-    contradict_threshold: float = 0.5,
+    entail_threshold: float = faithfulness.DEFAULT_ENTAIL_THRESHOLD,
+    contradict_threshold: float = faithfulness.DEFAULT_CONTRADICT_THRESHOLD,
 ) -> EventSummaryResult:
     """
     對單一 `EventCluster` 跑完整管線：抽句 → 適配 → 摘要 → 忠實度。
@@ -177,17 +177,17 @@ def summarize_one_event(
 def run_pipeline(
     posts: Sequence[dict],
     embed_fn: event_cluster.EmbedFn,
-    generate_fn,
-    nli_fn,
+    generate_fn: summarize.GenerateFn,
+    nli_fn: faithfulness.NliFn,
     *,
-    threshold: float = 0.6,
+    threshold: float = event_cluster.DEFAULT_CLUSTER_THRESHOLD,
     min_size: int = 2,
     k: int = 8,
-    lambda_: float = 0.7,
+    lambda_: float = event_cluster.DEFAULT_MMR_LAMBDA,
     max_sentences: int = 8,
     lang: str = "zh-Hant",
-    entail_threshold: float = 0.5,
-    contradict_threshold: float = 0.5,
+    entail_threshold: float = faithfulness.DEFAULT_ENTAIL_THRESHOLD,
+    contradict_threshold: float = faithfulness.DEFAULT_CONTRADICT_THRESHOLD,
 ) -> list[EventSummaryResult]:
     """
     端到端管線：`cluster_events` → 對每個事件群跑 `summarize_one_event`。

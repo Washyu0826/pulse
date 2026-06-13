@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import logging
 import os
+from typing import Any
 
 from ml.annotation import SENTIMENT_LABELS
 from ml.theme import OTHER_LABEL, THEME_HYPOTHESES
@@ -133,7 +134,8 @@ class Distiller:
         self.host = host
         self.timeout = timeout
 
-    async def _generate(self, prompt: str, client) -> str:
+    async def _generate(self, prompt: str, client: Any) -> str:
+        # client: httpx.AsyncClient（lazy import，故型別以 Any 標避免模組頂層 import httpx）。
         payload = {
             "model": self.model,
             "prompt": prompt,
@@ -144,7 +146,7 @@ class Distiller:
         r.raise_for_status()
         return r.json().get("response", "")
 
-    async def label(self, text: str, task: str, client=None) -> str | None:
+    async def label(self, text: str, task: str, client: Any = None) -> str | None:
         """
         對單則文本產 silver label。task ∈ {'sentiment','theme'}。
         解析失敗 / 服務錯誤回 None（呼叫端略過，不中斷整批）。

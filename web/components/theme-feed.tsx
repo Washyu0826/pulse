@@ -3,7 +3,7 @@ import Link from "next/link";
 import { FeedCard } from "@/components/feed-card";
 import { SectionStatus } from "@/components/section-status";
 import { THEME_META, THEME_ORDER } from "@/components/theme-meta";
-import { getFeed } from "@/lib/api";
+import { friendlyError, getFeed } from "@/lib/api";
 import type { FeedFilters } from "@/lib/types";
 
 /** 主題列表頁連結（把首頁當前篩選帶過去 —— 看全部後 filter 隨行）。 */
@@ -24,7 +24,7 @@ function themeHref(label: string, filters: FeedFilters): string {
 export async function ThemeFeed({ filters }: { filters: FeedFilters }) {
   const feed = await getFeed(filters, 4);
   if (!feed.ok) {
-    return <SectionStatus kind="error">情報暫時載入不了，稍後再試。</SectionStatus>;
+    return <SectionStatus kind="error">{friendlyError(feed.error, "情報暫時載入不了，稍後再試。")}</SectionStatus>;
   }
 
   const hasAny = THEME_ORDER.some((t) => (feed.data[t]?.length ?? 0) > 0);

@@ -6,7 +6,8 @@ import type { FeedFilters } from "@/lib/types";
 /** 今日摘要列：各主題在當前篩選下的貼文數（自帶 fetch）。 */
 export async function FeedSummary({ filters }: { filters: FeedFilters }) {
   const summary = await getFeedSummary(filters);
-  if (!summary.ok) return null; // 摘要列非關鍵，失敗就不顯示
+  // 非關鍵摘要列：失敗一律安靜隱藏（與 TrendingPanel 同策略）—— 主區才用 SectionStatus 明示故障。
+  if (!summary.ok) return null;
   return (
     <div className="flex flex-wrap items-center gap-x-6 gap-y-2 rounded-lg border border-border/60 bg-bg-card/40 px-4 py-3">
       {THEME_ORDER.map((t) => {

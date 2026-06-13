@@ -132,14 +132,17 @@ async def test_missing_required_skipped(session):
 
 
 async def test_recent_releases_endpoint(session):
+    # 用「遠未來」日期讓兩筆測試資料一定排在 top-N 最前，避免共享 dev DB 裡既有的大量
+    # 真實 release 把測試列擠出 limit 視窗（隔離法，不靠放寬斷言）。
+    far = datetime(2099, 1, 1, tzinfo=UTC)
     await upsert_release_events(session, [
-        _ev("old", "gpt", published_at=datetime(2026, 1, 1, tzinfo=UTC)),
-        _ev("new", "claude", published_at=datetime(2026, 5, 1, tzinfo=UTC)),
+        _ev("old", "gpt", published_at=far),
+        _ev("new", "claude", published_at=far.replace(month=2)),
     ])
     result = await recent_releases(limit=100, source=None, db=session)
     # url 結尾是 external_id 後段（old / new）
     pos = {r["url"].rsplit("/", 1)[-1]: i for i, r in enumerate(result)}
     assert "new" in pos and "old" in pos
-    assert pos["new"] < pos["old"]  # published_at desc：new 在前
+    assert pos["new"] < pos["old"]  # published_at desc：new(2099-02) 在 old(2099-01) 前
     new_row = next(r for r in result if r["url"].endswith("/new"))
     assert new_row["model"] == "claude"  # model slug 有被解析

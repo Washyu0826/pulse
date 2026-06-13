@@ -15,25 +15,12 @@ import { Section } from "@/components/section";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { InfoHint } from "@/components/ui/info-hint";
-import { getModelDetail } from "@/lib/api";
+import { friendlyError, getModelDetail, isNotFound } from "@/lib/api";
+import { sentimentClass, sentimentWord } from "@/lib/sentiment";
 import { relativeTime } from "@/lib/time";
 import type { ModelDetail } from "@/lib/types";
 
 export const dynamicParams = true;
-
-function sentimentClass(idx: number | null): string {
-  if (idx == null) return "text-ink/45";
-  return idx > 10 ? "text-sentiment-positive" : idx < -10 ? "text-sentiment-negative" : "text-ink/60";
-}
-
-function sentimentWord(idx: number | null): string {
-  if (idx == null) return "尚無資料";
-  if (idx > 30) return "口碑很好";
-  if (idx > 10) return "偏正面";
-  if (idx < -30) return "口碑不佳";
-  if (idx < -10) return "偏負面";
-  return "中性";
-}
 
 function Metric({
   value,
@@ -63,15 +50,15 @@ export default async function ModelDetailPage({ params }: { params: { slug: stri
   const res = await getModelDetail(params.slug, 30);
 
   if (!res.ok) {
-    // 404（查無模型）→ Next 的 not-found；其他錯誤 → 友善頁內提示。
-    if (res.error === "HTTP 404") notFound();
+    // 404（查無模型）→ Next 的 not-found；其他錯誤 → 友善頁內提示（在地化原始錯誤代碼）。
+    if (isNotFound(res.error)) notFound();
     return (
       <>
         <SiteHeader />
         <main className="mx-auto max-w-4xl px-6 py-10">
           <BackLink />
           <div className="card mt-6 text-center text-sm text-sentiment-negative">
-            這個模型的詳情暫時載入不了，稍後再試。
+            {friendlyError(res.error, "這個模型的詳情暫時載入不了，稍後再試。")}
           </div>
         </main>
         <SiteFooter />

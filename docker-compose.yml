@@ -8,9 +8,11 @@ x-airflow-common: &airflow-common
     AIRFLOW__CORE__EXECUTOR: LocalExecutor
     AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@airflow-postgres/airflow
     AIRFLOW__CORE__LOAD_EXAMPLES: "false"
-    # 可由 .env 覆寫（部署前務必設定）；本機開發留空/預設即可。
+    # 由 .env 注入；缺值即報錯（fail fast），不再帶不安全的 repo 內預設值。
+    # 本機開發：在 .env 設一組自產的值即可（見 .env.example 的產生指令）。
+    # FERNET_KEY 仍允許空（Airflow 會以警告退化，僅影響 connection 加密；prod 務必設定）。
     AIRFLOW__CORE__FERNET_KEY: ${AIRFLOW_FERNET_KEY:-}
-    AIRFLOW__WEBSERVER__SECRET_KEY: ${AIRFLOW_WEBSERVER_SECRET_KEY:-pulse-dev-secret-change-in-prod}
+    AIRFLOW__WEBSERVER__SECRET_KEY: ${AIRFLOW_WEBSERVER_SECRET_KEY:?AIRFLOW_WEBSERVER_SECRET_KEY 未設定 —— 請在 .env 自行產生（見 .env.example）}
     AIRFLOW__CORE__DAGS_FOLDER: /opt/airflow/dags
     # production：關掉 SQLAlchemy echo（否則每個 task 會把整串 SQL 灌進 Airflow log）。
     ENVIRONMENT: production
@@ -103,8 +105,9 @@ services:
       AIRFLOW__CORE__LOAD_EXAMPLES: "false"
       _AIRFLOW_DB_MIGRATE: "true"
       _AIRFLOW_WWW_USER_CREATE: "true"
-      _AIRFLOW_WWW_USER_USERNAME: admin
-      _AIRFLOW_WWW_USER_PASSWORD: admin
+      # admin 帳密由 .env 注入；缺值即報錯（fail fast），不再硬編 admin:admin。
+      _AIRFLOW_WWW_USER_USERNAME: ${AIRFLOW_ADMIN_USER:?AIRFLOW_ADMIN_USER 未設定 —— 請在 .env 設定（見 .env.example）}
+      _AIRFLOW_WWW_USER_PASSWORD: ${AIRFLOW_ADMIN_PASSWORD:?AIRFLOW_ADMIN_PASSWORD 未設定 —— 請在 .env 設定（見 .env.example）}
     command: version
     user: "${AIRFLOW_UID:-50000}:0"
 
@@ -149,6 +152,13 @@ services:
     ports:
       - "9102:9102"      # /metrics（除錯用）
       - "9125:9125/udp"  # StatsD ingest（Airflow → 此）
+    healthcheck:
+      # statsd-exporter（busybox 基底，有 wget）→ 抓自己的 /metrics 確認 web server 活著。
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9102/metrics"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     restart: unless-stopped
 
   cadvisor:
@@ -164,6 +174,13 @@ services:
       # 註：Docker Desktop/WSL2 下 /var/lib/docker 掛載會壞，刻意省略（仍能報 CPU/mem）。
     devices:
       - /dev/kmsg:/dev/kmsg
+    healthcheck:
+      # cAdvisor 標準健康端點 /healthz（容器內埠 8080）。
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
     restart: unless-stopped
 
   prometheus:
@@ -175,11 +192,19 @@ services:
       - "--storage.tsdb.retention.time=30d"
     volumes:
       - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
       - prometheus_data:/prometheus
     ports:
       - "9090:9090"
     extra_hosts:
-      - "host.docker.internal:host-gateway"  # 讓 Prometheus 抓得到 host 上的 API:8000
+      - "host.docker.internal:host-gateway"  # 讓 Prometheus 抓得到 host 上的 API（埠見 prometheus.yml）
+    healthcheck:
+      # Prometheus 標準健康端點 /-/healthy（busybox 基底，有 wget）。
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9090/-/healthy"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
     restart: unless-stopped
 
   grafana:
@@ -196,6 +221,13 @@ services:
       - "3001:3000"      # host 3001（3000 給 Next.js dev）；容器內仍 3000
     depends_on:
       - prometheus
+    healthcheck:
+      # Grafana 標準健康端點 /api/health（image 內有 wget）。
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
     restart: unless-stopped
 
 volumes:

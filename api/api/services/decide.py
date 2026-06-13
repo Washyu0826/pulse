@@ -18,6 +18,9 @@ from api.services.models import get_model_dashboard
 
 logger = logging.getLogger(__name__)
 
+# LLM 合成是「選配加值」，不該無限掛起拖住整份報告；逾時即退回資料驅動模板。
+_LLM_TIMEOUT_S = 20.0
+
 
 async def _top_discussions(
     session: AsyncSession, model_id: int, topic: str | None, n: int
@@ -99,7 +102,9 @@ async def _llm_summary(topic: str | None, models: list[dict], rec: dict) -> str 
         f"明確指出推薦哪個模型與理由。只根據數據，不要編造。\n\n數據：\n{evidence}"
     )
     try:
-        client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
+        client = anthropic.AsyncAnthropic(
+            api_key=settings.anthropic_api_key, timeout=_LLM_TIMEOUT_S
+        )
         msg = await client.messages.create(
             model="claude-haiku-4-5-20251001",
             max_tokens=400,
