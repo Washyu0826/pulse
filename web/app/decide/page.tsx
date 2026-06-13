@@ -5,22 +5,10 @@
 import { Badge } from "@/components/ui/badge";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
-import { getDecideReport } from "@/lib/api";
+import { friendlyError, getDecideReport } from "@/lib/api";
+import { sentimentClass } from "@/lib/sentiment";
+import { MODELS } from "@/lib/site";
 import type { DecideModel } from "@/lib/types";
-
-const MODELS = [
-  { slug: "gpt", name: "GPT" },
-  { slug: "claude", name: "Claude" },
-  { slug: "gemini", name: "Gemini" },
-  { slug: "grok", name: "Grok" },
-  { slug: "llama", name: "Llama" },
-  { slug: "deepseek", name: "DeepSeek" },
-];
-
-function sentClass(idx: number | null): string {
-  if (idx == null) return "text-ink/45";
-  return idx > 10 ? "text-sentiment-positive" : idx < -10 ? "text-sentiment-negative" : "text-ink/60";
-}
 
 function ModelRow({ m, winner }: { m: DecideModel; winner: string | null }) {
   return (
@@ -28,7 +16,7 @@ function ModelRow({ m, winner }: { m: DecideModel; winner: string | null }) {
       <div className="flex items-center gap-2">
         <span className="font-medium text-ink">{m.name}</span>
         {m.slug === winner && <Badge variant="accent">推薦</Badge>}
-        <span className={`ml-auto font-mono text-sm ${sentClass(m.sentiment_index)}`}>
+        <span className={`ml-auto font-mono text-sm ${sentimentClass(m.sentiment_index)}`}>
           口碑 {m.sentiment_index == null ? "—" : m.sentiment_index > 0 ? `+${m.sentiment_index}` : m.sentiment_index}
         </span>
       </div>
@@ -113,7 +101,7 @@ export default async function DecidePage({
         {report &&
           (!report.ok ? (
             <div className="card text-center text-sm text-sentiment-negative">
-              報告暫時產生不了，稍後再試。
+              {friendlyError(report.error, "報告暫時產生不了，稍後再試。")}
             </div>
           ) : report.data.models.length === 0 ? (
             <div className="card text-center text-sm text-ink/70">查無指定的模型。</div>

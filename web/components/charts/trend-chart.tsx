@@ -1,3 +1,4 @@
+import { buildPath, buildSentimentPath } from "@/lib/trend-path";
 import type { TrendPoint } from "@/lib/types";
 
 /**
@@ -6,23 +7,15 @@ import type { TrendPoint } from "@/lib/types";
  * 為何不用 recharts：先前 recharts 的 package-lock 帶進 @emnapi 平台相依，
  * 在 Linux CI 上 `npm ci` 會缺檔而中斷（cross-platform 破壞）。這個需求只要一條
  * 趨勢線，用 SVG 畫即可——無新依賴、SSR 友善、不影響 package-lock。
+ *
+ * path 幾何計算抽到 lib/trend-path.ts（純函式），邊界情況（0/1 點、全 NaN）有單元測試。
  */
 
 const W = 720;
 const VOL_H = 120;
 const SENT_H = 80;
 const PAD = 8;
-
-function buildPath(values: number[], h: number, max: number): { area: string; line: string } {
-  const n = values.length;
-  if (n === 0) return { area: "", line: "" };
-  const dx = n > 1 ? (W - PAD * 2) / (n - 1) : 0;
-  const y = (v: number) => h - PAD - (max > 0 ? (v / max) * (h - PAD * 2) : 0);
-  const pts = values.map((v, i) => [PAD + i * dx, y(v)] as const);
-  const line = pts.map(([px, py], i) => `${i === 0 ? "M" : "L"}${px.toFixed(1)},${py.toFixed(1)}`).join(" ");
-  const area = `${line} L${pts[n - 1][0].toFixed(1)},${h - PAD} L${pts[0][0].toFixed(1)},${h - PAD} Z`;
-  return { area, line };
-}
+const GEOM = { W, PAD };
 
 export function TrendChart({ trend }: { trend: TrendPoint[] }) {
   if (trend.length === 0) {
@@ -36,20 +29,12 @@ export function TrendChart({ trend }: { trend: TrendPoint[] }) {
   const posts = trend.map((p) => p.posts);
   const maxPosts = Math.max(1, ...posts);
   const totalPosts = posts.reduce((a, b) => a + b, 0);
-  const { area, line } = buildPath(posts, VOL_H, maxPosts);
+  const { area, line } = buildPath(posts, VOL_H, maxPosts, GEOM);
 
   // 口碑：把 -100..100 映到 0..1 的 y（0 = 中性基準線）。只連有資料的點。
   const sentVals = trend.map((p) => p.sentiment_index);
   const hasSent = sentVals.some((v) => v != null);
-  const dx = trend.length > 1 ? (W - PAD * 2) / (trend.length - 1) : 0;
-  const sentY = (v: number) => SENT_H / 2 - (v / 100) * (SENT_H / 2 - PAD);
-  const sentPts: string[] = [];
-  sentVals.forEach((v, i) => {
-    if (v == null) return;
-    const px = PAD + i * dx;
-    const py = sentY(v);
-    sentPts.push(`${sentPts.length === 0 ? "M" : "L"}${px.toFixed(1)},${py.toFixed(1)}`);
-  });
+  const sentLine = buildSentimentPath(sentVals, SENT_H, GEOM);
 
   const first = trend[0]?.date ?? "";
   const last = trend[trend.length - 1]?.date ?? "";
@@ -102,7 +87,7 @@ export function TrendChart({ trend }: { trend: TrendPoint[] }) {
             />
             {/* 口碑線同走寶藍 accent（取代暗色主題殘留的 cyan）。 */}
             <path
-              d={sentPts.join(" ")}
+              d={sentLine}
               fill="none"
               stroke="rgb(77 116 234)"
               strokeWidth="1.5"

@@ -1,13 +1,13 @@
 import Link from "next/link";
 
 import { SectionStatus } from "@/components/section-status";
-import { getModelDashboard } from "@/lib/api";
+import { friendlyError, getModelDashboard } from "@/lib/api";
 
 /** 左側「依模型瀏覽」側欄 —— 6 模型精簡垂直列表，點進詳情頁。自帶 fetch。 */
 export async function ModelRail() {
   const models = await getModelDashboard();
   if (!models.ok) {
-    return <SectionStatus kind="error">模型清單暫時載入不了，稍後再試。</SectionStatus>;
+    return <SectionStatus kind="error">{friendlyError(models.error, "模型清單暫時載入不了，稍後再試。")}</SectionStatus>;
   }
 
   return (

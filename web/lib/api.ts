@@ -12,7 +12,34 @@ import type {
 } from "@/lib/types";
 
 // 真正的 result type：失敗分支不帶 data，TS 會強制呼叫端先檢查 ok 才能用 data。
+// error 是「技術代碼」（如 "HTTP 404"），給 log / 控制流用；要顯示給使用者請走 friendlyError()。
 export type ApiResult<T> = { ok: true; data: T } | { ok: false; error: string };
+
+/**
+ * 後端錯誤代碼 → 友善繁中訊息（顯示層在地化）。
+ * 不改 ApiResult 契約：error 仍是技術字串，只在「要上螢幕」時才映射。
+ * @param fallback 區塊專屬的預設文案（如「今日事件暫時載入不了」），讓不同區塊能客製語氣。
+ */
+export function friendlyError(error: string, fallback = "內容暫時載入不了，稍後再試。"): string {
+  // HTTP 狀態碼：抓出數字做分檔，避免硬比對單一字串（如 "HTTP 404"）的脆弱性。
+  const httpMatch = /^HTTP (\d{3})$/.exec(error);
+  if (httpMatch) {
+    const status = Number(httpMatch[1]);
+    if (status === 404) return "找不到這項資料。";
+    if (status === 429) return "查詢太頻繁，請稍候再試。";
+    if (status >= 500) return "伺服器忙線中，稍後再試。";
+    if (status >= 400) return "這次請求無法處理，稍後再試。";
+  }
+  if (error === "malformed response") return "資料格式異常，稍後再試。";
+  // AbortSignal.timeout 逾時、網路錯誤等（String(err) 內含 "TimeoutError"）。
+  if (/timeout/i.test(error)) return "連線逾時，稍後再試。";
+  return fallback;
+}
+
+/** 是否為「資源不存在」（404）—— 給呼叫端決定走 notFound() 的穩定判斷，取代硬比對字串。 */
+export function isNotFound(error: string): boolean {
+  return error === "HTTP 404";
+}
 
 // 這些 wrapper 只在 server 端執行：優先用內部位址（容器網路），退回對外位址。
 // （日後若有 Client Component 也打這支 API，client 端會用 NEXT_PUBLIC_API_URL。）

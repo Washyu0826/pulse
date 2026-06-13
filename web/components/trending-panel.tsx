@@ -3,8 +3,10 @@ import { getTrending } from "@/lib/api";
 /** 右側「本週熱詞」面板 —— log-odds 趨勢榜，每週滾動。自帶 fetch。 */
 export async function TrendingPanel() {
   const trending = await getTrending(15);
+  // 非關鍵側欄：失敗或無資料一律安靜隱藏（與 FeedSummary 同策略）—— 不用 SectionStatus
+  // 佔版面/分散主區注意力。主區（ThemeFeed / TodayEvents）才用 SectionStatus 明示故障。
   if (!trending.ok || trending.data.length === 0) {
-    return null; // 熱詞非關鍵，失敗/空就不顯示
+    return null;
   }
   const max = Math.max(...trending.data.map((t) => t.recent_count), 1);
 

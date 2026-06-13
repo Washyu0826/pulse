@@ -3,16 +3,14 @@
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import { SOURCE_META, SOURCE_ORDER } from "@/components/source-meta";
+import { buildFilterParams } from "@/lib/feed-filter-url";
+import { MODELS as MODEL_LIST } from "@/lib/site";
 import { cn } from "@/lib/utils";
 
+// 模型 chip 選項由 lib/site 的 MODELS 單一來源衍生（+ 前置「全部」）。
 const MODELS = [
   { value: "", label: "全部" },
-  { value: "claude", label: "Claude" },
-  { value: "gpt", label: "GPT" },
-  { value: "gemini", label: "Gemini" },
-  { value: "grok", label: "Grok" },
-  { value: "llama", label: "Llama" },
-  { value: "deepseek", label: "DeepSeek" },
+  ...MODEL_LIST.map((m) => ({ value: m.slug, label: m.name })),
 ];
 const SENTIMENTS = [
   { value: "", label: "全部" },
@@ -45,11 +43,9 @@ export function FeedFilter() {
   const model = params.get("model") ?? "";
 
   function setParam(key: string, value: string) {
-    const next = new URLSearchParams(params.toString());
-    if (value) next.set(key, value);
-    else next.delete(key);
+    const next = buildFilterParams(params.toString(), key, value);
     // push（非 replace）：每次篩選變更留歷史紀錄 → 按上一頁可逐步退回，符合「可後退」設計。
-    router.push(`${pathname}?${next.toString()}`, { scroll: false });
+    router.push(`${pathname}?${next}`, { scroll: false });
   }
 
   const select = (key: string, opts: { value: string; label: string }[], fallback = "") => (
