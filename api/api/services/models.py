@@ -45,6 +45,9 @@ async def get_model_summary(session: AsyncSession, model: Model) -> dict:
                 func.count().label("total"),
                 func.count().filter(Post.posted_at >= cutoff).label("recent"),
             )
+            # 只 SELECT 聚合、無實體欄位 → 須明確指定左側 FROM，否則 .join(Post) 無從推斷
+            # （get_model_dashboard 因 SELECT 了 PostModel.model_id 才不需要）。
+            .select_from(PostModel)
             .join(Post, Post.id == PostModel.post_id)
             .where(PostModel.model_id == model.id, *quality_post_filter())
         )
@@ -81,6 +84,8 @@ async def get_model_summary(session: AsyncSession, model: Model) -> dict:
                 ).label("num"),
                 func.sum(Sentiment.score).label("den"),
             )
+            # 同上：SELECT 只有聚合，須明確左側 FROM 才能 join。
+            .select_from(PostModel)
             .join(Sentiment, Sentiment.post_id == PostModel.post_id)
             .join(Post, Post.id == PostModel.post_id)
             .where(PostModel.model_id == model.id, *quality_post_filter())

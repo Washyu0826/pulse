@@ -101,8 +101,10 @@ jobs:
         with:
           python-version: "3.11"
       # 爬蟲純函式測試只需 httpx/asyncpraw/tenacity（不需 airflow/selenium/torch）。
+      # pytest-asyncio 必裝：crawler 測試是 async def + @pytest.mark.asyncio，沒有它
+      # 會以 "async def functions are not natively supported" 整批失敗。
       - name: Install
-        run: pip install pytest ruff httpx asyncpraw tenacity
+        run: pip install pytest pytest-asyncio ruff httpx asyncpraw tenacity
       - name: Lint
         working-directory: workers
         run: ruff check .
