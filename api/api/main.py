@@ -76,8 +76,10 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    # 收緊：本 API 只用 GET/POST（OPTIONS 為預檢必要），不開放整個 "*"。
+    allow_methods=["GET", "POST", "OPTIONS"],
+    # 只放行實際會用到的 header（JSON 內容協商 + request 追蹤），不開放 "*"。
+    allow_headers=["Accept", "Content-Type", "X-Request-ID"],
     expose_headers=["X-Request-ID", "Server-Timing"],
 )
 

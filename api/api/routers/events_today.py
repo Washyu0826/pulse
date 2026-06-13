@@ -8,6 +8,8 @@
 `PULSE_EVENTS_FILE` 控制（見 api/api/config.py）。
 """
 import json
+import logging
+import time
 from pathlib import Path
 from typing import Any
 
@@ -16,7 +18,13 @@ from pydantic import BaseModel, Field
 
 from api.config import settings
 
+logger = logging.getLogger("pulse.api")
+
 router = APIRouter()
+
+# 事件來源檔的新鮮度上限：pipeline 每日重產，超過此時長未更新視為「陳舊」（記 warning，
+# 方便盤中發現上游斷流）。回應形狀不變（前端契約：仍回 list[EventSummary]）。
+_STALE_AFTER_S = 36 * 3600
 
 # 前端 ThemeLabel 的合法值（與 web/lib/types.ts 對齊）；未知/缺值一律兜底為「其他」。
 _VALID_THEMES = {"新工具", "模型動態", "使用方法", "風險限制", "倫理法規", "其他"}
@@ -111,9 +119,19 @@ def _map_record(rec: dict[str, Any], fallback_id: int) -> EventSummary | None:
 
 
 def _load_events(path: Path, limit: int) -> list[EventSummary]:
-    """讀 JSONL（一行一事件），轉成 EventSummary 串列；檔案不存在 / 空 / 壞行都優雅處理。"""
+    """讀 JSONL（一行一事件），轉成 EventSummary 串列；檔案不存在 / 空 / 壞行都優雅處理。
+
+    檔案缺失或陳舊時不再靜默：記 warning（不改回應形狀），方便盤中察覺上游 pipeline 斷流。
+    """
     if not path.exists():
+        logger.warning("events 來源檔不存在：%s（回空清單；檢查事件 pipeline 是否有產出）", path)
         return []
+    age_s = time.time() - path.stat().st_mtime
+    if age_s > _STALE_AFTER_S:
+        logger.warning(
+            "events 來源檔陳舊：%s（已 %.1fh 未更新，上限 %.0fh）—— 上游 pipeline 可能斷流",
+            path, age_s / 3600, _STALE_AFTER_S / 3600,
+        )
     out: list[EventSummary] = []
     with path.open(encoding="utf-8") as f:
         for i, line in enumerate(f, 1):

@@ -8,7 +8,7 @@
 import re
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import func, select
+from sqlalchemy import Select, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.models.models import Model, PostModel
@@ -61,7 +61,14 @@ async def _slugs_by_post(session: AsyncSession, post_ids: list[int]) -> dict[int
     return out
 
 
-def _base_filters(stmt, *, source: str | None, sentiment: str | None, cutoff: datetime, model: str | None):
+def _base_filters(
+    stmt: Select,
+    *,
+    source: str | None,
+    sentiment: str | None,
+    cutoff: datetime,
+    model: str | None,
+) -> Select:
     """套用共用篩選：品質門檻 + 時間窗 + 來源 + 情緒 + 模型。"""
     stmt = stmt.where(*quality_post_filter()).where(Post.posted_at >= cutoff)
     if source:

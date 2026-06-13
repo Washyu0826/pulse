@@ -31,4 +31,8 @@ class Theme(Base, TimestampMixin):
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
 
-    __table_args__ = (Index("ix_themes_label", "label"),)
+    __table_args__ = (
+        Index("ix_themes_label", "label"),
+        # feed 服務只取高信心主題（WHERE confident IS TRUE），補索引避免全表掃。
+        Index("ix_themes_confident", "confident"),
+    )

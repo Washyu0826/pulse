@@ -13,7 +13,7 @@
 """
 from typing import Any
 
-from sqlalchemy import case, func, select
+from sqlalchemy import Case, Select, case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.models.posts import Post
@@ -25,7 +25,7 @@ from api.services._quality import QUALITY_MIN
 _QUALITY_MID_MIN = 15
 
 
-def _quality_bucket_expr():
+def _quality_bucket_expr() -> Case:
     """把 quality_score 映射到 'high' / 'mid' / 'low' 的 SQL CASE 運算式。
 
     - score >= QUALITY_MIN(30)      → high
@@ -110,7 +110,7 @@ async def list_corpus_posts(
               + theme/theme_confidence + sentiment/sentiment_score（未標註為 None）。
     """
     # 共用 join + 篩選；統計總數與取資料各跑一次，避免 join 放大 count。
-    def _apply_filters(stmt):
+    def _apply_filters(stmt: Select) -> Select:
         stmt = stmt.outerjoin(Theme, Theme.post_id == Post.id).outerjoin(
             Sentiment, Sentiment.post_id == Post.id
         )

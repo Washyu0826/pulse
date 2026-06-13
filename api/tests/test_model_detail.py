@@ -3,6 +3,7 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 import pytest_asyncio
+from fastapi import HTTPException
 from sqlalchemy import delete
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
@@ -14,6 +15,7 @@ from api.models.event import Event
 from api.models.models import Model
 from api.models.posts import Post
 from api.models.release import ReleaseEvent
+from api.routers.models import model_detail as model_detail_route
 from api.services.events import upsert_events
 from api.services.model_detail import get_model_detail
 from api.services.posts import upsert_posts
@@ -84,6 +86,13 @@ async def session(engine):
 
 async def test_unknown_slug_returns_none(session):
     assert await get_model_detail(session, "no_such_model_slug") is None
+
+
+async def test_route_unknown_slug_raises_404(session):
+    """router 層：查無模型 → HTTPException 404（鎖住 None → 404 的轉換）。"""
+    with pytest.raises(HTTPException) as exc:
+        await model_detail_route(slug="no_such_model_slug", trend_days=30, db=session)
+    assert exc.value.status_code == 404
 
 
 async def test_detail_shape_and_trend_window(session):

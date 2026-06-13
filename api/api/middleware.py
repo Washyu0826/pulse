@@ -17,7 +17,9 @@ from fastapi import FastAPI, Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
-from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.applications import Starlette
+from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
+from starlette.responses import Response
 
 logger = logging.getLogger("pulse.api")
 
@@ -25,7 +27,9 @@ logger = logging.getLogger("pulse.api")
 class RequestContextMiddleware(BaseHTTPMiddleware):
     """每請求附 request_id + 存取日誌 + 耗時。"""
 
-    async def dispatch(self, request: Request, call_next):
+    async def dispatch(
+        self, request: Request, call_next: RequestResponseEndpoint
+    ) -> Response:
         rid = request.headers.get("X-Request-ID") or uuid.uuid4().hex[:12]
         request.state.request_id = rid
         start = time.perf_counter()
@@ -51,11 +55,13 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     """補安全標頭；hsts 僅在 HTTPS（production）開，避免本機 http 被強制升級。"""
 
-    def __init__(self, app, *, hsts: bool = False):
+    def __init__(self, app: Starlette, *, hsts: bool = False) -> None:
         super().__init__(app)
         self._hsts = hsts
 
-    async def dispatch(self, request: Request, call_next):
+    async def dispatch(
+        self, request: Request, call_next: RequestResponseEndpoint
+    ) -> Response:
         response = await call_next(request)
         response.headers.setdefault("X-Content-Type-Options", "nosniff")
         response.headers.setdefault("X-Frame-Options", "DENY")

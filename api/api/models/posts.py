@@ -69,4 +69,6 @@ class Post(Base, TimestampMixin):
         ),
         # 時間範圍查詢（自訂查詢 F3 會用）
         Index("ix_posts_posted_at", "posted_at"),
+        # 來源篩選 / 彙總（corpus 服務、/metrics 的 GROUP BY source 會用）
+        Index("ix_posts_source", "source"),
     )
