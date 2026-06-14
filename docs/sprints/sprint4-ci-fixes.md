@@ -28,6 +28,13 @@
   - **最終修法**：CI web job 改用 `npm install --no-audit --no-fund`（非 `npm ci`）。`npm install` 會在 CI 的 Linux 平台自行補齊缺漏的 optional 相依，容忍跨平台 lockfile 落差。代價：略失 `npm ci` 的嚴格可重現性——對個人作品集、且前端非主賣點可接受。若日後要復原 `npm ci`，需在 Linux/容器（daemon 開啟）重生 lockfile 後提交。
 - **為何本機假綠**：本機 `npm install`/`npm run build` 不走 `npm ci` 的嚴格鎖檔比對；且 Windows 解析時用本機原生 binding，不觸發 wasm fallback 的 @emnapi 路徑。
 
+## 失敗 4：ML — `test_scripts_pure` 載入 send_newsletter 時 `No module named 'sqlalchemy'`
+
+- **症狀**：ML job（輕量環境，只 `pip install pytest ruff`）跑 `test_scripts_pure.py`，用 importlib 載入 `scripts/send_newsletter.py` 時頂層 `from sqlalchemy import select` → `ModuleNotFoundError`。
+- **根因**：send_newsletter.py 把 sqlalchemy import 放**模組頂層**，違反專案「重依賴函式內延遲載入」原則。純函式測試（dry-run 已 monkeypatch 掉 `_fetch`）只要能載入模組即可，不該需要 sqlalchemy。
+- **修法**：把 `from sqlalchemy import select` 移進 `_fetch`（與 api imports 一起延遲載入）。以「封鎖 sqlalchemy import」模擬 ml CI 環境驗證模組可載入。
+- **註**：此修正**早已躺在工作樹未提交**（同 ci.yml workers pytest-asyncio 那次）——根本問題是「修好了沒 commit、沒上 main」。教訓 5（下）。
+
 ## 共同教訓
 
 1. **CI 才是真相**：本機驗證寬鬆（DB skip、共用 venv、非嚴格 npm）。涉及 DB / 多環境 / lockfile 的改動，要嘛在 CI 等價環境驗證，要嘛預期 CI 才抓得到。
