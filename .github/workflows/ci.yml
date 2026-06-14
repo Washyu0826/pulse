@@ -85,8 +85,10 @@ jobs:
         with:
           python-version: "3.11"
       # 純函式測試（情緒/事件/品質/去重）不需 torch/transformers（皆 lazy import）→ 輕量安裝。
+      # 但熱詞（keywords.py）與翻譯（translate.py）在模組頂層 import jieba / opencc / httpx，
+      # 非 lazy，故這三個輕量套件必裝，否則 test_keywords / test_translate 會 collection ImportError。
       - name: Install
-        run: pip install pytest ruff
+        run: pip install pytest ruff jieba opencc-python-reimplemented httpx
       - name: Lint
         working-directory: ml
         run: ruff check .
