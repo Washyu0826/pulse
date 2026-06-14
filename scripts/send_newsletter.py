@@ -37,7 +37,6 @@ from ml.newsletter import (  # noqa: E402
     sentiment_movers,
     theme_counts,
 )
-from sqlalchemy import select  # noqa: E402
 
 logger = logging.getLogger("pulse.newsletter")
 
@@ -66,12 +65,15 @@ def _load_dotenv(path: Path) -> None:
 
 # ----------------------- DB -----------------------
 async def _fetch(days: int, min_quality: int) -> tuple[list[dict], list[str]]:
+    # Heavy/DB imports stay lazy so the script module loads with only lightweight
+    # deps (test_scripts_pure loads it via importlib in the no-DB CI env).
     from api.database import AsyncSessionLocal
     from api.models.posts import Post
     from api.models.sentiment import Sentiment
     from api.models.theme import Theme
     from api.models.translation import Translation
     from api.models.trending import TrendingKeyword
+    from sqlalchemy import select
 
     since = datetime.now(UTC) - timedelta(days=days)
     async with AsyncSessionLocal() as session:
