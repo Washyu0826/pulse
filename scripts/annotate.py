@@ -109,7 +109,10 @@ def _prompt(label: str, parser) -> str | None:
         print("    ⚠️ 無效輸入，再試一次。")
 
 
-async def annotate(out: Path, target: int, min_quality: int, zh_only: bool) -> None:
+async def annotate(
+    out: Path, target: int, min_quality: int, zh_only: bool,
+    candidates_file: Path | None = None,
+) -> None:
     existing = load_jsonl(out)
     done = labeled_ids(existing, round=1)
     print(f"📂 gold set：{out}（已標 {len(done)} 筆）")
@@ -117,6 +120,12 @@ async def annotate(out: Path, target: int, min_quality: int, zh_only: bool) -> N
     candidates = await _fetch_candidates(min_quality)
     if zh_only:
         candidates = [c for c in candidates if _cjk_ratio(f"{c['title']}{c['content']}") >= 0.20]
+    if candidates_file is not None:
+        # 只標指定 post_id 池（如 Qwen 預測為少數類的中文貼文）——把標註時間集中在
+        # gold 最缺的類別上。刻意不顯示預測標籤，避免錨定偏誤、保持人工判斷獨立。
+        priority = {r.get("post_id", r.get("id")) for r in load_jsonl(candidates_file)}
+        candidates = [c for c in candidates if c["id"] in priority]
+        print(f"🎯 候選池限縮：{candidates_file}（{len(priority)} 個 post_id → 可標 {len(candidates)} 筆）")
     candidates = [c for c in candidates if c["id"] not in done]
     if not candidates:
         print("✅ 沒有可標的新貼文（都標過了或抽不到）。")
@@ -245,12 +254,16 @@ def main() -> None:
     ap.add_argument("--min-quality", type=int, default=0, help="只標品質分 >= 此值（0=含未檢核）")
     ap.add_argument("--zh", action="store_true", help="只抽中文為主的貼文（CJK 比 >= 20%%）")
     ap.add_argument("--relabel", type=int, metavar="N", help="一致性重標前 N 筆（round=2）")
+    ap.add_argument(
+        "--candidates", type=Path, default=None,
+        help="只從此 JSONL 的 post_id 池抽候選（少數類優先標註用；每行需含 post_id 或 id）",
+    )
     args = ap.parse_args()
 
     if args.relabel is not None:
         asyncio.run(relabel(args.out, args.relabel))
     else:
-        asyncio.run(annotate(args.out, args.target, args.min_quality, args.zh))
+        asyncio.run(annotate(args.out, args.target, args.min_quality, args.zh, args.candidates))
 
 
 if __name__ == "__main__":
