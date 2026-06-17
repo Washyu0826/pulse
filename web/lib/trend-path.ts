@@ -85,6 +85,39 @@ export function buildSentimentPath(
 }
 
 /**
+ * Sparkline 座標計算 —— 純函式（無 DOM），供 storyline 跨日聲量小圖共用，
+ * 鎖住與面積圖一致的邊界：0 點（回空）、單點（置中，dx 無意義不收斂同點）、
+ * max=0（值全為 0 → 內部以 1 墊高避免除以 0，所有點貼底）。
+ *
+ * @param values 逐點數值（如各日聲量）。
+ * @param opts width/height = 圖的 viewBox 尺寸；pad = 四周內距。
+ * @returns
+ *   - line：折線 polyline 的 points 字串（"x,y x,y …"，n<2 時為空字串，單點無折線可畫）；
+ *   - points：每點座標 { x, y }（端點圓點用）。
+ */
+export function buildSparkline(
+  values: number[],
+  opts: { width: number; height: number; pad: number },
+): { line: string; points: { x: number; y: number }[] } {
+  const { width, height, pad } = opts;
+  const n = values.length;
+  if (n === 0) return { line: "", points: [] };
+
+  const innerW = width - pad * 2;
+  const innerH = height - pad * 2;
+  // max 防 0：全為 0（或負）時以 1 墊高，所有點落在底線而非除以 0。
+  const max = Math.max(...values, 1);
+  // 單點：dx 無意義 → 置中（與舊 VolumeSparkline 視覺等價，非橫跨整寬）。
+  const x = (i: number) => (n === 1 ? width / 2 : pad + (innerW * i) / (n - 1));
+  const y = (v: number) => pad + innerH - (innerH * v) / max;
+
+  const points = values.map((v, i) => ({ x: x(i), y: y(v) }));
+  // n<2 無兩點可連 → 折線留空，端點圓點仍會畫出單點。
+  const line = n > 1 ? points.map((p) => `${p.x},${p.y}`).join(" ") : "";
+  return { line, points };
+}
+
+/**
  * 堆疊面積圖 path 計算 —— 純函式（無 DOM），供 dashboard 主題/情緒時序共用。
  *
  * @param series 多條序列，每條為逐點數值（如各主題逐日貼文數）。所有序列長度需一致（= 天數）。

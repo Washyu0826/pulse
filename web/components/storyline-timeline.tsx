@@ -4,6 +4,7 @@ import { SectionStatus } from "@/components/section-status";
 import { themeMeta } from "@/components/theme-meta";
 import { Badge } from "@/components/ui/badge";
 import { friendlyError, getStorylines } from "@/lib/api";
+import { buildSparkline } from "@/lib/trend-path";
 import type { Storyline, StorylineState, TimelinePoint } from "@/lib/types";
 
 /**
@@ -34,15 +35,13 @@ const SPARK_PAD = 3;
 /** 跨日聲量 sparkline（折線 + 點），純 SVG。單點時退化為一個點。 */
 function VolumeSparkline({ timeline }: { timeline: TimelinePoint[] }) {
   const vols = timeline.map((t) => t.volume);
-  const max = Math.max(...vols, 1);
   const n = vols.length;
-  const innerW = SPARK_W - SPARK_PAD * 2;
-  const innerH = SPARK_H - SPARK_PAD * 2;
-  // n=1 時 step 無意義 → 置中。
-  const x = (i: number) => (n === 1 ? SPARK_W / 2 : SPARK_PAD + (innerW * i) / (n - 1));
-  const y = (v: number) => SPARK_PAD + innerH - (innerH * v) / max;
-
-  const points = vols.map((v, i) => `${x(i)},${y(v)}`).join(" ");
+  // 座標數學集中到 trend-path 的 buildSparkline（與面積/折線圖共用、有測試）。
+  const { line, points } = buildSparkline(vols, {
+    width: SPARK_W,
+    height: SPARK_H,
+    pad: SPARK_PAD,
+  });
   const last = n - 1;
 
   return (
@@ -55,7 +54,7 @@ function VolumeSparkline({ timeline }: { timeline: TimelinePoint[] }) {
     >
       {n > 1 && (
         <polyline
-          points={points}
+          points={line}
           fill="none"
           stroke="rgb(77 116 234 / 0.7)"
           strokeWidth={1.5}
@@ -64,11 +63,11 @@ function VolumeSparkline({ timeline }: { timeline: TimelinePoint[] }) {
           vectorEffect="non-scaling-stroke"
         />
       )}
-      {vols.map((v, i) => (
+      {points.map((p, i) => (
         <circle
           key={i}
-          cx={x(i)}
-          cy={y(v)}
+          cx={p.x}
+          cy={p.y}
           r={i === last ? 2.5 : 1.5}
           fill={i === last ? "rgb(77 116 234)" : "rgb(77 116 234 / 0.5)"}
         />

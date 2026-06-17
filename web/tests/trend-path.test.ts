@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { buildPath, buildSentimentPath, buildStackedAreas } from "@/lib/trend-path";
+import {
+  buildPath,
+  buildSentimentPath,
+  buildSparkline,
+  buildStackedAreas,
+} from "@/lib/trend-path";
 
 const GEOM = { W: 720, PAD: 8 };
 
@@ -79,6 +84,42 @@ describe("buildSentimentPath", () => {
     const xs = (path.match(/[ML](\d+\.\d)/g) ?? []).map((s) => Number(s.slice(1)));
     expect(xs[0]).toBeCloseTo(GEOM.PAD, 1);
     expect(xs[1]).toBeCloseTo(GEOM.W - GEOM.PAD, 1);
+  });
+});
+
+describe("buildSparkline", () => {
+  const SPARK = { width: 240, height: 36, pad: 3 };
+
+  it("空陣列 → 無折線、無端點", () => {
+    expect(buildSparkline([], SPARK)).toEqual({ line: "", points: [] });
+  });
+
+  it("單點 → 置中、無折線（只有一個端點圓點）", () => {
+    const { line, points } = buildSparkline([5], SPARK);
+    expect(line).toBe(""); // n<2 無兩點可連
+    expect(points).toHaveLength(1);
+    expect(points[0].x).toBeCloseTo(SPARK.width / 2, 5); // 置中（與舊 VolumeSparkline 等價）
+  });
+
+  it("全零 → max 防 0：所有點貼底線、不除以 0", () => {
+    const { points } = buildSparkline([0, 0, 0], SPARK);
+    const bottomY = SPARK.pad + (SPARK.height - SPARK.pad * 2); // = height - pad
+    points.forEach((p) => expect(p.y).toBeCloseTo(bottomY, 5));
+    expect(points.map((p) => p.y).every((y) => Number.isFinite(y))).toBe(true);
+  });
+
+  it("一般多點 → x 均分左右貼內距、line 與 points 數學一致", () => {
+    const vols = [1, 3, 2];
+    const { line, points } = buildSparkline(vols, SPARK);
+    expect(points).toHaveLength(3);
+    // 端點 x 貼到內距與右緣，中間點均分。
+    expect(points[0].x).toBeCloseTo(SPARK.pad, 5);
+    expect(points[2].x).toBeCloseTo(SPARK.width - SPARK.pad, 5);
+    expect(points[1].x).toBeCloseTo((SPARK.pad + (SPARK.width - SPARK.pad)) / 2, 5);
+    // 較大值 → y 較小（較高）。
+    expect(points[1].y).toBeLessThan(points[0].y);
+    // line 字串等同 points 串接（折線與端點用同一份座標）。
+    expect(line).toBe(points.map((p) => `${p.x},${p.y}`).join(" "));
   });
 });
 
