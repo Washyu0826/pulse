@@ -3,6 +3,8 @@ from datetime import date
 
 from ml.newsletter import (
     THEME_ORDER,
+    _pick_lead,
+    _weather,
     build_mime_message,
     cover_prompt,
     html_to_text,
@@ -50,10 +52,11 @@ def test_pangu_is_idempotent_and_safe():
     assert pangu_spacing("全部都是中文沒有英數") == "全部都是中文沒有英數"
 
 
-def _post(id, theme, *, score=0, comments=0, q=None, senti="neutral", title="t", url="http://x"):
+def _post(id, theme, *, score=0, comments=0, q=None, senti="neutral", title="t", url="http://x",
+          source="unknown"):
     return {
         "id": id, "theme": theme, "score": score, "num_comments": comments,
-        "quality_score": q, "sentiment": senti, "title": title, "url": url,
+        "quality_score": q, "sentiment": senti, "title": title, "url": url, "source": source,
     }
 
 
@@ -94,6 +97,47 @@ def test_highlights_is_deterministic_and_pure():
 def test_highlights_ignores_unknown_theme():
     h = select_highlights([_post(1, "其他"), _post(2, "亂七八糟")])
     assert h == {}  # 非 5 主題不納入精選
+
+
+# ---- per-source 正規化：低量級來源（Threads）也能入選 ----
+def test_highlights_per_source_normalization_lets_low_scale_source_in():
+    # HN 的 score 量級遠高於 Threads，但 per-source 正規化後 Threads 仍應在同主題露出。
+    posts = [
+        _post(1, "新工具", score=1000, source="hackernews"),
+        _post(2, "新工具", score=800, source="hackernews"),
+        _post(3, "新工具", score=600, source="hackernews"),
+        _post(4, "新工具", score=10, source="threads"),
+        _post(5, "新工具", score=5, source="threads"),
+    ]
+    h = select_highlights(posts, per_theme=2)
+    srcs = {p["source"] for p in h["新工具"]}
+    assert "threads" in srcs  # 低量級來源未被 HN 量級壓掉
+    assert "hackernews" in srcs  # 仍保留最熱的高量級貼文
+
+
+def test_highlights_old_raw_sort_would_exclude_threads():
+    # 對照：若用原始互動分數排序，per_theme=2 會全是 HN（驗證正規化確實改變了結果）。
+    posts = [
+        _post(1, "新工具", score=1000, source="hackernews"),
+        _post(2, "新工具", score=800, source="hackernews"),
+        _post(3, "新工具", score=10, source="threads"),
+    ]
+    h = select_highlights(posts, per_theme=2)
+    srcs = [p["source"] for p in h["新工具"]]
+    # round-robin 平衡：先各來源最熱輪流 → HN 一篇 + Threads 一篇，而非兩篇全 HN。
+    assert srcs.count("threads") == 1
+    assert srcs.count("hackernews") == 1
+
+
+def test_sentiment_movers_per_source_normalization():
+    posts = [
+        _post(1, "新工具", score=1000, senti="positive", source="hackernews"),
+        _post(2, "新工具", score=900, senti="positive", source="hackernews"),
+        _post(3, "新工具", score=8, senti="positive", source="threads"),
+    ]
+    m = sentiment_movers(posts, k=2)
+    srcs = {p["source"] for p in m["positive"]}
+    assert srcs == {"hackernews", "threads"}  # 口碑區也讓 Threads 公平浮上來
 
 
 # ---- sentiment_movers ----
@@ -280,6 +324,157 @@ def test_render_html_with_events_html_to_text_includes_event_text():
     assert "事件摘要內容" in text
     assert "[1]" in text  # 引註標記在純文字中保留
     assert "<" not in text and ">" not in text
+
+
+# ---- 功能 1：_weather（AI 圈今日天氣）----
+def test_weather_storm_when_high_negative():
+    # 負面占比 ≥ 0.30 → 雷雨
+    emoji, label = _weather({"positive": 1, "neutral": 1, "negative": 1})
+    assert emoji == "🌧️"
+    assert "雷雨" in label
+
+
+def test_weather_sunny_when_positive_dominates():
+    # pos ≥ 2*neg 且 pos/total ≥ 0.25 → 晴
+    emoji, label = _weather({"positive": 6, "neutral": 3, "negative": 1})
+    assert emoji == "☀️"
+    assert "晴" in label
+
+
+def test_weather_cloudy_when_mostly_neutral():
+    # 偏中性、正負相當且負面占比 < 0.30 → 多雲
+    emoji, label = _weather({"positive": 1, "neutral": 8, "negative": 1})
+    assert emoji == "⛅"
+    assert "多雲" in label
+
+
+def test_weather_unknown_on_empty_or_zero():
+    assert _weather({}) == ("🌫️", "未明")
+    assert _weather(None) == ("🌫️", "未明")
+    assert _weather({"positive": 0, "neutral": 0, "negative": 0}) == ("🌫️", "未明")
+
+
+def test_weather_storm_takes_priority_over_sunny():
+    # 負面占比高即使正面也多 → 雷雨優先（爭議最該被看見）
+    emoji, _ = _weather({"positive": 10, "neutral": 0, "negative": 5})
+    assert emoji == "🌧️"  # neg/total = 1/3 ≥ 0.30
+
+
+def test_weather_is_pure_and_tolerates_bad_values():
+    sc = {"positive": "2", "neutral": None, "negative": 0}  # 容忍字串/None
+    a = _weather(sc)
+    b = _weather(sc)
+    assert a == b
+    assert a[0] == "☀️"  # pos=2, neg=0 → 晴
+
+
+# ---- 功能 2：_pick_lead（頭版主秀輪播）----
+def _story(state="升溫", span=3, hotness=10.0, **kw):
+    s = {
+        "id": kw.get("id", "s1"), "title": "議題", "state": state,
+        "span_days": span, "hotness": hotness,
+        "timeline": [{"date": "2026-06-16", "volume": 5.0, "summary": "x"}],
+        "citations": [{"n": 1, "url": "http://a"}],
+    }
+    s.update({k: v for k, v in kw.items() if k != "id"})
+    return s
+
+
+def test_pick_lead_storyline_highest_priority():
+    lead = _pick_lead(
+        events=[{"summary": "e"}],  # 即使有 events，升溫議題仍優先
+        movers={"positive": [{"title": "p"}], "negative": [{"title": "n"}]},
+        theme_counts={"新工具": 5}, sentiment_counts={"positive": 3},
+        storylines=[_story(state="升溫", span=3)],
+    )
+    assert lead is not None and lead["kind"] == "storyline"
+
+
+def test_pick_lead_storyline_requires_rising_or_peak_and_span():
+    # 退燒 / span<2 不符 → 退回事件日（有 events → None）
+    assert _pick_lead([{"s": 1}], None, None, None, [_story(state="退燒")]) is None
+    assert _pick_lead([{"s": 1}], None, None, None, [_story(state="升溫", span=1)]) is None
+    # 高峰且 span≥2 → 出 storyline hero
+    lead = _pick_lead(None, None, None, None, [_story(state="高峰", span=2)])
+    assert lead["kind"] == "storyline"
+
+
+def test_pick_lead_storyline_picks_highest_hotness():
+    lead = _pick_lead(
+        None, None, None, None,
+        [_story(id="a", hotness=5.0), _story(id="b", hotness=30.0), _story(id="c", hotness=12.0)],
+    )
+    assert lead["story"]["id"] == "b"
+
+
+def test_pick_lead_event_day_returns_none():
+    # 有 events、無合格 storyline → 不出 hero（頭條即 lead）
+    assert _pick_lead([{"summary": "e"}], None, None, None, None) is None
+
+
+def test_pick_lead_clash_when_no_events_but_movers():
+    lead = _pick_lead(
+        events=None,
+        movers={"positive": [{"title": "好評"}], "negative": [{"title": "負評"}]},
+        theme_counts=None, sentiment_counts=None, storylines=None,
+    )
+    assert lead["kind"] == "clash"
+    assert lead["pos"]["title"] == "好評" and lead["neg"]["title"] == "負評"
+
+
+def test_pick_lead_clash_needs_both_sides():
+    # 只有正方 → 不是 clash，退回數據日或 None
+    lead = _pick_lead(None, {"positive": [{"t": 1}], "negative": []}, {"新工具": 2}, None, None)
+    assert lead["kind"] == "data"
+
+
+def test_pick_lead_data_day_when_flat():
+    lead = _pick_lead(
+        events=None, movers=None,
+        theme_counts={"新工具": 3, "模型動態": 1}, sentiment_counts={"positive": 2},
+        storylines=None,
+    )
+    assert lead["kind"] == "data"
+
+
+def test_pick_lead_none_when_truly_empty():
+    assert _pick_lead(None, None, None, None, None) is None
+    assert _pick_lead([], {}, {}, {}, []) is None
+    assert _pick_lead(None, {"positive": [], "negative": []}, {"新工具": 0}, {"positive": 0}, []) is None
+
+
+def test_pick_lead_tolerates_bad_storyline_records():
+    # 非 dict / 缺 timeline / 缺 span 都不該報錯，退回其他形態
+    bad = ["not a dict", {"state": "升溫"}, {"state": "升溫", "span_days": 3}]
+    lead = _pick_lead(None, None, {"新工具": 1}, None, bad)
+    assert lead["kind"] == "data"  # 無合格 storyline → 退回數據日
+
+
+# ---- 功能整合：render_html 報頭天氣 + hero ----
+def test_render_html_shows_weather_in_masthead():
+    out = render_html(
+        day=date(2026, 6, 5), summary="今日摘要", highlights={},
+        sentiment_counts={"positive": 6, "neutral": 3, "negative": 1},
+    )
+    assert "今日 AI 圈天氣" in out
+    assert "☀️" in out  # 正面主導 → 晴
+
+
+def test_render_html_renders_storyline_hero():
+    out = render_html(
+        day=date(2026, 6, 5), summary="今日摘要", highlights={},
+        storylines=[_story(state="升溫", span=3)],
+    )
+    assert "今日主秀" in out
+    assert "議題追蹤" in out
+    assert "議題" in out  # 議題標題
+
+
+def test_render_html_storyline_param_default_pure():
+    args = dict(day=date(2026, 6, 5), summary="s", highlights={})
+    base = render_html(**args)
+    assert render_html(**args, storylines=None) == base  # 預設不傳 == None == 不出 hero
+    assert "今日主秀" not in base
 
 
 # ---- build_mime_message ----

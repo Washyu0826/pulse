@@ -86,6 +86,10 @@ async def _fetch(days: int, min_quality: int) -> tuple[list[dict], list[str]]:
     from api.models.trending import TrendingKeyword
     from sqlalchemy import select
 
+    # 今日視窗用「入庫時間」created_at 而非「原始發文時間」posted_at：
+    # Threads 搜尋常撈出舊發文日的常青貼（posted_at 舊但今天才被我們收進來），
+    # 用 posted_at 過濾會把當天大量入庫的 Threads（主力來源）幾乎全濾掉。
+    # HN/devto 為即時貼文（posted_at≈created_at），改用 created_at 不受影響。
     since = datetime.now(UTC) - timedelta(days=days)
     async with AsyncSessionLocal() as session:
         rows = (
@@ -99,9 +103,9 @@ async def _fetch(days: int, min_quality: int) -> tuple[list[dict], list[str]]:
                 .outerjoin(Theme, Theme.post_id == Post.id)
                 .outerjoin(Sentiment, Sentiment.post_id == Post.id)
                 .outerjoin(Translation, Translation.post_id == Post.id)
-                .where(Post.posted_at >= since)
+                .where(Post.created_at >= since)
                 .where((Post.quality_score.is_(None)) | (Post.quality_score >= min_quality))
-                .order_by(Post.posted_at.desc())
+                .order_by(Post.created_at.desc())
             )
         ).all()
         terms = (
@@ -257,6 +261,35 @@ def _load_events_file() -> list[dict]:
     return out
 
 
+# ----------------------- 議題演變 storylines（build_storylines.py 產出的 JSONL）-----------------------
+def _storylines_path() -> str:
+    """議題演變來源檔路徑：環境變數 PULSE_STORYLINES_FILE，預設 data/storylines.jsonl。
+    （由 scripts/build_storylines.py 產出；每筆有 title/state/hotness/span_days/timeline/citations。）"""
+    return os.environ.get("PULSE_STORYLINES_FILE", str(_ROOT / "data" / "storylines.jsonl"))
+
+
+def _load_storylines_file() -> list[dict]:
+    """讀議題演變 JSONL（一行一議題），驅動電子報「今日主秀」hero 的議題追蹤形態。
+    缺檔 / 空行 / 壞行皆優雅略過回 []（hero 自動退回其他形態或不出，絕不報錯）。"""
+    import json
+
+    path = Path(_storylines_path())
+    if not path.exists():
+        return []
+    out: list[dict] = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            rec = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(rec, dict):
+            out.append(rec)
+    return out
+
+
 # ----------------------- 編排 -----------------------
 async def main_async(args: argparse.Namespace) -> None:
     posts, trending = await _fetch(args.days, args.min_quality)
@@ -286,10 +319,13 @@ async def main_async(args: argparse.Namespace) -> None:
     events = _load_events_file()
     if events:
         print(f"🗂️  今日事件 {len(events)} 則（{Path(_events_path()).name}）")
+    storylines = _load_storylines_file()
+    if storylines:
+        print(f"📈 議題演變 {len(storylines)} 條（{Path(_storylines_path()).name}）")
     html = render_html(
         day=date.today(), summary=summary, highlights=highlights, movers=movers,
         trending=trending, cover_cid=cover_cid, events=events,
-        theme_counts=tcounts, sentiment_counts=scounts,
+        theme_counts=tcounts, sentiment_counts=scounts, storylines=storylines,
     )
 
     if args.dry_run:
