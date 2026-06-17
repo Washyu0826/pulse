@@ -5,9 +5,13 @@
 本模組只放**純函式**（無 DB / 網路 / matplotlib / torch 依賴），可單元測試；DB 查詢、SD 生成、
 SMTP 寄送在 scripts/send_newsletter.py。
 
-版型：報紙社論版（broadsheet，方向 D1）—— 明體 serif、報頭 masthead、dateline、社論首字下沉、
-多欄事件（頭條 / 雙欄 / 三欄短訊）、新聞紙風 HTML 條圖（不用彩色 PNG）、無圓角無方框卡片。
+版型：瑞士國際主義網格（Swiss / International Typographic Style，方向 D2）—— 無襯線字體、660px 版心、
+編號區段（01..05）、左編號鐵軌 + 右內容、純黑 + 暖白 + 單一強調紅、髮絲線分組、6px 粗黑 rule。
+**禁止圓角 / 陰影 / 漸層 / 方框卡片**。圖表為純 HTML 水平長條 / 分段條（不用彩色 PNG）。
 主題對齊 theme.py 5 類 + 其他。每篇貼文以 dict 表示（見 select_highlights 的欄位說明）。
+
+資料層（精選挑選、口碑、天氣、頭版主秀輪播、引註解析、per-source 排序）與報紙版完全一致，
+只在渲染層改寫成 Swiss 視覺。
 """
 from __future__ import annotations
 
@@ -40,26 +44,25 @@ __all__ = [
     "_pick_lead",
 ]
 
-# --- 報紙版視覺 token（新聞紙米白 + 墨黑 + 油墨暗紅；720px；CJK 明體棧）---
-_PAPER = "#f4f1ea"   # 內頁新聞紙米白
-_FRAME = "#d9d4c8"   # 外框較深米
-_INK = "#1a1a1a"     # 墨黑（標題 / 主文 / 粗線）
-_RED = "#7a1f1f"     # 油墨暗紅（報眉 / 欄目 / 引註 / 數字）
-_SUB = "#5a5444"     # 次要灰（byline / 出處）
-_RULE = "#c7c0ad"    # 細分隔線
-_DOT = "#9a9384"     # 點線分隔
-_BODY = "#26241e"    # 主文墨色
-_BRIEF = "#3a372e"   # 短訊 / 摘要墨色
-_CHIPBG = "#e8e3d6"  # 行內 code 底
+# --- Swiss 視覺 token（暖白紙 + 純黑墨 + 單一強調紅；660px；無襯線棧）---
+_PAPER = "#FAFAF8"   # 內頁暖白
+_FRAME = "#e8e8e4"   # 外框（body 背景）
+_INK = "#111111"     # 純黑（標題 / 主文 / 粗線）
+_RED = "#E5322D"     # 單一強調紅（標籤 / 編號 / 引註 / 主類條）
+_SUB = "#9a9a92"     # 次要灰（英文小標 / 出處 / metadata）
+_RULE = "#e0e0da"    # 髮絲線（事件 / 精選分隔）
+_BODY = "#333330"    # 事件內文墨色
+_BRIEF = "#555550"   # 精選描述 / 較淡內文
+_TRACK = "#d8d8d2"   # 連結底線色
+_BARBG = "#ecece6"   # 主題長條底
+_NEUBG = "#d4d4ce"   # 中性段 / 口碑中性
 
-_F_DISP = "Georgia,'Times New Roman','Songti TC','Noto Serif TC','Source Han Serif TC',serif"
-_F_BODY = "'Songti TC','Noto Serif TC','Source Han Serif TC',Georgia,serif"
-_F_LAB = "Georgia,'Songti TC','Noto Serif TC',serif"
-_F_PULSE = "Georgia,'Times New Roman',serif"
-_F_MONO = "'Courier New',monospace"
+# 無襯線字體棧（Helvetica Neue → Arial → Noto Sans TC CJK 後援）。
+_F = "'Helvetica Neue',Helvetica,Arial,'Noto Sans TC','PingFang TC','Microsoft JhengHei',sans-serif"
 
-_WIDTH = 720
-_WK = "一二三四五六日"
+_WIDTH = 660
+_WK_EN = ("MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN")
+_WK_ZH = "一二三四五六日"
 
 # CJK 範圍（pangu 空格用）
 _CJK = r"一-鿿㐀-䶿豈-﫿"
@@ -106,7 +109,7 @@ def _weather(sentiment_counts: dict | None) -> tuple[str, str]:
     return ("⛅", "多雲（平穩）")
 
 
-# 顯示用 icon / 順序（與 theme.py 對齊；使用方法為錨點排前面）。報紙版不顯示 emoji，
+# 顯示用 icon / 順序（與 theme.py 對齊；使用方法為錨點排前面）。Swiss 版不顯示 emoji，
 # 但常數保留供其他模組 / 向後相容引用。
 THEME_ORDER = ("新工具", "模型動態", "使用方法", "風險限制", "倫理法規")
 THEME_ICON = {
@@ -260,7 +263,7 @@ def cover_prompt(top_terms: list[str], *, lead_theme: str | None = None) -> str:
     """
     組地端 Stable Diffusion 的封面題圖 prompt（英文，SD 對英文較準）。純函式。
 
-    報紙版型預設不放題圖，此函式仍保留供未來 / 其他版型使用。
+    Swiss 版型預設不放題圖，此函式仍保留供未來 / 其他版型使用。
     """
     terms = ", ".join(t for t in top_terms[:4] if t) or "artificial intelligence"
     mood = {
@@ -279,355 +282,231 @@ def cover_prompt(top_terms: list[str], *, lead_theme: str | None = None) -> str:
     )
 
 
-# ----------------------- 報紙版渲染小工具 -----------------------
+# ----------------------- Swiss 渲染小工具 -----------------------
 def _u(url) -> str:
     return _html.escape(str(url or "#"), quote=True)
 
 
-def _cn_date(day: _date) -> str:
-    return f"{day.year} 年 {day.month} 月 {day.day} 日 星期{_WK[day.weekday()]}"
+def _nbsp(text: str) -> str:
+    """把空白換成 &nbsp;（Swiss tracked-out 標籤用，避免折行）。已 escape 過的字串再呼叫。"""
+    return text.replace(" ", "&nbsp;")
+
+
+def _date_dot(day: _date) -> str:
+    """masthead 右上主日期：2026 · 06 · 17。"""
+    return f"{day.year} · {day.month:02d} · {day.day:02d}"
+
+
+def _date_meta(day: _date) -> str:
+    """masthead 右上副行：WED / 週三。"""
+    return f"{_WK_EN[day.weekday()]} / 週{_WK_ZH[day.weekday()]}"
+
+
+def _cn_date_dot(day: _date) -> str:
+    """footer 期數用：2026.06.17。"""
+    return f"{day.year}.{day.month:02d}.{day.day:02d}"
 
 
 def _sup_refs(text: str, valid_ns: set) -> str:
-    """把文字中的 `[n]` 轉成小字上標引註（有對應 citation→暗紅，無→灰）。先盤古空格 + HTML 跳脫。"""
+    """把文字中的 `[n]` 轉成小字上標引註（有對應 citation→紅，無→灰）。先盤古空格 + HTML 跳脫。"""
     escaped = _html.escape(pangu_spacing(text or ""))
 
     def _wrap(m: "re.Match[str]") -> str:
         n = m.group(1)
         color = _RED if int(n) in valid_ns else _SUB
         return (
-            f'<sup style="font-size:9px;color:{color};font-weight:bold;'
-            f'font-family:{_F_LAB}">[{n}]</sup>'
+            f'<sup style="font-size:10px;color:{color};font-weight:700;'
+            f'vertical-align:super">[{n}]</sup>'
         )
 
     return re.sub(r"\[(\d+)\]", _wrap, escaped)
-
-
-def _dropcap_body(text: str, valid_ns: set, *, cap_color: str, cap_size: int, font_size: str) -> str:
-    """首字下沉的本文段落：第一個字放大浮左，其餘套盤古空格 + 行內引註。"""
-    text = text or ""
-    if not text:
-        return ""
-    first, rest = text[0], text[1:]
-    cap = (
-        f'<span style="float:left;font-family:{_F_DISP};font-size:{cap_size}px;'
-        f'line-height:.78;font-weight:bold;color:{cap_color};padding:5px 9px 0 0">'
-        f"{_html.escape(first)}</span>"
-    )
-    return (
-        f'<div style="font-family:{_F_BODY};font-size:{font_size};line-height:1.95;'
-        f'color:{_BODY};text-align:justify">{cap}{_sup_refs(rest, valid_ns)}</div>'
-    )
-
-
-def _plain_body(text: str, valid_ns: set, *, font_size: str) -> str:
-    return (
-        f'<div style="font-family:{_F_BODY};font-size:{font_size};line-height:1.92;'
-        f'color:{_BODY};text-align:justify">{_sup_refs(text or "", valid_ns)}</div>'
-    )
 
 
 def _valid_ns(citations: list[dict]) -> set:
     return {c["n"] for c in citations if c.get("n") is not None}
 
 
-def _byline(event: dict, *, lead: bool = False) -> str:
-    """事件 byline：（頭條才有）特派整理 · 綜合 N 則來源 · 忠實度 0.xx。"""
-    bits: list[str] = []
-    if lead:
-        bits.append("特派整理 · Pulse 編輯部")
-    mc = event.get("member_count")
-    if mc is None:
-        mc = event.get("memberCount")
-    if mc is not None:
-        bits.append(f"綜合 {mc} 則來源")
-    f = event.get("faithfulness_score")
-    if isinstance(f, (int, float)):
-        bits.append(f"忠實度 {f:.2f}")
-    return " · ".join(bits)
+def _heavy_rule(pt: str = "34px") -> str:
+    """6px 粗黑 rule（區段大分隔）。"""
+    return (
+        f'<tr><td style="padding:{pt} 44px 0 44px;">'
+        f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>'
+        f'<td style="height:6px;background:{_INK};font-size:0;line-height:0;">&nbsp;</td>'
+        f"</tr></table></td></tr>"
+    )
 
 
-def _citations_line(citations: list[dict], *, font_size: str = "10.5px") -> str:
-    """事件「出處」清單：每筆 [n] 連原貼（無 url 則純文字、不帶連結）。"""
+def _hairline(pt: str = "24px") -> str:
+    """1px 髮絲線（事件 / 精選之間）。"""
+    return (
+        f'<tr><td style="padding:{pt} 44px 0 44px;">'
+        f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>'
+        f'<td style="height:1px;background:{_RULE};font-size:0;line-height:0;">&nbsp;</td>'
+        f"</tr></table></td></tr>"
+    )
+
+
+def _section_index(num: str, zh: str, en: str) -> str:
+    """編號區段標：左「01 — 今日事件」+ 右英文小標。"""
+    return (
+        f'<tr><td style="padding:14px 44px 0 44px;">'
+        f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>'
+        f'<td style="font-size:10px;font-weight:700;letter-spacing:0.2em;text-transform:uppercase;'
+        f'color:{_INK};">{num} — {_html.escape(zh)}</td>'
+        f'<td align="right" style="font-size:10px;font-weight:400;letter-spacing:0.2em;'
+        f'text-transform:uppercase;color:{_SUB};">{_nbsp(_html.escape(en))}</td>'
+        f"</tr></table></td></tr>"
+    )
+
+
+def _citations_inline(citations: list[dict]) -> str:
+    """事件「SOURCES」行：紅標 + 各筆連結（無 url 則純文字、不帶連結）。"""
     links: list[str] = []
     for c in citations:
         n = c.get("n")
         if n is None:
             continue
         label = c.get("source") or c.get("post_id") or c.get("postId") or ""
-        suffix = f" {pangu_spacing(str(label))}" if label else ""
-        body = _html.escape(f"[{n}]{suffix}")
+        label_html = _html.escape(pangu_spacing(str(label))) if label else ""
+        n_html = _html.escape(str(n))
+        inner = f"{n_html}&nbsp;{label_html}" if label_html else n_html
         url = c.get("url")
         if url:
             links.append(
                 f'<a href="{_u(url)}" style="color:{_INK};text-decoration:none;'
-                f'border-bottom:1px solid {_RULE}">{body}</a>'
+                f'border-bottom:1px solid {_TRACK};">{inner}</a>'
             )
         else:
-            links.append(f'<span style="color:{_INK}">{body}</span>')
+            links.append(f'<span style="color:{_INK};">{inner}</span>')
     if not links:
         return ""
+    sep = "&nbsp;&nbsp;·&nbsp;&nbsp;"
     return (
-        f'<div style="border-top:1px dotted {_DOT};padding-top:8px;margin-top:10px;'
-        f'font-family:{_F_LAB};font-size:{font_size};line-height:1.9;color:{_SUB}">'
-        f'<span style="letter-spacing:.18em;text-transform:uppercase;color:{_RED};'
-        f'font-weight:bold">出處 — </span>' + " · ".join(links) + "</div>"
+        f'<div style="padding-top:12px;font-size:11px;line-height:1.9;color:{_SUB};'
+        f'letter-spacing:0.02em;">'
+        f'<span style="color:{_RED};font-weight:700;letter-spacing:0.14em;">SOURCES&nbsp;&nbsp;</span>'
+        + sep.join(links)
+        + "</div>"
     )
 
 
-def _hr_row(*, thick: bool = False, double: bool = False, pt: str = "24px") -> str:
-    if double:
-        border = f"border-top:3px double {_INK}"
-    elif thick:
-        border = f"border-top:1px solid {_INK};border-bottom:1px solid {_INK};height:3px"
-    else:
-        border = f"border-top:1px solid {_INK}"
-    return (
-        f'<tr><td style="padding:{pt} 40px 0">'
-        f'<div style="{border};font-size:0;line-height:0">&nbsp;</div></td></tr>'
-    )
-
-
-def _band_row(left: str, right: str = "") -> str:
-    """欄目名橫幅：左欄目名（tracked-out 大寫）+ 右副註 + 下方粗線。"""
-    right_td = (
-        f'<td align="right" style="font-family:{_F_PULSE};font-size:11px;letter-spacing:.1em;'
-        f'font-style:italic;color:{_SUB}">{_html.escape(right)}</td>'
-        if right
-        else ""
-    )
-    return (
-        f'<tr><td style="padding:8px 40px 0">'
-        f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>'
-        f'<td align="left" style="font-family:{_F_PULSE};font-size:13px;letter-spacing:.3em;'
-        f'text-transform:uppercase;color:{_INK};font-weight:bold">{_html.escape(left)}</td>'
-        f"{right_td}</tr></table></td></tr>" + _hr_row(thick=True, pt="7px")
-    )
-
-
-# ----------------------- 區塊 -----------------------
-def _ear_row() -> str:
-    cell = (
-        "font-family:" + _F_LAB + ";font-size:11px;letter-spacing:.14em;"
-        "text-transform:uppercase;color:" + _SUB + ";font-style:italic"
-    )
-    return (
-        f'<tr><td style="padding:22px 40px 0">'
-        f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>'
-        f'<td align="left" style="{cell}">繁體中文 · 地端產製</td>'
-        f'<td align="center" style="font-family:{_F_LAB};font-size:11px;letter-spacing:.22em;'
-        f'text-transform:uppercase;color:{_RED};font-weight:bold">每日 AI 情報</td>'
-        f'<td align="right" style="{cell}">售價 · 免費</td></tr></table>'
-        f'<div style="border-top:1px solid {_INK};margin-top:10px;font-size:0;line-height:0">&nbsp;</div>'
-        f"</td></tr>"
-    )
-
-
+# ----------------------- MASTHEAD / LEAD -----------------------
 def _masthead_row(day: _date, sentiment_counts: dict | None = None) -> str:
+    """masthead：紅 tracked-out 刊頭 + 巨大 Pulse + 副標 + 右上日期/星期 + AI 圈天氣。"""
     emoji, label = _weather(sentiment_counts)
-    # dateline 中欄改成「每日隨情緒變化」的 AI 圈天氣（取代固定刊訓），這是報頭的每日變動性。
-    center = pangu_spacing(f"今日 AI 圈天氣：{emoji} {label}")
+    weather = _html.escape(pangu_spacing(f"今日 AI 圈天氣 {emoji} {label}"))
     return (
-        f'<tr><td align="center" style="padding:14px 40px 6px">'
-        f'<div style="font-family:{_F_PULSE};font-size:78px;line-height:.92;font-weight:bold;'
-        f'letter-spacing:.02em;color:{_INK}">Pulse</div>'
-        f'<div style="font-family:{_F_BODY};font-size:19px;letter-spacing:.5em;color:{_INK};'
-        f'margin:8px 0 0;padding-left:.5em">每日人工智慧週報</div></td></tr>'
-        f'<tr><td style="padding:14px 40px 0">'
-        f'<div style="border-top:3px double {_INK};border-bottom:1px solid {_INK};padding:7px 0">'
+        # 刊頭列：左 DAILY AI BRIEFING、右 日期 / 星期
+        f'<tr><td style="padding:40px 44px 0 44px;">'
         f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>'
-        f'<td align="left" style="font-family:{_F_LAB};font-size:12px;color:{_INK}">{_cn_date(day)}</td>'
-        f'<td align="center" style="font-family:{_F_LAB};font-size:11px;font-style:italic;'
-        f'color:{_RED};font-weight:bold">{_html.escape(center)}</td>'
-        f'<td align="right" style="font-family:{_F_LAB};font-size:12px;color:{_INK}">地端 · 每日</td>'
-        f"</tr></table></div></td></tr>"
+        f'<td style="vertical-align:top;">'
+        f'<div style="font-size:11px;font-weight:700;letter-spacing:0.34em;text-transform:uppercase;'
+        f'color:{_RED};">Daily&nbsp;AI&nbsp;Briefing</div></td>'
+        f'<td align="right" style="vertical-align:top;white-space:nowrap;">'
+        f'<div style="font-size:11px;font-weight:700;letter-spacing:0.18em;color:{_INK};">'
+        f"{_html.escape(_date_dot(day))}</div>"
+        f'<div style="font-size:11px;font-weight:400;letter-spacing:0.18em;color:{_SUB};">'
+        f"{_nbsp(_html.escape(_date_meta(day)))}</div></td>"
+        f"</tr></table></td></tr>"
+        # 巨大 Pulse + 副標
+        f'<tr><td style="padding:6px 44px 0 44px;">'
+        f'<div style="font-size:74px;line-height:0.92;font-weight:800;letter-spacing:-0.03em;'
+        f'color:{_INK};">Pulse</div>'
+        f'<div style="font-size:22px;line-height:1.1;font-weight:400;letter-spacing:0.02em;'
+        f'color:{_INK};padding-top:8px;">每日 AI 情報</div></td></tr>'
+        # AI 圈天氣（緊接副標下，每天隨情緒變）
+        f'<tr><td style="padding:14px 44px 0 44px;">'
+        f'<div style="font-size:11px;font-weight:700;letter-spacing:0.16em;color:{_INK};">'
+        f"{weather}</div></td></tr>"
+        # 粗黑 rule
+        + _heavy_rule(pt="22px")
     )
 
 
-def _editorial_row(summary: str) -> str:
+def _lead_row(summary: str) -> str:
+    """今日重點 / Editor's Note：左標籤鐵軌 + 右導言（行內引註）。空摘要回 ""。"""
     if not summary:
         return ""
-    body = _dropcap_body(summary, set(), cap_color=_RED, cap_size=56, font_size="16px")
+    body = _sup_refs(summary, set())
     return (
-        f'<tr><td style="padding:24px 40px 0">'
+        f'<tr><td style="padding:30px 44px 0 44px;">'
         f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>'
-        f'<td width="118" valign="top" style="padding-right:22px;border-right:1px solid {_RULE}">'
-        f'<div style="font-family:{_F_PULSE};font-size:11px;letter-spacing:.22em;'
-        f'text-transform:uppercase;color:{_RED};font-weight:bold;line-height:1.5">Editor’s<br>Note</div>'
-        f'<div style="font-family:{_F_BODY};font-size:13px;color:{_SUB};letter-spacing:.3em;'
-        f'margin-top:6px">今日<br>要事</div></td>'
-        f'<td valign="top" style="padding-left:24px">{body}</td>'
+        f'<td width="120" style="vertical-align:top;padding-right:24px;">'
+        f'<div style="font-size:10px;font-weight:700;letter-spacing:0.24em;text-transform:uppercase;'
+        f'color:{_RED};line-height:1.5;">今日重點</div>'
+        f'<div style="font-size:10px;font-weight:400;letter-spacing:0.2em;text-transform:uppercase;'
+        f'color:{_SUB};line-height:1.5;">Editor\'s&nbsp;Note</div></td>'
+        f'<td style="vertical-align:top;">'
+        f'<div style="font-size:21px;line-height:1.5;font-weight:600;letter-spacing:-0.005em;'
+        f'color:{_INK};">{body}</div></td>'
         f"</tr></table></td></tr>"
     )
 
 
-def _split_two(text: str) -> tuple[str, str]:
-    """把較長的本文從中段的句號處切兩半（給頭條兩欄）。太短則不切。"""
-    text = text or ""
-    if len(text) < 70:
-        return text, ""
-    mid = len(text) // 2
-    idx = text.find("。", mid)
-    if idx == -1 or idx > len(text) - 6:
-        return text, ""
-    return text[: idx + 1], text[idx + 1 :]
-
-
-def _lead_story(event: dict) -> str:
-    title = pangu_spacing(str(event.get("title") or "(無標題)"))
+# ----------------------- 今日事件 -----------------------
+def _event_row(event: dict, num: int, *, first: bool) -> str:
+    """單則事件：左大紅編號 + 右（綜合 N 則 · 主題 / 標題 / 內文 / SOURCES）。"""
+    title = _html.escape(pangu_spacing(str(event.get("title") or "(無標題)")))
     citations = event.get("citations") or []
     vns = _valid_ns(citations)
-    left_raw, right_raw = _split_two(str(event.get("summary") or ""))
-    left = _dropcap_body(left_raw, vns, cap_color=_INK, cap_size=48, font_size="14.5px")
-    if right_raw:
-        right = _plain_body(right_raw, vns, font_size="14.5px")
-        body = (
-            f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>'
-            f'<td width="316" valign="top" style="padding-right:22px">{left}</td>'
-            f'<td width="316" valign="top" style="padding-left:22px;border-left:1px solid {_RULE}">'
-            f"{right}</td></tr></table>"
-        )
-    else:
-        body = left
-    byline = _byline(event, lead=True)
-    byline_row = (
-        f'<tr><td style="padding:14px 40px 0">'
-        f'<div style="border-top:1px solid {_RULE};border-bottom:1px solid {_RULE};padding:6px 0;'
-        f'font-family:{_F_PULSE};font-size:11px;letter-spacing:.12em;text-transform:uppercase;'
-        f'color:{_SUB};text-align:center">{_html.escape(byline)}</div></td></tr>'
-        if byline
-        else ""
-    )
-    cite = _citations_line(citations)
-    cite_row = f'<tr><td style="padding:14px 40px 0">{cite}</td></tr>' if cite else ""
-    return (
-        f'<tr><td style="padding:20px 40px 0">'
-        f'<div style="font-family:{_F_DISP};font-size:32px;line-height:1.18;font-weight:bold;'
-        f'letter-spacing:.01em;color:{_INK};text-align:center">{_html.escape(title)}</div></td></tr>'
-        f"{byline_row}"
-        f'<tr><td style="padding:18px 40px 0">{body}</td></tr>'
-        f"{cite_row}"
-    )
+    body = _sup_refs(str(event.get("summary") or ""), vns)
 
-
-def _pair_cell(event: dict, *, left_border: bool) -> str:
-    title = pangu_spacing(str(event.get("title") or "(無標題)"))
-    kicker = str(event.get("theme") or "今日事件")
-    citations = event.get("citations") or []
-    vns = _valid_ns(citations)
-    byline = _byline(event)
-    pad = "padding-left:22px" if left_border else "padding-right:22px"
-    border = f";border-left:1px solid {_INK}" if left_border else ""
-    byline_div = (
-        f'<div style="font-family:{_F_PULSE};font-size:10px;letter-spacing:.1em;'
-        f'text-transform:uppercase;color:{_SUB};margin:8px 0 10px;border-bottom:1px solid {_RULE};'
-        f'padding-bottom:8px">{_html.escape(byline)}</div>'
-        if byline
-        else ""
-    )
-    cite = _citations_line(citations, font_size="10px")
-    return (
-        f'<td width="316" valign="top" style="{pad}{border}">'
-        f'<div style="font-family:{_F_PULSE};font-size:10.5px;letter-spacing:.2em;'
-        f'text-transform:uppercase;color:{_RED};font-weight:bold">{_html.escape(kicker)}</div>'
-        f'<div style="font-family:{_F_DISP};font-size:21px;line-height:1.3;font-weight:bold;'
-        f'color:{_INK};margin:7px 0 0">{_html.escape(title)}</div>'
-        f"{byline_div}{_plain_body(str(event.get('summary') or ''), vns, font_size='14px')}"
-        f"{cite}</td>"
-    )
-
-
-def _pair_block(events: list[dict]) -> str:
-    if not events:
-        return ""
-    if len(events) == 1:
-        cells = _pair_cell(events[0], left_border=False).replace('width="316"', 'width="640"', 1)
-    else:
-        cells = _pair_cell(events[0], left_border=False) + _pair_cell(events[1], left_border=True)
-    return (
-        _hr_row(pt="26px")
-        + f'<tr><td style="padding:18px 40px 0">'
-        f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>'
-        f"{cells}</tr></table></td></tr>"
-    )
-
-
-def _brief_cell(event: dict, *, position: int) -> str:
-    title = pangu_spacing(str(event.get("title") or "(無標題)"))
-    citations = event.get("citations") or []
-    vns = _valid_ns(citations)
     mc = event.get("member_count")
     if mc is None:
         mc = event.get("memberCount")
-    src = ""
-    if citations:
-        src = str(citations[0].get("source") or "")
-    meta_bits = []
+    meta_bits: list[str] = []
     if mc is not None:
-        meta_bits.append(f"綜合 {mc} 則")
-    if src:
-        meta_bits.append(src)
-    meta = " · ".join(meta_bits)
-    if position == 0:
-        style = "padding-right:18px"
-    elif position == 1:
-        style = f"padding:0 18px;border-left:1px solid {_RULE};border-right:1px solid {_RULE}"
-    else:
-        style = "padding-left:18px"
+        meta_bits.append(f"綜合 {mc} 則來源")
+    theme = event.get("theme")
+    if theme:
+        meta_bits.append(str(theme))
+    meta = _html.escape(pangu_spacing(" · ".join(meta_bits))) if meta_bits else ""
     meta_div = (
-        f'<div style="font-family:{_F_PULSE};font-size:9.5px;color:{_SUB};margin-top:6px;'
-        f'letter-spacing:.05em">{_html.escape(meta)}</div>'
+        f'<div style="font-size:10px;font-weight:700;letter-spacing:0.18em;text-transform:uppercase;'
+        f'color:{_SUB};">{meta}</div>'
         if meta
         else ""
     )
+    cite = _citations_inline(citations)
+
+    pt = "30px" if first else "24px"
     return (
-        f'<td width="206" valign="top" style="{style}">'
-        f'<div style="font-family:{_F_DISP};font-size:16px;line-height:1.32;font-weight:bold;'
-        f'color:{_INK}">{_html.escape(title)}</div>'
-        f'<div style="font-family:{_F_BODY};font-size:12.5px;line-height:1.78;color:{_BRIEF};'
-        f'text-align:justify;margin-top:7px">{_sup_refs(str(event.get("summary") or ""), vns)}</div>'
-        f"{meta_div}</td>"
+        f'<tr><td style="padding:{pt} 44px 0 44px;">'
+        f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>'
+        f'<td width="68" style="vertical-align:top;">'
+        f'<div style="font-size:32px;font-weight:800;letter-spacing:-0.02em;color:{_RED};'
+        f'line-height:1;">{num:02d}</div></td>'
+        f'<td style="vertical-align:top;">'
+        f"{meta_div}"
+        f'<div style="font-size:23px;line-height:1.25;font-weight:700;letter-spacing:-0.01em;'
+        f'color:{_INK};padding-top:6px;">{title}</div>'
+        f'<div style="font-size:15px;line-height:1.75;font-weight:400;color:{_BODY};'
+        f'padding-top:10px;">{body}</div>'
+        f"{cite}</td>"
+        f"</tr></table></td></tr>"
     )
-
-
-def _briefs_block(events: list[dict]) -> str:
-    if not events:
-        return ""
-    rows: list[str] = []
-    for i in range(0, len(events), 3):
-        chunk = events[i : i + 3]
-        cells = "".join(_brief_cell(e, position=j) for j, e in enumerate(chunk))
-        rows.append(
-            f'<tr><td style="padding:18px 40px 0">'
-            f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>'
-            f"{cells}</tr></table></td></tr>"
-        )
-    return _band_row("內頁 · 事件短訊") + "".join(rows)
 
 
 def render_today_events_section(events: list[dict]) -> str:
     """
-    組「今日事件」報紙版區塊 —— 把多篇相關貼文聚成的事件，依數量排成頭版版面：
-    events[0] 頭條（大標 + byline + 兩欄本文 + 出處）、events[1:3] 雙欄並列、events[3:] 三欄短訊。
-    每則含標題、帶行內 `[n]` 出處引註的忠實摘要、底部出處清單。純函式；空 list 回 ""。
+    組「今日事件」Swiss 區塊 —— 每則事件編號排列（左大紅編號 + 右內容），事件間用髮絲線分隔。
+    每則含「綜合 N 則來源 · 主題」徽章、標題、帶行內 `[n]` 出處引註的忠實摘要、SOURCES 連結行。
+    純函式；空 list 回 ""。
 
     每則 event 期望欄位（對齊摘要管線輸出與前端 EventSummary）：
       - title (str)：事件標題。
       - summary (str)：忠實摘要文字，內含 `[1][2]` 行內引用標記。
       - citations (list[dict])：出處清單，每筆 {n:int, url?:str, source?:str/post_id?:str}。
       - member_count (int，可選；亦接受 memberCount)：成員貼文數。
-      - faithfulness_score (float，可選)：忠實度，顯示於 byline。
-      - theme (str，可選)：主題標籤，用於雙欄事件的欄目 kicker。
+      - theme (str，可選)：主題標籤，顯示於事件 metadata 列。
     """
     if not events:
         return ""
-    parts = [
-        _hr_row(pt="24px"),
-        _band_row("頭版 · 今日事件", f"綜合多方來源 · 共 {len(events)} 則"),
-        _lead_story(events[0]),
-    ]
-    parts.append(_pair_block(events[1:3]))
-    parts.append(_briefs_block(events[3:]))
+    parts = [_section_index("01", "今日事件", "Today's Events")]
+    for i, ev in enumerate(events):
+        if i > 0:
+            parts.append(_hairline(pt="24px"))
+        parts.append(_event_row(ev, i + 1, first=(i == 0)))
     return "".join(parts)
 
 
@@ -684,9 +563,27 @@ def _pick_lead(
     return None
 
 
-def _hero_band(left: str, right: str = "") -> str:
-    """hero 區塊頂部欄目橫幅：🗞 今日主秀 + 副註 + 粗線。沿用 _band_row 視覺語言。"""
-    return _band_row(left, right)
+def _hero_band(en: str) -> str:
+    """hero 區塊頂部：粗黑 rule + 編號式標題「今日主秀」+ 右英文小標。"""
+    return (
+        _heavy_rule(pt="34px")
+        + f'<tr><td style="padding:14px 44px 0 44px;">'
+        f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>'
+        f'<td style="font-size:10px;font-weight:700;letter-spacing:0.2em;text-transform:uppercase;'
+        f'color:{_INK};">今日主秀</td>'
+        f'<td align="right" style="font-size:10px;font-weight:400;letter-spacing:0.2em;'
+        f'text-transform:uppercase;color:{_SUB};">{_nbsp(_html.escape(en))}</td>'
+        f"</tr></table></td></tr>"
+    )
+
+
+def _state_badge(state: str) -> str:
+    """議題狀態徽章：升溫/高峰 紅、其餘墨色（與前端徽章語義一致）。Swiss：細框 + tracked-out。"""
+    color = _RED if state in (_hot.STATE_RISING, _hot.STATE_PEAK) else _INK
+    return (
+        f'<span style="font-size:10px;font-weight:700;letter-spacing:0.18em;text-transform:uppercase;'
+        f'color:{color};border:1px solid {color};padding:3px 9px;">{_html.escape(state)}</span>'
+    )
 
 
 def _story_timeline_bars(timeline: list[dict]) -> str:
@@ -702,63 +599,49 @@ def _story_timeline_bars(timeline: list[dict]) -> str:
         w = max(2, round(vol / mx * 100))
         color = _RED if i == last_i else _INK
         date_lbl = _html.escape(str(t.get("date") or ""))
-        summ = pangu_spacing(str(t.get("summary") or ""))
-        summ_html = _html.escape(summ)[:90]
+        summ = _html.escape(pangu_spacing(str(t.get("summary") or "")))[:90]
         rows += (
-            f'<tr><td style="padding:9px 0 0">'
+            f'<tr><td style="padding:12px 0 0;">'
             f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>'
-            f'<td width="86" valign="top" style="font-family:{_F_LAB};font-size:10.5px;'
-            f'color:{_SUB};padding-top:1px">{date_lbl}</td>'
+            f'<td width="86" valign="top" style="font-size:10px;letter-spacing:0.06em;color:{_SUB};'
+            f'padding-top:1px;">{date_lbl}</td>'
             f'<td valign="top">'
             f'<div style="background:{color};height:8px;width:{w}%;font-size:0;line-height:0;'
-            f'min-width:6px">&nbsp;</div>'
-            f'<div style="font-family:{_F_BODY};font-size:12px;line-height:1.6;color:{_BRIEF};'
-            f'margin-top:4px;text-align:justify">{summ_html}</div></td>'
+            f'min-width:6px;">&nbsp;</div>'
+            f'<div style="font-size:12px;line-height:1.6;color:{_BRIEF};margin-top:5px;">'
+            f"{summ}</div></td>"
             f"</tr></table></td></tr>"
         )
     return (
-        f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">'
-        f"{rows}</table>"
-    )
-
-
-def _state_badge(state: str) -> str:
-    """議題狀態徽章：升溫/高峰 紅、其餘墨色（與前端徽章語義一致）。"""
-    color = _RED if state in (_hot.STATE_RISING, _hot.STATE_PEAK) else _INK
-    return (
-        f'<span style="font-family:{_F_PULSE};font-size:10.5px;letter-spacing:.18em;'
-        f'text-transform:uppercase;color:{color};font-weight:bold;border:1px solid {color};'
-        f'padding:2px 8px">{_html.escape(state)}</span>'
+        f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" '
+        f'style="margin-top:6px;">{rows}</table>'
     )
 
 
 def _hero_storyline(story: dict) -> str:
     """議題追蹤 hero：標題 + 狀態徽章 + 迷你時間軸（volume 走勢 + 每日 summary）+ 出處。"""
-    title = pangu_spacing(str(story.get("title") or "(無標題)"))
+    title = _html.escape(pangu_spacing(str(story.get("title") or "(無標題)")))
     state = str(story.get("state") or "")
     span = story.get("span_days")
     timeline = story.get("timeline") or []
     citations = story.get("citations") or []
-    span_note = f"追蹤 {int(span)} 日" if isinstance(span, (int, float)) else ""
+    span_note = f"議題演變 · 追蹤 {int(span)} 日" if isinstance(span, (int, float)) else "議題演變"
     head = (
         f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>'
-        f'<td valign="middle" style="font-family:{_F_DISP};font-size:22px;line-height:1.3;'
-        f'font-weight:bold;color:{_INK}">{_html.escape(title)}</td>'
-        f'<td align="right" valign="middle" width="84" style="padding-left:14px">'
+        f'<td valign="middle" style="font-size:23px;line-height:1.25;font-weight:700;'
+        f'letter-spacing:-0.01em;color:{_INK};">{title}</td>'
+        f'<td align="right" valign="middle" width="84" style="padding-left:14px;white-space:nowrap;">'
         f"{_state_badge(state)}</td></tr></table>"
     )
     note = (
-        f'<div style="font-family:{_F_PULSE};font-size:10.5px;letter-spacing:.12em;'
-        f'text-transform:uppercase;color:{_SUB};margin:8px 0 4px">議題演變 · {_html.escape(span_note)}'
-        f"</div>"
-        if span_note
-        else ""
+        f'<div style="font-size:10px;font-weight:700;letter-spacing:0.18em;text-transform:uppercase;'
+        f'color:{_SUB};margin:10px 0 2px;">{_nbsp(_html.escape(pangu_spacing(span_note)))}</div>'
     )
     bars = _story_timeline_bars(timeline)
-    cite = _citations_line(citations, font_size="10px")
+    cite = _citations_inline(citations)
     return (
-        _hero_band("頭版 · 今日主秀", "議題追蹤")
-        + f'<tr><td style="padding:16px 40px 0">{head}{note}{bars}{cite}</td></tr>'
+        _hero_band("Story Tracking · 議題追蹤")
+        + f'<tr><td style="padding:18px 44px 0 44px;">{head}{note}{bars}{cite}</td></tr>'
     )
 
 
@@ -768,13 +651,22 @@ def _hero_clash(pos: dict, neg: dict) -> str:
     right = _mover_col([neg], title="最強負評 · 爭議", red=True)
     inner = (
         f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>'
-        f'<td width="316" valign="top" style="padding-right:22px">{left}</td>'
-        f'<td width="316" valign="top" style="padding-left:22px;border-left:1px solid {_INK}">'
-        f"{right}</td></tr></table>"
+        f'<td width="280" valign="top" style="padding-right:24px;">{left}</td>'
+        f'<td valign="top" style="padding-left:24px;border-left:1px solid {_RULE};">{right}</td>'
+        f"</tr></table>"
     )
     return (
-        _hero_band("頭版 · 今日主秀", "口碑交鋒")
-        + f'<tr><td style="padding:16px 40px 0">{inner}</td></tr>'
+        _hero_band("Sentiment Clash · 口碑交鋒")
+        + f'<tr><td style="padding:18px 44px 0 44px;">{inner}</td></tr>'
+    )
+
+
+def _big_number(num: str, caption: str) -> str:
+    return (
+        f'<div style="font-size:64px;line-height:1;font-weight:800;letter-spacing:-0.03em;'
+        f'color:{_RED};">{_html.escape(num)}</div>'
+        f'<div style="font-size:11px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;'
+        f'color:{_INK};margin-top:10px;">{_nbsp(_html.escape(caption))}</div>'
     )
 
 
@@ -796,7 +688,9 @@ def _hero_data(theme_cnts: dict, sentiment_cnts: dict) -> str:
     if not cells:
         return ""
     tds = "".join(
-        f'<td width="316" valign="top" style="{"padding-left:22px;border-left:1px solid " + _INK if i else "padding-right:22px"}">{c}</td>'
+        f'<td width="280" valign="top" style="'
+        f'{"padding-left:24px;border-left:1px solid " + _RULE if i else "padding-right:24px"}">'
+        f"{c}</td>"
         for i, c in enumerate(cells)
     )
     inner = (
@@ -804,17 +698,8 @@ def _hero_data(theme_cnts: dict, sentiment_cnts: dict) -> str:
         f"{tds}</tr></table>"
     )
     return (
-        _hero_band("頭版 · 今日主秀", "今日數據")
-        + f'<tr><td style="padding:16px 40px 0">{inner}</td></tr>'
-    )
-
-
-def _big_number(num: str, caption: str) -> str:
-    return (
-        f'<div style="font-family:{_F_PULSE};font-size:64px;line-height:1;font-weight:bold;'
-        f'color:{_RED}">{_html.escape(num)}</div>'
-        f'<div style="font-family:{_F_LAB};font-size:12px;letter-spacing:.14em;'
-        f'text-transform:uppercase;color:{_INK};margin-top:8px">{_html.escape(caption)}</div>'
+        _hero_band("Today by Numbers · 今日數據")
+        + f'<tr><td style="padding:18px 44px 0 44px;">{inner}</td></tr>'
     )
 
 
@@ -824,146 +709,206 @@ def _hero_row(lead: dict | None) -> str:
         return ""
     kind = lead.get("kind")
     if kind == "storyline":
-        return _hr_row(pt="26px") + _hero_storyline(lead.get("story") or {})
+        return _hero_storyline(lead.get("story") or {})
     if kind == "clash":
-        return _hr_row(pt="26px") + _hero_clash(lead.get("pos") or {}, lead.get("neg") or {})
+        return _hero_clash(lead.get("pos") or {}, lead.get("neg") or {})
     if kind == "data":
-        body = _hero_data(lead.get("theme_counts") or {}, lead.get("sentiment_counts") or {})
-        return (_hr_row(pt="26px") + body) if body else ""
+        return _hero_data(lead.get("theme_counts") or {}, lead.get("sentiment_counts") or {})
     return ""
 
 
-# ----------------------- 數據側欄 / 精選 / 口碑 -----------------------
-def _bar_block(title: str, items: list[tuple[str, int]], *, red_labels=(), first: bool = False) -> str:
-    if not items:
-        return ""
-    mx = max(v for _, v in items) or 1
-    rows = ""
-    for label, v in items:
-        w = max(2, round(v / mx * 100))
-        color = _RED if label in red_labels else _INK
-        rows += (
-            f'<tr><td style="font-family:{_F_BODY};font-size:12px;color:{_INK};padding-bottom:2px">'
-            f'{_html.escape(label)} <span style="font-family:{_F_PULSE};color:{_RED};'
-            f'font-weight:bold">{v}</span></td></tr>'
-            f'<tr><td style="padding-bottom:9px"><div style="background:{color};height:9px;'
-            f'width:{w}%;font-size:0;line-height:0">&nbsp;</div></td></tr>'
-        )
-    mt = "0" if first else "22px"
-    return (
-        f'<div style="font-family:{_F_LAB};font-size:11px;letter-spacing:.2em;text-transform:uppercase;'
-        f'color:{_RED};font-weight:bold;border-bottom:3px double {_INK};padding-bottom:6px;'
-        f'margin-top:{mt}">{_html.escape(title)}</div>'
-        f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" '
-        f'style="margin-top:12px">{rows}</table>'
-    )
-
-
-def _sidebar(theme_cnts, sentiment_cnts, trending) -> str:
-    blocks: list[str] = []
-    if theme_cnts:
-        items = sorted(
-            [(k, v) for k, v in theme_cnts.items() if v > 0], key=lambda x: x[1], reverse=True
-        )
-        blocks.append(_bar_block("今日數據 · 主題分布", items, first=True))
-    if sentiment_cnts:
-        zh = {"positive": "正面", "neutral": "中性", "negative": "負面"}
-        items = sorted(
-            [(zh[k], v) for k, v in sentiment_cnts.items() if k in zh and v > 0],
-            key=lambda x: x[1],
-            reverse=True,
-        )
-        blocks.append(
-            _bar_block("輿情 · 口碑分布", items, red_labels={"負面"}, first=not blocks)
-        )
-    if trending:
-        chips = " · ".join(_html.escape(str(t)) for t in trending[:14])
-        blocks.append(
-            f'<div style="font-family:{_F_LAB};font-size:11px;letter-spacing:.2em;'
-            f'text-transform:uppercase;color:{_RED};font-weight:bold;border-bottom:3px double {_INK};'
-            f'padding-bottom:6px;margin-top:{"0" if not blocks else "22px"}">今日熱詞索引</div>'
-            f'<div style="font-family:{_F_BODY};font-size:12.5px;line-height:2;color:{_INK};'
-            f'margin-top:10px">{chips}</div>'
-        )
-    return "".join(blocks)
-
-
-def _hl_item(post: dict, *, first: bool) -> str:
-    title = pangu_spacing(str(post.get("title_zh") or post.get("title") or "(無標題)"))
-    snippet = pangu_spacing(str(post.get("snippet_zh") or ""))
+# ----------------------- 精選（highlights）-----------------------
+def _hl_item(post: dict, theme_label: str, *, first: bool) -> str:
+    """單筆精選：左主題標籤（紅）+ 右（標題連結 + 描述）。"""
+    title = _html.escape(pangu_spacing(str(post.get("title_zh") or post.get("title") or "(無標題)")))
+    snippet = _html.escape(pangu_spacing(str(post.get("snippet_zh") or "")))[:160]
     snip = (
-        f'<div style="font-family:{_F_BODY};font-size:13px;line-height:1.8;color:{_BRIEF};'
-        f'text-align:justify;margin-top:6px">{_html.escape(snippet)[:160]}</div>'
+        f'<div style="font-size:13.5px;line-height:1.7;color:{_BRIEF};padding-top:6px;">'
+        f"{snippet}</div>"
         if snippet
         else ""
     )
-    wrap = (
-        "padding:14px 0 0"
-        if first
-        else f"border-top:1px dotted {_DOT};margin:14px 0 0;padding:14px 0 0"
-    )
+    pt = "20px" if first else "16px"
     return (
-        f'<div style="{wrap}">'
-        f'<a href="{_u(post.get("url"))}" style="text-decoration:none;color:{_INK}">'
-        f'<span style="font-family:{_F_DISP};font-size:16.5px;font-weight:bold;line-height:1.35;'
-        f'border-bottom:1px solid {_INK}">{_html.escape(title)}</span></a>{snip}</div>'
+        (_hairline(pt="16px") if not first else "")
+        + f'<tr><td style="padding:{pt} 44px 0 44px;">'
+        f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>'
+        f'<td width="68" style="vertical-align:top;font-size:11px;font-weight:700;'
+        f'letter-spacing:0.1em;color:{_RED};line-height:1.6;">{_html.escape(theme_label)}</td>'
+        f'<td style="vertical-align:top;">'
+        f'<a href="{_u(post.get("url"))}" style="font-size:17px;line-height:1.4;font-weight:600;'
+        f'color:{_INK};text-decoration:none;letter-spacing:-0.005em;">{title}</a>'
+        f"{snip}</td>"
+        f"</tr></table></td></tr>"
     )
 
 
-def _highlights_col(highlights: dict[str, list[dict]]) -> str:
-    items = [p for posts in highlights.values() for p in posts]
+def _highlights_section(highlights: dict[str, list[dict]]) -> str:
+    """精選區段：編號標 02 + 各主題精選逐筆（左主題標籤 + 右標題/描述）。"""
+    flat: list[tuple[str, dict]] = []
+    for theme, posts in highlights.items():
+        for p in posts:
+            flat.append((theme, p))
+    if not flat:
+        return ""
+    rows = "".join(
+        _hl_item(p, theme, first=(i == 0)) for i, (theme, p) in enumerate(flat)
+    )
+    return _section_index("02", "精選", "Selected") + rows
+
+
+# ----------------------- 圖表：主題分布 / 口碑分布 -----------------------
+def _theme_dist_section(theme_cnts: dict | None) -> str:
+    """主題分布：水平長條（紅＝最大類、其餘黑、底灰）+ 右數字。純 HTML。"""
+    if not theme_cnts:
+        return ""
+    items = sorted([(k, int(v)) for k, v in theme_cnts.items() if v > 0],
+                   key=lambda x: x[1], reverse=True)
     if not items:
         return ""
-    body = "".join(_hl_item(p, first=(i == 0)) for i, p in enumerate(items))
+    mx = items[0][1] or 1
+    top_label = items[0][0]
+    rows = ""
+    for label, v in items:
+        pct = max(2, round(v / mx * 100))
+        color = _RED if label == top_label else _INK
+        rows += (
+            f"<tr>"
+            f'<td width="90" style="vertical-align:middle;font-size:13px;font-weight:600;'
+            f'color:{_INK};padding:7px 0;">{_html.escape(label)}</td>'
+            f'<td style="vertical-align:middle;padding:7px 0;">'
+            f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>'
+            f'<td width="{pct}%" style="height:14px;background:{color};font-size:0;line-height:0;">'
+            f"&nbsp;</td>"
+            f'<td style="height:14px;background:{_BARBG};font-size:0;line-height:0;">&nbsp;</td>'
+            f"</tr></table></td>"
+            f'<td width="44" align="right" style="vertical-align:middle;font-size:13px;'
+            f'font-weight:700;color:{_INK};padding:7px 0;">{v}</td>'
+            f"</tr>"
+        )
+    n = sum(v for _, v in items)
     return (
-        f'<div style="font-family:{_F_PULSE};font-size:13px;letter-spacing:.3em;'
-        f'text-transform:uppercase;color:{_INK};font-weight:bold;border-bottom:1px solid {_INK};'
-        f'padding-bottom:7px">新工具 · 使用方法</div>{body}'
+        _section_index("03", "主題分布", "Theme Distribution")
+        + f'<tr><td style="padding:22px 44px 0 44px;">'
+        f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">'
+        f"{rows}</table>"
+        f'<div style="font-size:10px;color:{_SUB};letter-spacing:0.1em;padding-top:6px;">'
+        f"n = {n} 則 · 紅＝主類{_html.escape(top_label)}</div></td></tr>"
     )
 
 
-def _tools_and_data_row(highlights, theme_cnts, sentiment_cnts, trending) -> str:
-    main = _highlights_col(highlights)
-    side = _sidebar(theme_cnts, sentiment_cnts, trending)
-    if not main and not side:
+def _sentiment_dist_section(sentiment_cnts: dict | None) -> str:
+    """口碑分布：單一分段條（正黑 / 負紅 / 中性灰）+ 圖例。純 HTML。"""
+    if not sentiment_cnts:
         return ""
-    if main and side:
-        inner = (
-            f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>'
-            f'<td width="430" valign="top" style="padding-right:26px;border-right:1px solid {_INK}">'
-            f"{main}</td>"
-            f'<td width="204" valign="top" style="padding-left:26px">{side}</td>'
-            f"</tr></table>"
+    pos = max(0, int(sentiment_cnts.get("positive") or 0))
+    neu = max(0, int(sentiment_cnts.get("neutral") or 0))
+    neg = max(0, int(sentiment_cnts.get("negative") or 0))
+    total = pos + neu + neg
+    if total == 0:
+        return ""
+    p_pct = round(pos / total * 100)
+    n_pct = round(neg / total * 100)
+    u_pct = 100 - p_pct - n_pct
+
+    def seg(pct: int, bg: str) -> str:
+        if pct <= 0:
+            return ""
+        return (
+            f'<td width="{pct}%" style="height:30px;background:{bg};font-size:0;line-height:0;">'
+            f"&nbsp;</td>"
         )
-    else:
-        inner = main or side
-    return _hr_row(pt="26px") + f'<tr><td style="padding:18px 40px 0">{inner}</td></tr>'
+
+    def legend(pct: int, bg: str, label: str) -> str:
+        if pct <= 0:
+            return ""
+        return (
+            f'<td style="font-size:11px;color:{_INK};letter-spacing:0.06em;padding-right:14px;">'
+            f'<span style="display:inline-block;width:9px;height:9px;background:{bg};">&nbsp;</span>'
+            f"&nbsp;{label} {pct}%</td>"
+        )
+
+    bar = seg(p_pct, _INK) + seg(n_pct, _RED) + seg(u_pct, _NEUBG)
+    leg = legend(p_pct, _INK, "正面") + legend(n_pct, _RED, "負面") + legend(u_pct, _NEUBG, "中性")
+    return (
+        _section_index("04", "口碑分布", "Sentiment")
+        + f'<tr><td style="padding:22px 44px 0 44px;">'
+        f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>'
+        f"{bar}</tr></table>"
+        f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" '
+        f'style="margin-top:10px;"><tr>{leg}</tr></table></td></tr>'
+    )
 
 
+# ----------------------- 熱詞 -----------------------
+# 排名 → (font-size px, font-weight, color)：最熱 26px 紅 → 漸小灰。
+_HOT_STEPS = [
+    (26, 800, _RED),
+    (22, 700, _INK),
+    (20, 700, _INK),
+    (19, 600, _INK),
+    (18, 600, _BODY),
+    (17, 600, _BODY),
+    (16, 500, _BRIEF),
+    (16, 500, _BRIEF),
+    (15, 500, _BRIEF),
+    (15, 500, "#777770"),
+    (14, 400, "#777770"),
+    (14, 400, "#777770"),
+    (13, 400, _SUB),
+]
+
+
+def _keywords_section(trending: list[str] | None) -> str:
+    """熱詞：ragged-right、用字級與字重表示排名（最熱大紅 → 漸小灰），無膠囊。"""
+    if not trending:
+        return ""
+    terms = [str(t) for t in trending[:13] if str(t).strip()]
+    if not terms:
+        return ""
+    spans: list[str] = []
+    for i, term in enumerate(terms):
+        size, weight, color = _HOT_STEPS[min(i, len(_HOT_STEPS) - 1)]
+        ls = "letter-spacing:-0.01em;" if i == 0 else ""
+        spans.append(
+            f'<span style="font-size:{size}px;font-weight:{weight};color:{color};{ls}">'
+            f"{_html.escape(term)}</span>"
+        )
+    body = "&nbsp;&nbsp;&nbsp;\n    ".join(spans)
+    return (
+        _section_index("05", "熱詞", "Keywords")
+        + f'<tr><td style="padding:18px 44px 0 44px;">'
+        f'<div style="line-height:2.0;">{body}</div></td></tr>'
+    )
+
+
+# ----------------------- 口碑亮點 / 爭議（movers）-----------------------
 def _mover_col(items: list[dict], *, title: str, red: bool) -> str:
     color = _RED if red else _INK
     head = (
-        f'<div style="font-family:{_F_PULSE};font-size:12px;letter-spacing:.24em;'
-        f'text-transform:uppercase;color:{color};font-weight:bold;border-bottom:1px solid {color};'
-        f'padding-bottom:6px">{_html.escape(title)}</div>'
+        f'<div style="font-size:11px;font-weight:700;letter-spacing:0.18em;text-transform:uppercase;'
+        f'color:{color};border-bottom:1px solid {color};padding-bottom:7px;">'
+        f"{_nbsp(_html.escape(title))}</div>"
     )
     rows = ""
     for i, p in enumerate(items):
-        title_zh = pangu_spacing(str(p.get("title_zh") or p.get("title") or "(無標題)"))
+        title_zh = _html.escape(pangu_spacing(str(p.get("title_zh") or p.get("title") or "(無標題)")))
         wrap = (
-            "padding:11px 0 0"
+            "padding:11px 0 0;"
             if i == 0
-            else f"padding:11px 0 0;margin-top:11px;border-top:1px dotted {_DOT}"
+            else f"padding:11px 0 0;margin-top:11px;border-top:1px solid {_RULE};"
         )
         rows += (
-            f'<div style="{wrap};font-family:{_F_DISP};font-size:14.5px;font-weight:bold;'
-            f'line-height:1.4"><a href="{_u(p.get("url"))}" style="color:{_INK};'
-            f'text-decoration:none;border-bottom:1px solid {_RULE}">{_html.escape(title_zh)}</a></div>'
+            f'<div style="{wrap}">'
+            f'<a href="{_u(p.get("url"))}" style="font-size:15px;line-height:1.4;font-weight:600;'
+            f'color:{_INK};text-decoration:none;border-bottom:1px solid {_TRACK};">{title_zh}</a>'
+            f"</div>"
         )
     return head + rows
 
 
-def _movers_row(movers: dict) -> str:
+def _movers_section(movers: dict) -> str:
+    """口碑亮點 · 爭議：正評 / 負評兩欄（編號區段 06）。"""
     pos = movers.get("positive") or []
     neg = movers.get("negative") or []
     if not pos and not neg:
@@ -973,27 +918,42 @@ def _movers_row(movers: dict) -> str:
     if left and right:
         inner = (
             f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>'
-            f'<td width="316" valign="top" style="padding-right:22px">{left}</td>'
-            f'<td width="316" valign="top" style="padding-left:22px;border-left:1px solid {_INK}">'
-            f"{right}</td></tr></table>"
+            f'<td width="280" valign="top" style="padding-right:24px;">{left}</td>'
+            f'<td valign="top" style="padding-left:24px;border-left:1px solid {_RULE};">{right}</td>'
+            f"</tr></table>"
         )
     else:
         inner = left or right
-    return _hr_row(pt="26px") + f'<tr><td style="padding:18px 40px 0">{inner}</td></tr>'
-
-
-def _colophon_row(day: _date) -> str:
     return (
-        _hr_row(double=True, pt="30px")
-        + f'<tr><td align="center" style="padding:16px 40px 34px">'
-        f'<div style="font-family:{_F_PULSE};font-size:24px;font-weight:bold;letter-spacing:.04em;'
-        f'color:{_INK}">Pulse</div>'
-        f'<div style="font-family:{_F_BODY};font-size:11.5px;line-height:1.9;color:{_SUB};'
-        f'margin-top:8px">本報由地端 ML 管線自動產製 · 爬蟲 → 資料品管 → 主題／情緒 → 忠實摘要<br>'
-        f"全程免費、全程地端模型 · 繁體中文 · {_cn_date(day)}</div></td></tr>"
+        _section_index("06", "口碑亮點", "Movers")
+        + f'<tr><td style="padding:20px 44px 0 44px;">{inner}</td></tr>'
     )
 
 
+# ----------------------- FOOTER -----------------------
+def _footer_row(day: _date) -> str:
+    """footer：大 Pulse + 產製說明 + 右下刊頭 / 期數。"""
+    return (
+        _heavy_rule(pt="34px")
+        + f'<tr><td style="padding:20px 44px 44px 44px;">'
+        f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>'
+        f'<td style="vertical-align:top;">'
+        f'<div style="font-size:30px;font-weight:800;letter-spacing:-0.02em;color:{_INK};'
+        f'line-height:1;">Pulse</div>'
+        f'<div style="font-size:11px;line-height:1.8;color:{_SUB};letter-spacing:0.02em;'
+        f'padding-top:8px;max-width:380px;">'
+        f"地端 ML 管線自動產製：爬蟲 → 資料品管 → 主題／情緒 → 忠實摘要。<br>"
+        f"全程免費、地端模型，不打雲端付費 API。</div></td>"
+        f'<td align="right" style="vertical-align:bottom;white-space:nowrap;">'
+        f'<div style="font-size:10px;font-weight:700;letter-spacing:0.2em;text-transform:uppercase;'
+        f'color:{_RED};">Daily&nbsp;AI&nbsp;Briefing</div>'
+        f'<div style="font-size:10px;letter-spacing:0.2em;color:{_SUB};padding-top:4px;">'
+        f"{_html.escape(_cn_date_dot(day))}</div></td>"
+        f"</tr></table></td></tr>"
+    )
+
+
+# ----------------------- 主組裝 -----------------------
 def render_html(
     *,
     day: _date,
@@ -1009,47 +969,51 @@ def render_html(
     storylines: list[dict] | None = None,
 ) -> str:
     """
-    組電子報 HTML —— 報紙社論版（broadsheet）、720px 表格版型、inline CSS、CJK 明體棧、light only。
+    組電子報 HTML —— 瑞士國際主義網格（Swiss）、660px 表格版型、inline CSS、無襯線棧、light only。
 
-    區塊順序：報眉 → 報頭 masthead/dateline（含今日 AI 圈天氣）→ 社論導言（summary，首字下沉）→
-    今日主秀 hero（資料驅動、可選）→ 今日事件（events，頭條/雙欄/三欄短訊）→ 新工具·使用方法 +
-    今日數據側欄（highlights / theme_counts / sentiment_counts / trending）→ 口碑亮點·爭議（movers）
-    → 報尾 colophon。純函式，可測。
+    區塊順序：masthead（巨大 Pulse + 右上日期/星期 + 今日 AI 圈天氣）→ 今日重點 / Editor's Note
+    （summary，行內引註）→ 今日主秀 hero（資料驅動、可選）→ 01 今日事件 → 02 精選 →
+    03 主題分布 → 04 口碑分布 → 05 熱詞 →（06 口碑亮點 · 爭議，有 movers 才出）→ footer。
+    純函式，可測。
 
-    theme_counts / sentiment_counts：原始計數，用於側欄的新聞紙風 HTML 條圖（取代彩色 PNG）；
-    sentiment_counts 另驅動報頭天氣。storylines：議題演變（state/span_days/timeline/citations），
+    視覺：禁止圓角 / 陰影 / 漸層 / 方框卡片；分組僅用留白 + 髮絲線 + 對齊 + 6px 粗黑 rule。
+    theme_counts / sentiment_counts：原始計數，驅動 03/04 的純 HTML 條圖（取代彩色 PNG）；
+    sentiment_counts 另驅動 masthead 天氣。storylines：議題演變（state/span_days/timeline/citations），
     驅動「今日主秀」hero 的議題追蹤形態；缺 / 空 → hero 自動退回其他形態或不出。
-    cover_cid / chart_cids：報紙版型不使用（保留參數向後相容），不渲染。
+    cover_cid / chart_cids：Swiss 版型不使用（保留參數向後相容），不渲染。
     """
     lead = _pick_lead(events, movers, theme_counts, sentiment_counts, storylines)
     rows = [
-        _ear_row(),
         _masthead_row(day, sentiment_counts),
-        _editorial_row(summary),
+        _lead_row(summary),
         _hero_row(lead),
         render_today_events_section(events or []),
-        _tools_and_data_row(highlights, theme_counts, sentiment_counts, trending),
-        _movers_row(movers or {}),
-        _colophon_row(day),
+        _highlights_section(highlights),
+        _theme_dist_section(theme_counts),
+        _sentiment_dist_section(sentiment_counts),
+        _keywords_section(trending),
+        _movers_section(movers or {}),
+        _footer_row(day),
     ]
     inner = "".join(r for r in rows if r)
     return (
         '<!DOCTYPE html><html lang="zh-Hant"><head><meta charset="utf-8">'
         '<meta name="viewport" content="width=device-width,initial-scale=1">'
-        '<meta name="color-scheme" content="light">'
+        '<meta name="color-scheme" content="light only">'
         '<meta name="supported-color-schemes" content="light">'
         "<title>Pulse 每日 AI 情報</title></head>"
-        f'<body style="margin:0;padding:0;background:{_FRAME};font-family:{_F_DISP};color:{_INK}">'
-        '<div style="display:none;max-height:0;overflow:hidden;opacity:0">'
+        f'<body style="margin:0;padding:0;background:{_FRAME};font-family:{_F};color:{_INK};'
+        '-webkit-font-smoothing:antialiased;">'
+        '<div style="display:none;max-height:0;overflow:hidden;opacity:0;">'
         "今日 AI 要事：頭版事件 + 工具方法 + 主題口碑數據</div>"
-        '<center><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" '
-        f'style="background:{_FRAME}"><tr><td align="center" style="padding:28px 12px">'
+        f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" '
+        f'style="background:{_FRAME};"><tr><td align="center" style="padding:36px 14px;">'
         f'<!--[if mso]><table role="presentation" width="{_WIDTH}" cellpadding="0" cellspacing="0" '
         'border="0"><tr><td><![endif]-->'
         f'<table role="presentation" width="{_WIDTH}" cellpadding="0" cellspacing="0" border="0" '
-        f'style="width:{_WIDTH}px;max-width:{_WIDTH}px;background:{_PAPER}">{inner}</table>'
+        f'style="width:{_WIDTH}px;max-width:{_WIDTH}px;background:{_PAPER};">{inner}</table>'
         "<!--[if mso]></td></tr></table><![endif]-->"
-        "</td></tr></table></center></body></html>"
+        "</td></tr></table></body></html>"
     )
 
 

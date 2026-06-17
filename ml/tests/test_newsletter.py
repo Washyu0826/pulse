@@ -188,14 +188,14 @@ def test_render_html_contains_sections_and_escapes():
         sentiment_counts={"positive": 1, "neutral": 2, "negative": 0},
     )
     assert "Pulse 每日 AI 情報" in out  # <title>
-    assert "每日人工智慧週報" in out  # 報頭副標
-    assert "2026 年 6 月 5 日" in out  # 報紙風中文日期
-    assert "圈很熱鬧" in out  # 社論導言（首字下沉拆出第一字，餘文連續）
+    assert "每日 AI 情報" in out  # masthead 副標（Swiss）
+    assert "今天 AI 圈很熱鬧" in out  # 今日重點導言（Swiss 行內、不拆首字）
     assert "新工具 &lt;X&gt;" in out  # HTML 跳脫，防注入
     assert "b=1&amp;c=2" in out  # URL 跳脫
-    assert "新工具 · 使用方法" in out  # 精選欄目名
-    assert "今日數據 · 主題分布" in out  # 側欄條圖
-    assert "MCP" in out  # 熱詞索引
+    assert "01 — 今日事件" not in out  # 無 events → 不出今日事件編號區段
+    assert "02 — 精選" in out  # 精選編號區段（Swiss）
+    assert "03 — 主題分布" in out  # 主題分布 HTML 條圖
+    assert "MCP" in out  # 熱詞（Swiss、無 #）
 
 
 def test_render_html_skips_empty_blocks():
@@ -226,11 +226,11 @@ def test_events_section_renders_title_summary_refs_and_count():
     out = render_today_events_section([_event()])
     assert "今日事件" in out
     assert "GPT-5 發表" in out  # 標題
-    assert "宣稱推理能力提升" in out  # 摘要內文（頭條首字下沉拆出第一字，取後段連續片段比對）
+    assert "宣稱推理能力提升" in out  # 摘要內文（Swiss 行內、完整保留）
     assert "[1]" in out and "[2]" in out  # 行內引註標記
     assert "綜合 3 則來源" in out  # 成員貼文數徽章
-    assert "threads" in out and "Hacker News" in out  # 出處清單來源
-    assert "出處" in out
+    assert "threads" in out and "Hacker News" in out  # SOURCES 行來源
+    assert "SOURCES" in out  # Swiss 出處標
 
 
 def test_events_section_multiple_events_all_present():
@@ -256,7 +256,7 @@ def test_events_section_citation_without_url_is_plain():
         _event(summary="僅一句[1]。", citations=[{"n": 1, "source": "threads"}]),
     ])
     assert "[1]" in out and "threads" in out
-    assert "href" not in out.split("出處")[1]  # 出處清單中無連結（純文字）
+    assert "href" not in out.split("SOURCES")[1]  # SOURCES 行中無連結（純文字）
 
 
 def test_events_section_marker_without_citation_kept_as_plaintext():
@@ -294,8 +294,8 @@ def test_render_html_includes_events_section_when_provided():
     assert "GPT-5 發表" in out
     assert "[1]" in out
     assert "綜合 3 則來源" in out
-    # 事件區塊應排在社論導言（Editor’s Note）之後、各主題精選（新工具 · 使用方法）之前
-    assert out.index("Editor") < out.index("今日事件") < out.index("新工具 · 使用方法")
+    # 事件區塊應排在今日重點（Editor's Note）之後、精選（02 — 精選）之前
+    assert out.index("Editor") < out.index("01 — 今日事件") < out.index("02 — 精選")
 
 
 def test_render_html_without_events_omits_section_and_is_unchanged():

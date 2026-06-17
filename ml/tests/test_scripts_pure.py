@@ -154,5 +154,5 @@ def test_newsletter_dry_run_writes_html(nl, tmp_path, monkeypatch):
     html = (tmp_path / "nl" / "newsletter.html").read_text(encoding="utf-8")
     assert "Pulse 每日 AI 情報" in html
     assert "Claude Skills 發表" in html        # 精選貼文進了信
-    assert "圈聚焦新工具與使用方法" in html  # 摘要進了信（首字下沉拆出第一字，取後段連續片段）
-    assert "MCP" in html                       # 熱詞（報紙版熱詞索引以「·」分隔、無 #）
+    assert "今日 AI 圈聚焦新工具與使用方法" in html  # 摘要進了信（Swiss 行內、完整保留）
+    assert "MCP" in html                       # 熱詞（Swiss 熱詞無 #）
