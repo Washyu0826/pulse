@@ -7,8 +7,8 @@
 設計取捨（比照 routers/events_today.py）：刻意不經 DB（不需 Docker/Postgres 也能跑），
 來源檔路徑由設定 `PULSE_STORYLINES_FILE` 控制（見 api/api/config.py）。
 """
-import json
 import logging
+import sys
 import time
 from pathlib import Path
 from typing import Any
@@ -17,6 +17,14 @@ from fastapi import APIRouter, Query
 from pydantic import BaseModel, Field
 
 from api.config import settings
+
+# 重用 monorepo 的 ml 純函式（共用 JSONL 讀檔；與 routers/collection.py 同作法：
+# 把 D:\pulse\ml 加進 path）。read_jsonl 無重依賴，import 安全。
+_ML = Path(__file__).resolve().parents[3] / "ml"
+if str(_ML) not in sys.path:
+    sys.path.insert(0, str(_ML))
+
+from ml.jsonlio import read_jsonl  # noqa: E402
 
 logger = logging.getLogger("pulse.api")
 
@@ -166,22 +174,12 @@ def _load_storylines(path: Path, limit: int) -> list[Storyline]:
             path, age_s / 3600, _STALE_AFTER_S / 3600,
         )
     out: list[Storyline] = []
-    with path.open(encoding="utf-8") as f:
-        for i, line in enumerate(f, 1):
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                rec = json.loads(line)
-            except json.JSONDecodeError:
-                continue  # 單行壞掉不該讓整個 endpoint 失敗
-            if not isinstance(rec, dict):
-                continue
-            story = _map_record(rec, fallback_id=i)
-            if story is not None:
-                out.append(story)
-            if len(out) >= limit:
-                break
+    for i, rec in enumerate(read_jsonl(path), 1):
+        story = _map_record(rec, fallback_id=i)
+        if story is not None:
+            out.append(story)
+        if len(out) >= limit:
+            break
     return out
 
 

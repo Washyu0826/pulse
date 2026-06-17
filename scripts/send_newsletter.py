@@ -1,16 +1,16 @@
 """
-每日電子報 —— 從 DB 撈當日精選 → 本地 Qwen 摘要 → matplotlib 繁中圖表 + 地端 SD 題圖 →
-組精緻 HTML → Gmail SMTP 寄到信箱。全程免費 / 地端（[[prefer-local-llm]]）。
+每日電子報 —— 從 DB 撈當日精選 → 本地 Qwen 摘要 → 組精緻 HTML（Swiss 版型，
+圖表為純 HTML 條圖）→ Gmail SMTP 寄到信箱。全程免費 / 地端（[[prefer-local-llm]]）。
 
-純函式（精選/組版/組信）在 ml/ml/newsletter.py 與 ml/ml/charts.py，已單元測試；本檔只編排。
+純函式（精選/組版/組信）在 ml/ml/newsletter.py，已單元測試；本檔只編排。
 
-前置（系統 Python）：matplotlib（圖表）、diffusers+torch（題圖，可 --no-cover 跳過）、Ollama（摘要）。
+前置（系統 Python）：Ollama（本地 Qwen 摘要）。
 SMTP 設定走環境變數 / .env：PULSE_SMTP_USER、PULSE_SMTP_APP_PASSWORD、PULSE_NEWSLETTER_TO。
 
 用法：
-    # 先預覽（不寄；存 HTML + 圖到 out/，也不跑 SD）
-    python scripts/send_newsletter.py --dry-run --no-cover
-    # 正式寄（含地端 SD 題圖）
+    # 先預覽（不寄；存 HTML 到 out/）
+    python scripts/send_newsletter.py --dry-run
+    # 正式寄
     python scripts/send_newsletter.py
 """
 import argparse
@@ -30,8 +30,7 @@ sys.path.insert(0, str(_ROOT / "api"))
 sys.path.insert(0, str(_ROOT / "ml"))
 
 # 改用 OS 信任庫，避開企業/校園 TLS 攔截導致的 CERTIFICATE_VERIFY_FAILED。
-# 缺這步時 huggingface_hub 1.x 下載模型會在 SSL 失敗→retry 重用已關閉的 httpx Client，
-# 噴 "Cannot send a request, as the client has been closed"，題圖整個生不出來。
+# 主要供 SMTP 寄送走 Windows 信任庫驗過 Avast MITM 重簽憑證（見下方 _send 註解）。
 # best-effort：未裝 truststore（無攔截網路）就略過，OS 信任庫本來就正確。
 try:
     import truststore
@@ -42,7 +41,6 @@ except Exception:  # noqa: BLE001 — 注入失敗不該擋整支電子報
 
 from ml.newsletter import (  # noqa: E402
     build_mime_message,
-    cover_prompt,
     render_html,
     select_highlights,
     sentiment_movers,
@@ -53,11 +51,6 @@ logger = logging.getLogger("pulse.newsletter")
 
 _OLLAMA = os.environ.get("OLLAMA_HOST", "http://127.0.0.1:11434").rstrip("/")
 _SUMMARY_MODEL = os.environ.get("PULSE_SUMMARY_MODEL", "qwen2.5:7b")
-_COVER_MODEL = os.environ.get("PULSE_COVER_MODEL", "segmind/SSD-1B")
-_COVER_NEG = (
-    "text, words, letters, typography, caption, watermark, signature, logo, ui, numbers, "
-    "gibberish text, photo, photorealistic, 3d render, cluttered, low quality, blurry, deformed"
-)
 
 
 def _load_dotenv(path: Path) -> None:
@@ -167,40 +160,6 @@ def _fallback_summary(titles: list[str]) -> str:
     return f"今日整理 {len(titles)} 則 AI 討論，涵蓋新工具、使用方法、模型動態與風險等主題。"
 
 
-# ----------------------- 地端 SD 題圖 -----------------------
-def _generate_cover(prompt: str, seed: int) -> bytes | None:
-    try:
-        import io
-
-        import torch
-        from diffusers import AutoPipelineForText2Image
-    except ImportError:
-        logger.warning("未安裝 diffusers/torch，跳過題圖（可 --no-cover 明確略過）")
-        return None
-    try:
-        kwargs = {"torch_dtype": torch.float16, "use_safetensors": True}
-        try:
-            pipe = AutoPipelineForText2Image.from_pretrained(_COVER_MODEL, variant="fp16", **kwargs)
-        except Exception:  # noqa: BLE001 — 無 fp16 變體就退一般
-            pipe = AutoPipelineForText2Image.from_pretrained(_COVER_MODEL, **kwargs)
-        pipe.enable_model_cpu_offload()  # 8GB 4060：勿再 .to('cuda')
-        try:
-            pipe.enable_vae_tiling()
-        except Exception:  # noqa: BLE001
-            pass
-        pipe.set_progress_bar_config(disable=True)
-        gen = torch.Generator(device="cuda").manual_seed(seed) if torch.cuda.is_available() else None
-        img = pipe(prompt=prompt, negative_prompt=_COVER_NEG, width=1024, height=576,
-                   num_inference_steps=30, guidance_scale=7.0, generator=gen).images[0]
-        buf = io.BytesIO()
-        img.save(buf, format="PNG")
-        logger.info("題圖完成（%s）", _COVER_MODEL)
-        return buf.getvalue()
-    except Exception:  # noqa: BLE001 — 題圖失敗不該擋寄信
-        logger.exception("題圖生成失敗，跳過")
-        return None
-
-
 # ----------------------- SMTP -----------------------
 def _send(msg) -> None:
     import smtplib
@@ -249,23 +208,12 @@ def _load_events_file() -> list[dict]:
     """讀今日事件 JSONL（一行一事件），給電子報「今日事件」區塊。
     缺檔 / 空行 / 壞行皆優雅略過回 []（無事件就不出該區塊，向後相容）。
     欄位（title/summary/citations/member_count/theme）即 render_today_events_section 所需。"""
-    import json
+    from ml.jsonlio import read_jsonl
 
-    path = Path(_events_path())
-    if not path.exists():
-        return []
-    out: list[dict] = []
-    for line in path.read_text(encoding="utf-8").splitlines():
-        line = line.strip()
-        if not line:
-            continue
-        try:
-            rec = json.loads(line)
-        except json.JSONDecodeError:
-            continue
-        if isinstance(rec, dict) and isinstance(rec.get("summary"), str) and rec["summary"].strip():
-            out.append(rec)
-    return out
+    return read_jsonl(
+        _events_path(),
+        validate=lambda r: isinstance(r.get("summary"), str) and bool(r["summary"].strip()),
+    )
 
 
 # ----------------------- 議題演變 storylines（build_storylines.py 產出的 JSONL）-----------------------
@@ -278,23 +226,9 @@ def _storylines_path() -> str:
 def _load_storylines_file() -> list[dict]:
     """讀議題演變 JSONL（一行一議題），驅動電子報「今日主秀」hero 的議題追蹤形態。
     缺檔 / 空行 / 壞行皆優雅略過回 []（hero 自動退回其他形態或不出，絕不報錯）。"""
-    import json
+    from ml.jsonlio import read_jsonl
 
-    path = Path(_storylines_path())
-    if not path.exists():
-        return []
-    out: list[dict] = []
-    for line in path.read_text(encoding="utf-8").splitlines():
-        line = line.strip()
-        if not line:
-            continue
-        try:
-            rec = json.loads(line)
-        except json.JSONDecodeError:
-            continue
-        if isinstance(rec, dict):
-            out.append(rec)
-    return out
+    return read_jsonl(_storylines_path())
 
 
 # ----------------------- 編排 -----------------------
@@ -311,18 +245,8 @@ async def main_async(args: argparse.Namespace) -> None:
     titles = [(p.get("title_zh") or p.get("title") or "") for ps in highlights.values() for p in ps]
     summary = await _summarize(titles)
 
-    # 報紙版型用 HTML/table 新聞紙風條圖（不再用彩色 matplotlib PNG）→ 計數直接交給 render_html。
-    images: dict[str, bytes] = {}
-
-    # 題圖（地端 SD）
-    cover_cid = None
-    if not args.no_cover:
-        lead = next(iter(highlights), None)  # 第一個有貼文的主題當主導
-        cover = _generate_cover(cover_prompt(trending, lead_theme=lead), seed=args.seed)
-        if cover:
-            images["cover@pulse"] = cover
-            cover_cid = "cover@pulse"
-
+    # Swiss 版型不放封面題圖、也不再用彩色 matplotlib PNG（圖表改純 HTML 條圖，
+    # 計數直接交給 render_html）→ 不再產任何內嵌圖片。
     events = _load_events_file()
     if events:
         print(f"🗂️  今日事件 {len(events)} 則（{Path(_events_path()).name}）")
@@ -331,7 +255,7 @@ async def main_async(args: argparse.Namespace) -> None:
         print(f"📈 議題演變 {len(storylines)} 條（{Path(_storylines_path()).name}）")
     html = render_html(
         day=date.today(), summary=summary, highlights=highlights, movers=movers,
-        trending=trending, cover_cid=cover_cid, events=events,
+        trending=trending, events=events,
         theme_counts=tcounts, sentiment_counts=scounts, storylines=storylines,
     )
 
@@ -339,9 +263,7 @@ async def main_async(args: argparse.Namespace) -> None:
         out = args.out
         out.mkdir(parents=True, exist_ok=True)
         (out / "newsletter.html").write_text(html, encoding="utf-8")
-        for cid, data in images.items():
-            (out / f"{cid.split('@')[0]}.png").write_bytes(data)
-        print(f"📄 預覽已存：{out / 'newsletter.html'}（圖 {len(images)} 張）。未寄送。")
+        print(f"📄 預覽已存：{out / 'newsletter.html'}。未寄送。")
         return
 
     to = args.to or os.environ.get("PULSE_NEWSLETTER_TO")
@@ -350,7 +272,7 @@ async def main_async(args: argparse.Namespace) -> None:
     msg = build_mime_message(
         subject=f"Pulse 每日 AI 情報 · {date.today().isoformat()}",
         sender=os.environ.get("PULSE_SMTP_USER", to),
-        to=[to], html=html, images=images,
+        to=[to], html=html,
     )
     _send(msg)
     print(f"📧 已寄送到 {to}")
@@ -364,9 +286,10 @@ def main() -> None:
     ap.add_argument("--days", type=int, default=1, help="撈最近 N 天的貼文")
     ap.add_argument("--min-quality", type=int, default=30)
     ap.add_argument("--per-theme", type=int, default=3, help="每主題精選幾篇")
-    ap.add_argument("--no-cover", action="store_true", help="跳過地端 SD 題圖（快、省資源）")
-    ap.add_argument("--seed", type=int, default=20260607, help="SD 固定 seed（封面風格一致）")
-    ap.add_argument("--dry-run", action="store_true", help="只存 HTML+圖預覽、不寄送")
+    # Swiss 版型已不放 SD 題圖；--no-cover 保留為 no-op 僅為向後相容既有排程呼叫。
+    ap.add_argument("--no-cover", action="store_true",
+                    help="（已停用，no-op；Swiss 版型不再產 SD 題圖）")
+    ap.add_argument("--dry-run", action="store_true", help="只存 HTML 預覽、不寄送")
     ap.add_argument("--out", type=Path, default=_ROOT / "out" / "newsletter", help="dry-run 輸出目錄")
     args = ap.parse_args()
     asyncio.run(main_async(args))

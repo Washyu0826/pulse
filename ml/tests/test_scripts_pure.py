@@ -143,11 +143,11 @@ def test_newsletter_dry_run_writes_html(nl, tmp_path, monkeypatch):
 
     monkeypatch.setattr(nl, "_fetch", fake_fetch)
     monkeypatch.setattr(nl, "_summarize", fake_summarize)
-    monkeypatch.setattr(nl, "_generate_cover", lambda *a, **k: None)  # 跳過 SD
 
+    # Swiss 版型不再產 SD 題圖；--no-cover 為 no-op、不再有 _generate_cover。
     args = argparse.Namespace(
         to=None, days=1, min_quality=30, per_theme=3, no_cover=True,
-        seed=1, dry_run=True, out=tmp_path / "nl",
+        dry_run=True, out=tmp_path / "nl",
     )
     asyncio.run(nl.main_async(args))
 

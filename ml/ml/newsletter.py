@@ -122,15 +122,6 @@ THEME_ICON = {
 SENTIMENT_ICON = {"positive": "🟢", "neutral": "⚪", "negative": "🔴"}
 
 
-def _engagement(post: dict) -> int:
-    """互動分數（讚 + 留言），用於同主題內排序。缺值當 0。
-
-    保留供向後相容；排序已改用 hotness.engagement / per-source 正規化
-    （見 hotness.source_baselines / hotness.rank_balanced）。
-    """
-    return int(post.get("score") or 0) + int(post.get("num_comments") or 0)
-
-
 def select_highlights(
     posts: list[dict],
     *,
@@ -897,8 +888,6 @@ def render_html(
     highlights: dict[str, list[dict]],
     movers: dict[str, list[dict]] | None = None,
     trending: list[str] | None = None,
-    cover_cid: str | None = None,
-    chart_cids: dict[str, str] | None = None,
     events: list[dict] | None = None,
     theme_counts: dict[str, int] | None = None,
     sentiment_counts: dict[str, int] | None = None,
@@ -916,7 +905,7 @@ def render_html(
     theme_counts / sentiment_counts：原始計數，驅動 03/04 的純 HTML 條圖（取代彩色 PNG）；
     sentiment_counts 另驅動 masthead 天氣。storylines：議題演變（state/span_days/timeline/citations），
     驅動「今日主秀」hero 的議題追蹤形態；缺 / 空 → hero 自動退回其他形態或不出。
-    cover_cid / chart_cids：Swiss 版型不使用（保留參數向後相容），不渲染。
+    Swiss 版型不渲染封面題圖 / 彩色圖表 PNG（圖表改純 HTML 條圖、見 03/04）。
     """
     lead = _pick_lead(events, movers, theme_counts, sentiment_counts, storylines)
     rows = [
