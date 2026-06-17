@@ -40,6 +40,19 @@ __all__ = [
 
 logger = logging.getLogger(__name__)
 
+# 簡→繁（台灣）：qwen2.5 摘要輸出常夾簡體（「面临」「网络」）。OpenCC 為純地端、無網路，
+# 與 keywords.py / translate.py 同一套依賴。lazy 載入：缺 opencc 時退化為 identity（不致命）。
+try:
+    from opencc import OpenCC
+
+    _s2tw = OpenCC("s2tw")
+
+    def _to_traditional(text: str) -> str:
+        return _s2tw.convert(text)
+except Exception:  # noqa: BLE001 — 無 opencc 時不轉（純函式仍可測）
+    def _to_traditional(text: str) -> str:
+        return text
+
 # generate_fn 型別：吃組好的 prompt（str）→ 回 LLM 文字（str）。生產為 Ollama，測試注入 fake。
 GenerateFn = Callable[[str], str]
 
@@ -169,7 +182,10 @@ def build_summary_prompt(
         "2. 每個論述句的結尾，必須標註支持該句的來源編號，格式為 [n]（多個來源寫成 [1][3]）。\n"
         "3. 嚴禁杜撰、臆測或加入常識補充；若某項說法無法由來源支持，寧可不寫。\n"
         f"4. 摘要要精簡、客觀，最多 {max_sentences} 句，聚焦這個事件的核心進展。\n"
-        "5. 直接輸出摘要本文即可，不要前言、不要結語、不要重複來源清單。\n\n"
+        "5. 只陳述事實，不要加入評論、推論、感想或總結句（例如「這反映出…」「顯示…挑戰」）。\n"
+        "6. 產品 / 模型 / 公司名一律保留英文原文（如 Claude、Claude Code、GPT、Anthropic），"
+        "不要音譯或意譯；jailbreak 等技術術語照英文或慣用譯法，不要直譯成字面意思。\n"
+        "7. 直接輸出摘要本文即可，不要前言、不要結語、不要重複來源清單。\n\n"
         "（做法建議：先在心中挑出可用的來源句，再把它們改寫成連貫的中文，並逐句附上 [n]。）\n\n"
         "來源：\n"
         f"{sources}\n\n"
@@ -206,7 +222,7 @@ def parse_summary(raw_output: str) -> EventSummary:
     處理：去 code fence、濾掉「摘要：」之類前言行、去條列符號 / 行首編號、拆句、抽引註編號。
     cleaned text 保留 inline `[n]` 引註（驗證與下游展示都需要）。
     """
-    text = _strip_code_fences(raw_output)
+    text = _to_traditional(_strip_code_fences(raw_output))
     # 逐行清理前言雜訊與條列符號
     cleaned_lines: list[str] = []
     for line in text.splitlines():

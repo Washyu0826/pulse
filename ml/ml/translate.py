@@ -28,11 +28,40 @@ _OLLAMA = os.environ.get("OLLAMA_HOST", "http://127.0.0.1:11434").rstrip("/")
 _MODEL = os.environ.get("PULSE_TRANSLATE_MODEL", "qwen2.5:7b")
 
 # 實測有效：英文指令 + 保留專名 + 只輸出譯文。
+# 強化（content-quality backlog #3）：qwen2.5:7b 會 (a) 音譯專名（Claude→克勞德、
+# Fable→寓言）、(b) 漏翻大寫英文（SHIPPING / ISSUE）、(c) 直譯 Show HN/Ask HN、
+# (d) 亂加 emoji。逐條用明確指令壓制；無法靠 prompt 完全根治的（音譯）再靠後處理
+# 保護詞表 _protect_terms 校正。
 _PROMPT = (
-    "Translate to Traditional Chinese (Taiwan). Keep product, model, and company "
-    "names in English (Claude, GPT, OpenAI, MCP, etc.). Reply with ONLY the "
-    "translation — no quotes, no explanation:\n\n{text}"
+    "You are a professional EN->Traditional Chinese (Taiwan) translator for AI tech "
+    "news headlines. Translate the text below.\n"
+    "STRICT RULES:\n"
+    "1. Keep ALL product, model, company, library, and tool names in their original "
+    "English spelling. NEVER transliterate or translate them. Examples that MUST stay "
+    "verbatim: Claude, Claude Code, Codex, GPT, GPT-5, OpenAI, Anthropic, Gemini, "
+    "DeepSeek, MCP, RAG, LLM, SDK, CLI, Fable, Mythos, Conductor, VS Code.\n"
+    "2. Keep ALL Latin-script words, acronyms, and ALL-CAPS words in English (do not "
+    "leave any English word untranslated by accident, but proper nouns / tech terms "
+    "stay English).\n"
+    "3. Keep 'Show HN' and 'Ask HN' exactly as-is (do NOT translate to 秀HN/問HN).\n"
+    "4. Do NOT add emoji, quotation marks, notes, or explanations.\n"
+    "5. Output ONLY the translation on a single line.\n\n"
+    "Text:\n{text}"
 )
+
+# 後處理保護詞表：模型若把專名音譯/亂翻，這裡用 regex 強制校回英文原名。
+# key 為「會出現在模型輸出裡的錯誤寫法」（含常見音譯與被拆開的變體），value 為正名。
+# 注意：在 s2tw 轉繁之後比對，故 key 用繁體。順序：長詞先於短詞，避免「Claude Code」
+# 被「Claude」先吃掉。
+_TERM_FIXES: list[tuple[re.Pattern[str], str]] = [
+    (re.compile(r"克勞德[\s ]*(?:程式)?碼"), "Claude Code"),  # 克勞德碼 / 克勞德程式碼
+    (re.compile(r"克勞德"), "Claude"),
+    (re.compile(r"(?:Claude|克勞德)[\s ]*寓言"), "Claude Fable"),  # Fable 被翻成「寓言」
+    (re.compile(r"(?<![A-Za-z])寓言(?=[\s ]*\d)"), "Fable"),  # 「寓言 5」→ Fable 5
+    (re.compile(r"秀[\s ]*HN"), "Show HN"),
+    (re.compile(r"問[\s ]*HN"), "Ask HN"),
+]
+_DUP_PUNCT_RE = re.compile(r"([^\w\s])\1{2,}")  # 連續 3+ 個相同標點/符號（去 ooooo / —— 噪音）
 
 
 def needs_translation(text: str, *, cjk_threshold: float = 0.15) -> bool:
@@ -44,10 +73,22 @@ def needs_translation(text: str, *, cjk_threshold: float = 0.15) -> bool:
     return cjk / max(len(t), 1) < cjk_threshold
 
 
+def _protect_terms(text: str) -> str:
+    """後處理：把被音譯/誤翻的專名校回英文原名，並壓掉重複標點噪音。純函式，可測。
+
+    解掉 qwen 殘留的音譯（克勞德→Claude、寓言→Fable）與 Show HN/Ask HN 直譯。
+    在 s2tw 轉繁之後套用（_TERM_FIXES 的 key 用繁體），避免簡繁不一致漏配。
+    """
+    for pat, repl in _TERM_FIXES:
+        text = pat.sub(repl, text)
+    return _DUP_PUNCT_RE.sub(r"\1", text)
+
+
 def _clean(raw: str) -> str:
-    """整理模型輸出：去頭尾空白/引號、強制繁體。"""
+    """整理模型輸出：去頭尾空白/引號、強制繁體、校正專名、壓重複標點。"""
     s = (raw or "").strip().strip('"「」').strip()
-    return _s2tw.convert(s)
+    s = _s2tw.convert(s)
+    return _protect_terms(s)
 
 
 class Translator:

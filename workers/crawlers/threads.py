@@ -26,6 +26,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from crawlers.keywords import is_ai_related, looks_simplified, match_models
+from crawlers.threads_clean import clean_thread_text
 
 __all__ = ["crawl_threads", "normalize_thread_post"]
 
@@ -89,7 +90,9 @@ _USER_AGENT = (
 
 def normalize_thread_post(raw: dict[str, Any]) -> dict:
     """把抓到的 Threads 貼文原始 dict 正規化成可 UPSERT 的 dict。純函式，可測。"""
-    text = (raw.get("text") or "").strip()
+    # 先剝掉容器 .text 夾帶的 UI chrome（作者名 / 日期 / 相對時間 / 互動計數 / 分頁 / 翻譯），
+    # 再衍生 title/content/models —— 否則 chrome 會污染內文、熱詞、主題/情緒分類（backlog #1）。
+    text = clean_thread_text((raw.get("text") or "").strip())
     posted = raw.get("posted_at")
     if not isinstance(posted, datetime):
         # 抽不到 <time datetime> → fallback 用現在時間（抓取時間），避免必填 posted_at 缺漏被整批丟掉。

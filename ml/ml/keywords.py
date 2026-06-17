@@ -40,6 +40,17 @@ _STOPWORDS: frozenset[str] = frozenset(
     "有 会 能 要 把 被 让 给 对 从 向 还 又 再 已 才 只 等 啊 吧 呢 吗 嘛 哦 喔 啦 "
     "我们 你们 他们 自己 什么 怎么 这个 那个 一个 一些 现在 可以 这样 那样 因为 所以 "
     "如果 但是 而且 然后 还有 觉得 真的 应该 可能 问题 一下 一直 已经 之后 之前 "
+    "就是 或是 像是 还是 大概 目前 这种 那种 一样 一点 一些 一种 比较 处理 提供 需要 使用 "
+    # AI 社群泛詞 filler（解掉爬蟲 chrome 後仍會冒出的中性高頻詞，非 AI 訊號；見 backlog #5）
+    # 注意：須用簡體（t2s 後比對）。保留 演算法/agent/prompt 等真術語不入列。
+    "讨论 工程师 分钟 小时 请益 软体 程式 学习 开发 专案 公司 工作 经验 事情 面试 职缺 "
+    "请问 想问 请教 推荐 分享 感觉 时候 介绍 了解 经历 觉得 知道 希望 大家 各位 最近 今天 "
+    "简单 相关 兴趣 详细 的话 东西 之类 任何 等等 其实 想法 毕竟 帮助 机会 过程 修改 最后 名称 "
+    "有没有 这些 当然 方式 其他 疑问 要求 符合 目标 这边 那边 其中 之外 之类 而已 而言 "
+    # 求職板噪音（AI feed 不需要 年薪/履歷/面試 之類稀釋訊號）
+    "年薪 履历 "
+    # PTT/JPTT 轉錄樣板殘渣（※ 引述 ... 之銘言、Re: 回文、jptt/imgur app 與圖床、xd 顏文字、自稱小弟）
+    "引述 之铭言 铭言 引言 imgur jptt re sent xd 小弟 "
     # 英文常見 + AI filler
     "the a an and or but for to of in on at is are be was were this that with as it "
     "you your we our they i my me from by not no so if then than will can just use using "

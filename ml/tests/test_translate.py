@@ -41,6 +41,39 @@ def test_clean_strips_quotes_and_forces_traditional():
     assert "测" not in out  # 测→測
 
 
+# ---- 純函式：_protect_terms（後處理保護詞表）----
+def test_protect_terms_restores_product_names():
+    from ml.translate import _protect_terms
+
+    # 音譯 / 誤翻校回英文原名（content-quality backlog #3）。
+    assert _protect_terms("克勞德碼很好用") == "Claude Code很好用"
+    assert _protect_terms("克勞德程式碼") == "Claude Code"
+    assert _protect_terms("用克勞德寫程式") == "用Claude寫程式"
+    assert _protect_terms("Claude寓言 5 上線") == "Claude Fable 5 上線"
+
+
+def test_protect_terms_keeps_show_ask_hn_english():
+    from ml.translate import _protect_terms
+
+    assert _protect_terms("秀 HN：開源工具") == "Show HN：開源工具"
+    assert _protect_terms("問HN：有人試過嗎") == "Ask HN：有人試過嗎"
+
+
+def test_protect_terms_collapses_repeated_punct_noise():
+    from ml.translate import _protect_terms
+
+    # qwen 偶吐連續破折號 / 標點雜訊 → 壓成單一。
+    assert _protect_terms("標題————副標") == "標題—副標"
+    assert _protect_terms("結尾。。。。") == "結尾。"
+
+
+def test_clean_applies_term_protection_after_traditional():
+    from ml.translate import _clean
+
+    # s2tw 後再校專名：簡體「克劳德」→繁「克勞德」→「Claude」。
+    assert _clean("克劳德 发布新版") .startswith("Claude")
+
+
 # ---- async：translate（mock httpx client）----
 class _FakeResponse:
     def __init__(self, text: str = "", *, raise_status: bool = False) -> None:
