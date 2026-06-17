@@ -93,6 +93,7 @@ def test_feed_single_theme_outputs_canonical_label():
     row = _Row(
         id=7, title="AI 幻覺踩雷", content="內文", source="ptt",
         url="https://example.com", permalink=None, posted_at=now, score=10,
+        num_comments=2,
         confidence=0.81, sentiment=None, title_zh=None, snippet_zh=None,
     )
     # 查詢順序：rows → slugs（rows 非空才查）。
@@ -103,6 +104,41 @@ def test_feed_single_theme_outputs_canonical_label():
     data = resp.json()
     assert list(data.keys()) == ["風險限制"]
     assert data["風險限制"][0]["theme"] == "風險限制"
+
+
+def _post_row(id, source, score, *, num_comments=0):
+    """完整貼文資料列（含 per-source 平衡排序需要的 source/score/num_comments）。"""
+    now = datetime(2026, 6, 11, 12, 0, tzinfo=UTC)
+    return _Row(
+        id=id, title=f"t{id}", content="內文", source=source,
+        url=f"https://example.com/{id}", permalink=None, posted_at=now,
+        score=score, num_comments=num_comments,
+        confidence=0.8, sentiment=None, title_zh=None, snippet_zh=None,
+    )
+
+
+def test_feed_balanced_ranking_mixes_sources_not_all_threads():
+    """per-source 平衡排序：候選池中 Threads 數量遠多於 HN，結果仍兩來源都露出、
+    不被 Threads 100% 洗版（取代純時間排序）。"""
+    # 候選池：5 篇 threads（低互動量級）+ 1 篇 hackernews（高量級）。純時間/數量排序
+    # 若 threads 較新會全是 threads；rank_balanced round-robin → 第一輪各來源各取一篇。
+    candidate_rows = [
+        _post_row(1, "threads", 8),
+        _post_row(2, "threads", 6),
+        _post_row(3, "threads", 5),
+        _post_row(4, "threads", 4),
+        _post_row(5, "threads", 3),
+        _post_row(6, "hackernews", 500),
+    ]
+    # 查詢順序：候選池 rows → slugs（rows 非空才查）。
+    _override(_ScriptedSession(results=[_Result(candidate_rows), _Result([])]))
+
+    resp = client.get("/api/feed", params={"theme": "新工具", "limit_per_theme": 2})
+    assert resp.status_code == 200
+    items = resp.json()["新工具"]
+    assert len(items) == 2
+    srcs = {it["source"] for it in items}
+    assert srcs == {"threads", "hackernews"}  # 兩來源都露出，非兩篇全 threads
 
 
 def test_feed_legacy_boundary_theme_param_rejected():

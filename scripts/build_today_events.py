@@ -49,6 +49,7 @@ from run_event_pipeline import _make_title, build_real_models, result_to_record 
 async def _fetch_posts(hours: int, min_quality: int, sources: list[str], limit: int) -> list[dict]:
     """撈近 N 小時、達品質門檻的貼文，組成 pipeline 要的 dict（含乾淨 title/title_zh 供標題用）。"""
     from api.database import AsyncSessionLocal
+    from api.services.recency import RECENCY_COLUMN_NAME
     from sqlalchemy import text
 
     placeholders = ",".join(f":s{i}" for i in range(len(sources)))
@@ -63,7 +64,9 @@ async def _fetch_posts(hours: int, min_quality: int, sources: list[str], limit: 
                     "from posts p "
                     "left join themes th on th.post_id=p.id "
                     "left join translations t on t.post_id=p.id "
-                    "where p.posted_at >= now() - make_interval(hours => :h) "
+                    # 近期視窗用 created_at（入庫時間），與 feed / 電子報一致：
+                    # Threads 常青貼（posted_at 舊、今天才入庫）才進得來。見 api/api/services/recency.py。
+                    f"where p.{RECENCY_COLUMN_NAME} >= now() - make_interval(hours => :h) "
                     "and (p.quality_score is null or p.quality_score >= :q) "
                     f"and p.source in ({placeholders}) "
                     "order by coalesce(p.score,0)+coalesce(p.num_comments,0) desc "

@@ -23,7 +23,6 @@ from email.mime.image import MIMEImage
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.utils import formatdate, make_msgid
-from statistics import median
 
 from . import hotness as _hot
 
@@ -126,73 +125,10 @@ SENTIMENT_ICON = {"positive": "🟢", "neutral": "⚪", "negative": "🔴"}
 def _engagement(post: dict) -> int:
     """互動分數（讚 + 留言），用於同主題內排序。缺值當 0。
 
-    保留供向後相容；排序已改用 hotness.engagement / per-source 正規化（見 _source_baselines）。
+    保留供向後相容；排序已改用 hotness.engagement / per-source 正規化
+    （見 hotness.source_baselines / hotness.rank_balanced）。
     """
     return int(post.get("score") or 0) + int(post.get("num_comments") or 0)
-
-
-def _source_of(post: dict) -> str:
-    """來源鍵：取 source，缺值歸 'unknown'。同來源才互相比較互動量級。"""
-    return str(post.get("source") or "unknown")
-
-
-def _source_baselines(posts: list[dict]) -> dict[str, float]:
-    """
-    算各來源的互動「基準」= 該來源所有貼文 hotness.engagement 的中位數（純函式、確定性）。
-
-    為何用中位數而非平均/最大：HN 偶有爆文（points 上千），平均/最大會被單篇拉高，
-    讓正常 HN 貼文反而「相對不熱」；中位數代表該來源的典型量級，最能公平正規化。
-    只納入互動 > 0 的貼文算中位數（全 0 或無正互動的來源 → 不給基準，post_hotness
-    會退回 log 壓縮）。回傳 {source: baseline>0}。
-    """
-    by_src: dict[str, list[float]] = {}
-    for p in posts:
-        e = _hot.engagement(p)
-        if e > 0:
-            by_src.setdefault(_source_of(p), []).append(e)
-    return {src: median(vals) for src, vals in by_src.items() if vals}
-
-
-def _hotness_key(post: dict, baselines: dict[str, float]):
-    """
-    排序鍵：per-source 正規化熱度，同分以 id 決勝（確定性）。
-
-    age_hours=0：在 1 天視窗內時間衰減對所有貼文一致（分母同為定值），不影響相對排序；
-    重點是用該來源基準正規化互動，讓 Threads 讚數與 HN points 在「同量級尺度」上競爭。
-    來源無基準時 source_baseline=None → post_hotness 退回 log 壓縮（仍可比、不爆長尾）。
-    """
-    baseline = baselines.get(_source_of(post))
-    h = _hot.post_hotness(post, age_hours=0, source_baseline=baseline)
-    return (h, post.get("id", 0))
-
-
-def _rank_balanced(posts: list[dict], baselines: dict[str, float], k: int) -> list[dict]:
-    """
-    取前 k 篇，但做「同來源至少露出」的輕量平衡（純函式、確定性）。
-
-    各來源內先依正規化熱度排序，再以 round-robin 跨來源輪流取（每輪各來源出最熱的一篇），
-    來源順序依「該來源當前最熱貼文的熱度」由高到低。效果：高量級來源（HN）不會因
-    原始互動大就洗版整個區塊，主力來源 Threads 能穩定露出；同時最熱的仍排前面。
-    """
-    if k <= 0:
-        return []
-    by_src: dict[str, list[dict]] = {}
-    for p in posts:
-        by_src.setdefault(_source_of(p), []).append(p)
-    queues = {
-        src: sorted(items, key=lambda p: _hotness_key(p, baselines), reverse=True)
-        for src, items in by_src.items()
-    }
-    out: list[dict] = []
-    while len(out) < k and any(queues.values()):
-        # 每輪：依各來源「下一篇待選」的熱度排來源序，輪流各取一篇（同來源至少露出）。
-        ready = [src for src, q in queues.items() if q]
-        ready.sort(key=lambda s: _hotness_key(queues[s][0], baselines), reverse=True)
-        for src in ready:
-            if len(out) >= k:
-                break
-            out.append(queues[src].pop(0))
-    return out
 
 
 def select_highlights(
@@ -213,7 +149,7 @@ def select_highlights(
     HN points）能在同來源尺度上公平競爭、不被高量級來源擠掉。基準由傳入 posts 內部算，
     無需 DB → 仍是純函式、確定性。回傳 {主題: [post, ...]}，只含有貼文的主題、依 themes 順序。
     """
-    baselines = _source_baselines(posts)
+    baselines = _hot.source_baselines(posts)
     by_theme: dict[str, list[dict]] = {t: [] for t in themes}
     for p in posts:
         q = p.get("quality_score")
@@ -224,7 +160,7 @@ def select_highlights(
             by_theme[t].append(p)
     out: dict[str, list[dict]] = {}
     for t in themes:
-        items = _rank_balanced(by_theme[t], baselines, per_theme)
+        items = _hot.rank_balanced(by_theme[t], k=per_theme, baselines=baselines)
         if items:
             out[t] = items
     return out
@@ -237,12 +173,12 @@ def sentiment_movers(posts: list[dict], *, k: int = 3) -> dict[str, list[dict]]:
     排序改用 per-source 正規化熱度（同 select_highlights）＋「同來源至少露出」平衡，
     讓主力來源 Threads 不被 HN 量級壓掉；基準由傳入 posts 內部算（無需 DB）。
     """
-    baselines = _source_baselines(posts)
+    baselines = _hot.source_baselines(posts)
     pos = [p for p in posts if p.get("sentiment") == "positive"]
     neg = [p for p in posts if p.get("sentiment") == "negative"]
     return {
-        "positive": _rank_balanced(pos, baselines, k),
-        "negative": _rank_balanced(neg, baselines, k),
+        "positive": _hot.rank_balanced(pos, k=k, baselines=baselines),
+        "negative": _hot.rank_balanced(neg, k=k, baselines=baselines),
     }
 
 

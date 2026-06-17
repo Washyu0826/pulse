@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import math
 from collections.abc import Sequence
+from statistics import median
 
 # ---------------------------------------------------------------------------
 # 調參常數（集中於此，附依據）
@@ -102,6 +103,102 @@ def post_hotness(
         e_norm = _log_compress(e)
     age = max(0.0, age_hours)
     return (e_norm + 1.0) / math.pow(age + 2.0, gravity)
+
+
+# ---------------------------------------------------------------------------
+# per-source 平衡排序：各來源依正規化熱度排序，再 round-robin 跨來源取
+#
+# 共用給：ml/ml/newsletter.py（精選 / 口碑挑選）、api/api/services/feed.py（主題 feed），
+# 讓低互動量級的主力來源（Threads）能與高量級來源（HN）在同尺度上公平競爭、不被洗版。
+# 純函式、確定性、無 DB。
+# ---------------------------------------------------------------------------
+def source_baselines(
+    posts: Sequence[dict], *, source_key: str = "source"
+) -> dict[str, float]:
+    """
+    算各來源的互動「基準」= 該來源所有貼文 engagement 的中位數（純函式、確定性）。
+
+    為何用中位數而非平均/最大：HN 偶有爆文（points 上千），平均/最大會被單篇拉高，
+    讓正常 HN 貼文反而「相對不熱」；中位數代表該來源的典型量級，最能公平正規化。
+    只納入互動 > 0 的貼文算中位數（全 0 或無正互動的來源 → 不給基準，post_hotness
+    會退回 log 壓縮）。回傳 {source: baseline>0}。
+    """
+    by_src: dict[str, list[float]] = {}
+    for p in posts:
+        e = engagement(p)
+        if e > 0:
+            src = str(p.get(source_key) or "unknown")
+            by_src.setdefault(src, []).append(e)
+    return {src: median(vals) for src, vals in by_src.items() if vals}
+
+
+def _balanced_key(
+    post: dict,
+    baselines: dict[str, float],
+    *,
+    source_key: str,
+    id_key: str,
+):
+    """
+    排序鍵：per-source 正規化熱度，同分以 id 決勝（確定性）。
+
+    age_hours=0：在固定時間視窗內時間衰減對所有貼文一致（分母同為定值），不影響相對排序；
+    重點是用該來源基準正規化互動，讓 Threads 讚數與 HN points 在「同量級尺度」上競爭。
+    來源無基準時 source_baseline=None → post_hotness 退回 log 壓縮（仍可比、不爆長尾）。
+    """
+    baseline = baselines.get(str(post.get(source_key) or "unknown"))
+    h = post_hotness(post, age_hours=0, source_baseline=baseline)
+    return (h, post.get(id_key, 0))
+
+
+def rank_balanced(
+    posts: Sequence[dict],
+    *,
+    k: int,
+    source_key: str = "source",
+    id_key: str = "id",
+    baselines: dict[str, float] | None = None,
+) -> list[dict]:
+    """
+    取前 k 篇，但做「同來源至少露出」的輕量平衡（純函式、確定性）。
+
+    各來源內先依 per-source 正規化熱度排序，再以 round-robin 跨來源輪流取（每輪各來源出
+    最熱的一篇），來源順序依「該來源當前最熱貼文的熱度」由高到低。效果：高量級來源（HN）
+    不會因原始互動大就洗版整個區塊，主力來源 Threads 能穩定露出；同時最熱的仍排前面。
+
+    baselines 可預先用 source_baselines 算好傳入（多次呼叫共用同一組基準時）；不傳則由
+    posts 內部自行算（自洽、無需 DB）。k<=0 回 []。
+    """
+    if k <= 0:
+        return []
+    if baselines is None:
+        baselines = source_baselines(posts, source_key=source_key)
+    by_src: dict[str, list[dict]] = {}
+    for p in posts:
+        by_src.setdefault(str(p.get(source_key) or "unknown"), []).append(p)
+    queues = {
+        src: sorted(
+            items,
+            key=lambda p: _balanced_key(p, baselines, source_key=source_key, id_key=id_key),
+            reverse=True,
+        )
+        for src, items in by_src.items()
+    }
+    out: list[dict] = []
+    while len(out) < k and any(queues.values()):
+        # 每輪：依各來源「下一篇待選」的熱度排來源序，輪流各取一篇（同來源至少露出）。
+        ready = [src for src, q in queues.items() if q]
+        ready.sort(
+            key=lambda s: _balanced_key(
+                queues[s][0], baselines, source_key=source_key, id_key=id_key
+            ),
+            reverse=True,
+        )
+        for src in ready:
+            if len(out) >= k:
+                break
+            out.append(queues[src].pop(0))
+    return out
 
 
 # ---------------------------------------------------------------------------

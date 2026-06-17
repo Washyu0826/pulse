@@ -16,6 +16,8 @@ from ml.hotness import (
     engagement,
     event_hotness,
     post_hotness,
+    rank_balanced,
+    source_baselines,
     storyline_hotness,
     storyline_state,
     velocity,
@@ -89,6 +91,130 @@ def test_post_hotness_source_baseline_normalizes():
 def test_post_hotness_deterministic():
     p = {"likes": 33, "comments": 2}
     assert post_hotness(p, age_hours=12) == post_hotness(p, age_hours=12)
+
+
+# ---------------------------------------------------------------------------
+# source_baselines（各來源互動中位數基準）
+# ---------------------------------------------------------------------------
+def test_source_baselines_median_per_source():
+    posts = [
+        {"source": "hn", "likes": 10},
+        {"source": "hn", "likes": 20},
+        {"source": "hn", "likes": 30},
+        {"source": "threads", "likes": 4},
+    ]
+    bl = source_baselines(posts)
+    assert bl["hn"] == 20  # 中位數
+    assert bl["threads"] == 4
+
+
+def test_source_baselines_excludes_zero_engagement():
+    """互動 == 0 的貼文不計入；全 0 的來源不給基準。"""
+    posts = [
+        {"source": "a", "likes": 0},
+        {"source": "a", "likes": 0},
+        {"source": "b", "likes": 5},
+    ]
+    bl = source_baselines(posts)
+    assert "a" not in bl  # 全 0 → 無基準
+    assert bl["b"] == 5
+
+
+def test_source_baselines_missing_source_is_unknown():
+    bl = source_baselines([{"likes": 8}])
+    assert bl == {"unknown": 8}
+
+
+def test_source_baselines_custom_source_key():
+    bl = source_baselines([{"src": "x", "likes": 6}], source_key="src")
+    assert bl == {"x": 6}
+
+
+def test_source_baselines_empty():
+    assert source_baselines([]) == {}
+
+
+# ---------------------------------------------------------------------------
+# rank_balanced（per-source 正規化 + round-robin 平衡）
+# ---------------------------------------------------------------------------
+def _p(id, source, score):
+    return {"id": id, "source": source, "score": score}
+
+
+def test_rank_balanced_round_robin_across_sources():
+    """高量級來源不洗版：低量級主力來源也穩定露出。"""
+    posts = [
+        _p(1, "hn", 1000),
+        _p(2, "hn", 800),
+        _p(3, "hn", 600),
+        _p(4, "threads", 10),
+        _p(5, "threads", 5),
+    ]
+    out = rank_balanced(posts, k=2)
+    srcs = {p["source"] for p in out}
+    assert srcs == {"hn", "threads"}  # 兩來源各露出，而非兩篇全 HN
+
+
+def test_rank_balanced_first_round_picks_hottest_per_source():
+    """第一輪各來源出最熱的一篇，來源序依該篇熱度由高到低。"""
+    posts = [
+        _p(1, "hn", 1000),
+        _p(2, "hn", 800),
+        _p(3, "threads", 10),
+    ]
+    out = rank_balanced(posts, k=2)
+    # HN 最熱 → 先 HN 最熱(id=1)，再 threads 最熱(id=3)；不是兩篇 HN。
+    assert [p["id"] for p in out] == [1, 3]
+
+
+def test_rank_balanced_k_zero_or_negative():
+    assert rank_balanced([_p(1, "hn", 5)], k=0) == []
+    assert rank_balanced([_p(1, "hn", 5)], k=-3) == []
+
+
+def test_rank_balanced_k_larger_than_pool_returns_all():
+    posts = [_p(1, "hn", 5), _p(2, "threads", 3)]
+    out = rank_balanced(posts, k=10)
+    assert {p["id"] for p in out} == {1, 2}
+
+
+def test_rank_balanced_deterministic_tiebreak_by_id():
+    """同來源同熱度 → 以 id 決勝（穩定可重現）。排序鍵 (hotness, id) + reverse → 大 id 先。"""
+    posts = [_p(1, "hn", 10), _p(2, "hn", 10)]
+    out = rank_balanced(posts, k=2)
+    assert [p["id"] for p in out] == [2, 1]  # 同熱度，較大 id 先（與 newsletter 既有行為一致）
+    # 與輸入順序無關（確定性）
+    assert [p["id"] for p in rank_balanced([_p(2, "hn", 10), _p(1, "hn", 10)], k=2)] == [2, 1]
+
+
+def test_rank_balanced_within_source_sorted_by_hotness():
+    posts = [_p(1, "hn", 5), _p(2, "hn", 500), _p(3, "hn", 50)]
+    out = rank_balanced(posts, k=3)
+    assert [p["id"] for p in out] == [2, 3, 1]  # 單來源 → 純熱度降序
+
+
+def test_rank_balanced_accepts_external_baselines():
+    """傳入預算 baselines 時應採用之（共用同一組基準）。"""
+    posts = [_p(1, "hn", 100), _p(2, "threads", 100)]
+    bl = source_baselines(posts)
+    out = rank_balanced(posts, k=2, baselines=bl)
+    assert {p["id"] for p in out} == {1, 2}
+
+
+def test_rank_balanced_custom_keys():
+    posts = [
+        {"pid": 1, "src": "a", "likes": 100},
+        {"pid": 2, "src": "b", "likes": 5},
+    ]
+    out = rank_balanced(posts, k=2, source_key="src", id_key="pid")
+    assert {p["pid"] for p in out} == {1, 2}
+
+
+def test_rank_balanced_pure_no_mutation():
+    posts = [_p(1, "hn", 10), _p(2, "threads", 5)]
+    snapshot = [dict(p) for p in posts]
+    rank_balanced(posts, k=2)
+    assert posts == snapshot
 
 
 # ---------------------------------------------------------------------------

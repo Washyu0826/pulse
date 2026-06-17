@@ -6,7 +6,9 @@
 （themes.confident），「其他」不在實用情報內。
 """
 import re
-from datetime import UTC, datetime, timedelta
+import sys
+from datetime import datetime
+from pathlib import Path
 
 from sqlalchemy import Select, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -17,6 +19,21 @@ from api.models.sentiment import Sentiment
 from api.models.theme import Theme
 from api.models.translation import Translation
 from api.services._quality import quality_post_filter
+from api.services.recency import recency_column, recency_cutoff
+
+# 重用 monorepo 的 ml 純函式做 per-source 平衡排序（與 routers/collection.py 同作法：
+# 把 D:\pulse\ml 加進 path）。hotness 為純算術、無重依賴，import 安全。
+_ML = Path(__file__).resolve().parents[3] / "ml"
+if str(_ML) not in sys.path:
+    sys.path.insert(0, str(_ML))
+
+from ml import hotness as _hot  # noqa: E402
+
+# 候選池上限：每主題在時間視窗內最多撈這麼多筆候選，再用 per-source 平衡排序在
+# Python 端取 limit_per_theme 篇。設上限避免撈整表（某主題視窗內可能上千筆）；夠大
+# 才能讓各來源（尤其量級低的 Threads）都進到候選、平衡排序才有東西可輪。視窗 7 天、
+# 主力來源每天數十筆量級，200 足以涵蓋各來源典型量並留餘裕。
+_CANDIDATE_POOL_CAP = 200
 
 # 實用情報的五大主題（不含「其他」），與 ml/ml/theme.py THEME_HYPOTHESES 及前端
 # web/components/theme-meta.tsx THEME_ORDER 對齊。順序＝首頁分區順序（新工具量最大擺第一）。
@@ -69,8 +86,12 @@ def _base_filters(
     cutoff: datetime,
     model: str | None,
 ) -> Select:
-    """套用共用篩選：品質門檻 + 時間窗 + 來源 + 情緒 + 模型。"""
-    stmt = stmt.where(*quality_post_filter()).where(Post.posted_at >= cutoff)
+    """套用共用篩選：品質門檻 + 時間窗 + 來源 + 情緒 + 模型。
+
+    時間窗用 created_at（入庫時間）而非 posted_at，與電子報 / 今日事件一致：
+    Threads 常青貼（posted_at 舊、今天才入庫）才進得來。詳見 services/recency.py。
+    """
+    stmt = stmt.where(*quality_post_filter()).where(recency_column() >= cutoff)
     if source:
         stmt = stmt.where(Post.source == source)
     if sentiment:
@@ -89,11 +110,18 @@ def _base_filters(
 async def _query_theme(
     session: AsyncSession, label: str, *, model, sentiment, source, cutoff, limit
 ) -> list[dict]:
-    """取單一主題、套篩選後的 top N 貼文（最新優先）。"""
+    """取單一主題、套篩選後的 top N 貼文。
+
+    排序改用 per-source 正規化熱度 + round-robin 平衡（hotness.rank_balanced）：先在時間
+    視窗內撈一個夠大的候選池（上限 _CANDIDATE_POOL_CAP，以 created_at 最新優先），再在
+    Python 端用各來源互動中位數基準正規化熱度、跨來源輪流取，使各來源（尤其量級低的
+    Threads）都露出、不被高量級來源或單一來源的數量洗版。與電子報 select_highlights 同套
+    排序邏輯（共用 ml.hotness），確保 feed 與電子報行為一致。
+    """
     stmt = (
         select(
             Post.id, Post.title, Post.content, Post.source,
-            Post.url, Post.permalink, Post.posted_at, Post.score,
+            Post.url, Post.permalink, Post.posted_at, Post.score, Post.num_comments,
             Theme.confidence, Sentiment.label.label("sentiment"),
             Translation.title_zh, Translation.snippet_zh,
         )
@@ -101,13 +129,31 @@ async def _query_theme(
         .outerjoin(Sentiment, Sentiment.post_id == Post.id)
         .outerjoin(Translation, Translation.post_id == Post.id)
         .where(Theme.confident.is_(True), Theme.label.in_(_db_labels(label)))
-        .order_by(Post.posted_at.desc(), Post.id.desc())
-        .limit(limit)
+        # 候選池以「最近被我們收進來」為準（created_at）撈最新一批，再交給 rank_balanced
+        # 做 per-source 平衡；上限避免撈整表（見 _CANDIDATE_POOL_CAP）。
+        .order_by(recency_column().desc(), Post.id.desc())
+        .limit(_CANDIDATE_POOL_CAP)
     )
     stmt = _base_filters(stmt, source=source, sentiment=sentiment, cutoff=cutoff, model=model)
     rows = (await session.execute(stmt)).all()
 
-    slugs = await _slugs_by_post(session, [r.id for r in rows])
+    # per-source 平衡排序：各來源依正規化熱度排序，再 round-robin 取前 limit 篇。
+    # engagement 取 score（讚/分數）+ num_comments（留言）；指定 source 篩選時等同單來源
+    # 純熱度排序（仍比純時間排序更能把高互動貼文排前）。
+    candidates = [
+        {
+            "id": r.id,
+            "source": r.source,
+            "score": r.score,
+            "num_comments": r.num_comments,
+            "_row": r,
+        }
+        for r in rows
+    ]
+    ranked = _hot.rank_balanced(candidates, k=limit)
+    chosen = [c["_row"] for c in ranked]
+
+    slugs = await _slugs_by_post(session, [r.id for r in chosen])
     return [
         {
             "id": r.id,
@@ -124,7 +170,7 @@ async def _query_theme(
             "score": r.score,
             "posted_at": r.posted_at.isoformat() if r.posted_at else None,
         }
-        for r in rows
+        for r in chosen
     ]
 
 
@@ -142,7 +188,7 @@ async def get_feed(
     回傳各實用主題的 top N 貼文。`theme` 指定 → 只回該主題（量加大，給主題列表頁）。
     回傳 {主題: [貼文卡, ...]}（順序同 ACTIONABLE_THEMES）。
     """
-    cutoff = datetime.now(UTC) - timedelta(days=days)
+    cutoff = recency_cutoff(days=days)
     labels = (theme,) if theme in ACTIONABLE_THEMES else ACTIONABLE_THEMES
     out: dict[str, list[dict]] = {}
     for label in labels:
@@ -162,7 +208,7 @@ async def get_feed_summary(
     days: int = 7,
 ) -> dict[str, int]:
     """各實用主題在篩選條件下的貼文數（給首頁今日摘要列）。"""
-    cutoff = datetime.now(UTC) - timedelta(days=days)
+    cutoff = recency_cutoff(days=days)
     all_db_labels = tuple(db for label in ACTIONABLE_THEMES for db in _db_labels(label))
     stmt = (
         select(Theme.label, func.count().label("n"))
