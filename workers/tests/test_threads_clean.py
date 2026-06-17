@@ -133,3 +133,104 @@ def test_header_short_title_not_stripped_without_chrome():
     """沒有先出現明確 chrome（handle/日期）時，短行不可被當標題剝（保守）。"""
     clean = clean_thread_text("AI\n這是一段沒有 handle 開頭的內文。")
     assert clean.startswith("AI")
+
+
+# ---------------------------------------------------------------------------
+# Bug #7a 反向案例：真內文以「內容性數字」結尾（年份 / 型號 / 多位數），不可被當互動計數誤刪。
+# ---------------------------------------------------------------------------
+
+def test_does_not_strip_trailing_year_as_count():
+    """真內文最後一行是落單年份 '2025'（≥4 位）→ 視為內容，不可被當讚數剝。"""
+    dirty = (
+        "tsai1519\n"
+        "2025-5-28\n"
+        "這款新模型的發表年份是\n"
+        "2025"
+    )
+    clean = clean_thread_text(dirty)
+    assert clean.endswith("2025")  # 結尾年份保留
+    assert clean.startswith("這款新模型")
+    assert "tsai1519" not in clean
+    assert "2025-5-28" not in clean  # 開頭日期 chrome 仍被剝（不回歸）
+
+
+def test_does_not_strip_trailing_model_number_as_count():
+    """真內文最後一行是落單型號 '4090'（≥4 位）→ 視為內容，不可被當轉發數剝。"""
+    dirty = (
+        "dev_handle\n"
+        "3h\n"
+        "跑這個本地模型我用的顯卡是 RTX\n"
+        "4090"
+    )
+    clean = clean_thread_text(dirty)
+    assert clean.endswith("4090")  # 結尾型號保留
+    assert "dev_handle" not in clean  # 開頭 handle + 相對時間仍被剝（不回歸）
+
+
+def test_strips_thousands_count_even_when_lone():
+    """落單但符合明確互動計數樣態（千分位 '3,761'）→ 仍當計數剝（不會是內文年份/型號）。"""
+    dirty = "someuser\n2025-1-1\n這是一篇關於 AI 的真內文。\n3,761"
+    clean = clean_thread_text(dirty)
+    assert clean == "這是一篇關於 AI 的真內文。"
+
+
+def test_year_preserved_but_count_cluster_after_body_stripped():
+    """真內文以年份 '2025' 結尾（保留）；若年份之後另接互動計數群，計數仍被剝、年份留。"""
+    dirty = (
+        "someuser\n"
+        "2025-1-1\n"
+        "這個模型發表於 2025\n"   # 句中年份（不成行）本就不受影響
+        "新版本是\n"
+        "2025\n"                  # 落單成行的內容年份 → 保留
+        "3,761\n12"               # 其後互動計數群 → 全剝
+    )
+    clean = clean_thread_text(dirty)
+    assert clean.endswith("2025")           # 內容年份成行保留
+    assert "3,761" not in clean              # 千分位計數剝
+    assert not clean.endswith("12")          # 落單計數剝（其後其實沒有，但屬計數群）
+    assert clean.startswith("這個模型發表於 2025")
+
+
+# ---------------------------------------------------------------------------
+# Bug #7b 反向案例：真內文以英文 AI 專名開頭（含大寫 / 在 allowlist），不可被當 handle 誤剝。
+# ---------------------------------------------------------------------------
+
+def test_does_not_strip_leading_proper_noun_with_uppercase():
+    """真內文首行以含大寫的英文專名開頭（OpenAI），附近又有相對時間 → 不可被當 handle 剝。"""
+    dirty = (
+        "OpenAI\n"
+        "3天\n"
+        "今天發表了新的模型，效果很驚人。"
+    )
+    clean = clean_thread_text(dirty)
+    assert clean.startswith("OpenAI")  # 英文專名首行保留（含大寫 → 非 handle）
+    assert "3天" in clean  # 沒有 handle 開頭 → 不觸發開頭剝除，相對時間行也保留
+
+
+def test_does_not_strip_leading_gpt4_proper_noun():
+    """真內文首行 'GPT4'（含大寫）+ 後面有絕對日期樣行 → 不可被當 handle 剝。"""
+    dirty = (
+        "GPT4\n"
+        "2025-6-1\n"
+        "正式上線，支援更長的上下文。"
+    )
+    clean = clean_thread_text(dirty)
+    assert clean.startswith("GPT4")  # 含大寫 → 非 handle，整段內文不被開頭剝除吃掉
+
+
+def test_does_not_strip_leading_lowercase_ai_proper_noun():
+    """首行恰為純小寫 AI 專名（openai，在 allowlist）+ 相對時間 → 仍不可當 handle 剝。"""
+    dirty = (
+        "openai\n"
+        "3h\n"
+        "正式發表了 o4 模型。"
+    )
+    clean = clean_thread_text(dirty)
+    assert clean.startswith("openai")  # allowlist 命中 → 非 handle，首行內容保留
+
+
+def test_real_lowercase_handle_still_stripped():
+    """收緊後純小寫、非 AI 專名的真 handle（someuser）仍被正確剝（不回歸 Bug #7b）。"""
+    dirty = "someuser\n2025-1-1\n這是真內文一段話。\n12"
+    clean = clean_thread_text(dirty)
+    assert clean == "這是真內文一段話。"

@@ -9,11 +9,17 @@ describe("buildPath", () => {
     expect(buildPath([], 120, 1, GEOM)).toEqual({ area: "", line: "" });
   });
 
-  it("1 點 → 單點線（dx=0，line 以 M 起頭），area 收合不崩", () => {
+  it("1 點（days=1）→ 橫跨整寬等高帶（非收斂同點），area 有正寬度且封閉", () => {
     const { line, area } = buildPath([5], 120, 5, GEOM);
     expect(line.startsWith("M")).toBe(true);
-    // 單點 line 只有一個 M 指令、無 L。
-    expect(line).not.toContain("L");
+    // 單點應畫成一條橫線（M…L…），而非只有 M（後者寬度 0 圖空白）。
+    expect(line).toContain("L");
+    // 線的左右 x 應分別貼到內距與右緣 → 有正寬度（不收斂同點）。
+    const xs = (line.match(/[ML](\d+\.\d)/g) ?? []).map((s) => Number(s.slice(1)));
+    expect(xs).toHaveLength(2);
+    expect(xs[1] - xs[0]).toBeGreaterThan(0);
+    expect(xs[0]).toBeCloseTo(GEOM.PAD, 1);
+    expect(xs[1]).toBeCloseTo(GEOM.W - GEOM.PAD, 1);
     // area 仍是封閉路徑（含 Z）。
     expect(area.endsWith("Z")).toBe(true);
   });
@@ -55,6 +61,25 @@ describe("buildSentimentPath", () => {
     const path = buildSentimentPath([0], 80, GEOM);
     expect(path.startsWith("M")).toBe(true);
   });
+
+  it("僅單一有效點（days=1）→ 橫跨整寬等高線（非只有 M 的不可見點）", () => {
+    const path = buildSentimentPath([42], 80, GEOM);
+    expect(path.startsWith("M")).toBe(true);
+    // 單點需畫成可見橫線（M…L…），而非只有一個 M。
+    expect(path).toContain("L");
+    const xs = (path.match(/[ML](\d+\.\d)/g) ?? []).map((s) => Number(s.slice(1)));
+    expect(xs).toHaveLength(2);
+    expect(xs[0]).toBeCloseTo(GEOM.PAD, 1);
+    expect(xs[1]).toBeCloseTo(GEOM.W - GEOM.PAD, 1);
+  });
+
+  it("散落點中僅一個非 null（其餘 null）→ 仍畫成橫跨整寬等高線", () => {
+    const path = buildSentimentPath([null, 30, null], 80, GEOM);
+    expect(path).toContain("L");
+    const xs = (path.match(/[ML](\d+\.\d)/g) ?? []).map((s) => Number(s.slice(1)));
+    expect(xs[0]).toBeCloseTo(GEOM.PAD, 1);
+    expect(xs[1]).toBeCloseTo(GEOM.W - GEOM.PAD, 1);
+  });
 });
 
 describe("buildStackedAreas", () => {
@@ -78,6 +103,29 @@ describe("buildStackedAreas", () => {
   it("回傳數量 = 序列數，每帶為封閉路徑", () => {
     const areas = buildStackedAreas([[1, 2, 3], [3, 2, 1], [0, 1, 0]], 160, GEOM);
     expect(areas).toHaveLength(3);
+    areas.forEach((d) => {
+      expect(d.startsWith("M")).toBe(true);
+      expect(d.endsWith("Z")).toBe(true);
+    });
+  });
+
+  it("單點（days=1）→ 各帶橫跨整寬（有正寬度），不收斂同點成空白圖", () => {
+    const areas = buildStackedAreas([[2], [3]], 160, GEOM);
+    expect(areas).toHaveLength(2);
+    areas.forEach((d) => {
+      expect(d.startsWith("M")).toBe(true);
+      expect(d.endsWith("Z")).toBe(true);
+      const xs = (d.match(/[ML](\d+\.\d)/g) ?? []).map((s) => Number(s.slice(1)));
+      // 至少有左右兩個相異 x → 面積有正寬度。
+      expect(Math.max(...xs) - Math.min(...xs)).toBeGreaterThan(0);
+      expect(Math.min(...xs)).toBeCloseTo(GEOM.PAD, 1);
+      expect(Math.max(...xs)).toBeCloseTo(GEOM.W - GEOM.PAD, 1);
+    });
+  });
+
+  it("單點且全為 0（days=1 且當日無資料）→ 仍是封閉路徑、不除以 0", () => {
+    const areas = buildStackedAreas([[0], [0]], 160, GEOM);
+    expect(areas).toHaveLength(2);
     areas.forEach((d) => {
       expect(d.startsWith("M")).toBe(true);
       expect(d.endsWith("Z")).toBe(true);

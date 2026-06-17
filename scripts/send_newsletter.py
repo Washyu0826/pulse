@@ -114,15 +114,22 @@ async def _fetch(days: int, min_quality: int) -> tuple[list[dict], list[str]]:
             )
         ).scalars().all()
 
-    posts = [
-        {
+    # outerjoin themes/sentiments/translations 若單篇有多列髒資料（重跑分類沒清舊列），
+    # 同一 post id 會出現多行 → theme_counts / scounts 翻倍、精選重複。
+    # 每 post 的 theme/sentiment/translation 應唯一，故依 id 去重取第一筆（rows 已按
+    # created_at desc 排序，保留第一筆即可）。
+    posts = []
+    seen_ids: set = set()
+    for r in rows:
+        if r.id in seen_ids:
+            continue
+        seen_ids.add(r.id)
+        posts.append({
             "id": r.id, "source": r.source, "title": r.title, "content": r.content, "url": r.url,
             "score": r.score, "num_comments": r.num_comments, "quality_score": r.quality_score,
             "theme": r.theme, "sentiment": r.sentiment,
             "title_zh": r.title_zh, "snippet_zh": r.snippet_zh,
-        }
-        for r in rows
-    ]
+        })
     return posts, list(terms)
 
 

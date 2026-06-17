@@ -1,6 +1,7 @@
 /**
  * 趨勢圖 SVG path 計算 —— 純函式（無 DOM），抽出供單元測試鎖住邊界情況：
- * 0 點（回空字串）、1 點（dx=0、單點線）、max=0（值全為 0 → 平貼底線，不除以 0）。
+ * 0 點（回空字串）、1 點（days=1：橫跨整寬畫等高帶，避免 dx=0 收斂同點 → 寬度 0 空白圖）、
+ * max=0（值全為 0 → 平貼底線，不除以 0）。
  */
 
 export interface ChartGeometry {
@@ -25,8 +26,20 @@ export function buildPath(
   const { W, PAD } = geom;
   const n = values.length;
   if (n === 0) return { area: "", line: "" };
-  const dx = n > 1 ? (W - PAD * 2) / (n - 1) : 0;
   const y = (v: number) => h - PAD - (max > 0 ? (v / max) * (h - PAD * 2) : 0);
+
+  // 單點（days=1）：dx=0 會讓所有 x 收斂同點 → 寬度 0 圖空白。
+  // 改讓單點橫跨整個寬度（畫一條等高帶），days=1 仍渲染可見圖。
+  if (n === 1) {
+    const py = y(values[0]).toFixed(1);
+    const left = PAD.toFixed(1);
+    const right = (W - PAD).toFixed(1);
+    const line = `M${left},${py} L${right},${py}`;
+    const area = `${line} L${right},${(h - PAD).toFixed(1)} L${left},${(h - PAD).toFixed(1)} Z`;
+    return { area, line };
+  }
+
+  const dx = (W - PAD * 2) / (n - 1);
   const pts = values.map((v, i) => [PAD + i * dx, y(v)] as const);
   const line = pts
     .map(([px, py], i) => `${i === 0 ? "M" : "L"}${px.toFixed(1)},${py.toFixed(1)}`)
@@ -46,8 +59,21 @@ export function buildSentimentPath(
 ): string {
   const { W, PAD } = geom;
   const n = values.length;
-  const dx = n > 1 ? (W - PAD * 2) / (n - 1) : 0;
   const sentY = (v: number) => sentH / 2 - (v / 100) * (sentH / 2 - PAD);
+
+  // 只有一個有效（非 null）點時，單一 M 指令不會畫出任何可見筆觸；
+  // 改畫一條橫跨整寬的等高線，days=1 或僅單日有資料時仍可見。
+  const validIdx: number[] = [];
+  values.forEach((v, i) => {
+    if (v != null) validIdx.push(i);
+  });
+  if (validIdx.length === 0) return "";
+  if (validIdx.length === 1) {
+    const py = sentY(values[validIdx[0]] as number).toFixed(1);
+    return `M${PAD.toFixed(1)},${py} L${(W - PAD).toFixed(1)},${py}`;
+  }
+
+  const dx = (W - PAD * 2) / (n - 1);
   const parts: string[] = [];
   values.forEach((v, i) => {
     if (v == null) return;
@@ -65,7 +91,8 @@ export function buildSentimentPath(
  * @param h 圖高（viewBox 單位）。
  * @returns 與 series 同序的每條「帶狀面積」path d 字串；各帶為「該序列在堆疊中的上緣 → 下緣 → 閉合」。
  *
- * 邊界：0 序列 / 0 點 → 回空陣列；某天總和為 0（max 取整體單日最高總和）→ 該天各帶高度 0（平貼），不除以 0。
+ * 邊界：0 序列 / 0 點 → 回空陣列；某天總和為 0（max 取整體單日最高總和）→ 該天各帶高度 0（平貼），不除以 0；
+ * 單點（n===1，days=1）→ 讓唯一資料點橫跨整寬畫等高帶，避免 dx=0 收斂同點 → 寬度 0 空白圖。
  */
 export function buildStackedAreas(
   series: number[][],
@@ -87,7 +114,12 @@ export function buildStackedAreas(
   }
 
   const dx = n > 1 ? (W - PAD * 2) / (n - 1) : 0;
-  const x = (i: number) => PAD + i * dx;
+  // 單點（days=1）：dx=0 會讓所有 x 收斂同點 → 面積寬度 0 圖空白。
+  // 改讓唯一資料點橫跨整寬（左右各取一個同高樣點），days=1 仍渲染可見堆疊帶。
+  const single = n === 1;
+  const xs = single ? [PAD, W - PAD] : null;
+  // 取第 i 點的所有 x 座標（單點時是 [left, right]，多點時是單一 x）。
+  const colXs = (i: number): number[] => (single ? (xs as number[]) : [PAD + i * dx]);
   // value → 高度（像素），再由 baseline 累加得到 y。
   const scale = (v: number) =>
     maxTotal > 0 ? (v / maxTotal) * (h - PAD * 2) : 0;
@@ -100,16 +132,23 @@ export function buildStackedAreas(
     // 下緣（右→左）：目前 baseline。
     const bottom: string[] = [];
     const newBaseline = new Array<number>(n);
+    let started = false;
     for (let i = 0; i < n; i++) {
       const base = baselineHeights[i];
       const top_h = base + scale(vals[i] ?? 0);
       newBaseline[i] = top_h;
-      const px = x(i);
-      top.push(`${i === 0 ? "M" : "L"}${px.toFixed(1)},${(h - PAD - top_h).toFixed(1)}`);
+      for (const px of colXs(i)) {
+        top.push(`${started ? "L" : "M"}${px.toFixed(1)},${(h - PAD - top_h).toFixed(1)}`);
+        started = true;
+      }
     }
     for (let i = n - 1; i >= 0; i--) {
-      const px = x(i);
-      bottom.push(`L${px.toFixed(1)},${(h - PAD - baselineHeights[i]).toFixed(1)}`);
+      const baseY = (h - PAD - baselineHeights[i]).toFixed(1);
+      // 下緣右→左：單點時也要把左右兩個樣點都帶上，圍出整寬的封閉帶。
+      const xsForCol = colXs(i);
+      for (let j = xsForCol.length - 1; j >= 0; j--) {
+        bottom.push(`L${xsForCol[j].toFixed(1)},${baseY}`);
+      }
     }
     // 推進 baseline 供下一條序列堆疊其上。
     for (let i = 0; i < n; i++) baselineHeights[i] = newBaseline[i];

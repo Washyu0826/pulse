@@ -107,14 +107,19 @@ class Storyline:
 async def _fetch_posts_for_day(
     d: date, sources: list[str], min_quality: int, cap: int
 ) -> list[dict]:
-    """撈某一天（posted_at 落在 [d 00:00, d+1 00:00)）達品質門檻的貼文，依互動分數取前 cap 篇。"""
+    """撈某一天（created_at 落在 [d 00:00, d+1 00:00)）達品質門檻的貼文，依互動分數取前 cap 篇。
+
+    逐日視窗用「入庫時間」created_at 而非「原始發文時間」posted_at，與電子報 _fetch 一致：
+    Threads 搜尋常撈出舊發文日的常青貼（posted_at 舊但今天才入庫），用 posted_at 過濾會把
+    --include-threads 當天大量入庫的 Threads 幾乎全濾掉。HN/devto 為即時貼文（posted≈created），不受影響。
+    """
     from datetime import datetime
 
     from api.database import AsyncSessionLocal
     from sqlalchemy import text
 
     placeholders = ",".join(f":s{i}" for i in range(len(sources)))
-    # posted_at 為 timestamptz → asyncpg 要 datetime 物件（非 ISO 字串）。
+    # created_at 為 timestamptz → asyncpg 要 datetime 物件（非 ISO 字串）。
     params = {"d0": datetime.combine(d, datetime.min.time()),
               "d1": datetime.combine(d + timedelta(days=1), datetime.min.time()),
               "q": min_quality, "lim": cap}
@@ -129,7 +134,7 @@ async def _fetch_posts_for_day(
                     "from posts p "
                     "left join themes th on th.post_id=p.id "
                     "left join sentiments se on se.post_id=p.id "
-                    "where p.posted_at >= :d0 and p.posted_at < :d1 "
+                    "where p.created_at >= :d0 and p.created_at < :d1 "
                     "and (p.quality_score is null or p.quality_score >= :q) "
                     f"and p.source in ({placeholders}) "
                     "order by engagement desc "

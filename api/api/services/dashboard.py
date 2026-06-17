@@ -6,7 +6,9 @@
 缺資料的日子補 0（前端不必自己補洞，趨勢線連續）。
 
 設計沿用既有約定：
-- 日期分桶用 func.date(Post.posted_at)，與 services/model_detail.py 的逐日彙總一致。
+- 日期分桶明確用 UTC（func.date(func.timezone('UTC', Post.posted_at))），與 _fill_trend
+  以 datetime.now(UTC).date() 建桶的基準一致；否則非 UTC 的 DB session 時區會讓跨午夜
+  貼文歸錯日、首日少算。
 - 主題 6 鍵對齊 ml/ml/theme.py THEME_HYPOTHESES（5 實用主題）+「其他」。
 - legacy「邊界」標籤映射到「風險限制」（與 services/feed.py 同一套別名規則）。
 """
@@ -35,20 +37,28 @@ _DB_THEME_TO_KEY: dict[str, str] = {
 }
 
 
+def _utc_day():
+    """posts.posted_at（timestamptz）以 UTC 取日期分桶，與 _fill_trend 的 UTC 基準對齊。
+    func.timezone('UTC', ts) 把 timestamptz 轉到 UTC 牆鐘後再 func.date 取日，
+    不受 DB session TimeZone 設定影響。"""
+    return func.date(func.timezone("UTC", Post.posted_at))
+
+
 async def _theme_counts_by_day(
     session: AsyncSession, start: datetime
 ) -> dict[date, dict[str, int]]:
     """逐日 × 各 DB 主題標籤的貼文數（純 SQL group by date, label）。"""
+    day_col = _utc_day()
     rows = (
         await session.execute(
             select(
-                func.date(Post.posted_at).label("day"),
+                day_col.label("day"),
                 Theme.label.label("label"),
                 func.count().label("n"),
             )
             .join(Theme, Theme.post_id == Post.id)
             .where(Post.posted_at >= start)
-            .group_by(func.date(Post.posted_at), Theme.label)
+            .group_by(day_col, Theme.label)
         )
     ).all()
     out: dict[date, dict[str, int]] = {}
@@ -64,16 +74,17 @@ async def _sentiment_counts_by_day(
     session: AsyncSession, start: datetime
 ) -> dict[date, dict[str, int]]:
     """逐日 × 各情緒標籤的貼文數（純 SQL group by date, label）。"""
+    day_col = _utc_day()
     rows = (
         await session.execute(
             select(
-                func.date(Post.posted_at).label("day"),
+                day_col.label("day"),
                 Sentiment.label.label("label"),
                 func.count().label("n"),
             )
             .join(Sentiment, Sentiment.post_id == Post.id)
             .where(Post.posted_at >= start)
-            .group_by(func.date(Post.posted_at), Sentiment.label)
+            .group_by(day_col, Sentiment.label)
         )
     ).all()
     out: dict[date, dict[str, int]] = {}

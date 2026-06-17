@@ -21,8 +21,28 @@ import re
 __all__ = ["clean_thread_text"]
 
 # 作者帳號 leading line：Threads handle 允許英數、底線、句點（如 handsome_6_love、yofish.read、
-# albert.aka.aba）。整行就是一個 handle（不含空白、不含 CJK）→ 視為 chrome。
-_HANDLE_RE = re.compile(r"^[A-Za-z0-9._]{2,40}$")
+# albert.aka.aba、therealtaipeijay、tsai1519）。整行就是一個 handle（不含空白、不含 CJK）→ chrome。
+# Bug #7b 收緊：Threads handle 一律以小寫顯示，故要求**不含大寫字母**。這能把以英文專名開頭的
+#   真內文（OpenAI / GPT4 / Claude / Gemini — 皆含大寫）排除在 handle 之外，不被誤剝。
+#   仍保留純小寫帳號（someuser / therealtaipeijay）與含底線/數字/句點者。
+_HANDLE_RE = re.compile(r"^[a-z0-9._]{2,40}$")
+
+# 常見 AI 專名 allowlist：即使整行恰為純小寫（openai / gpt / claude…）也**不**當 handle，
+# 避免以這些字開頭的真內文首行被當作者帳號剝掉（Bug #7b）。
+_AI_PROPER_NOUNS = frozenset(
+    {
+        "ai", "agi", "llm", "llms", "openai", "gpt", "gpt4", "gpt4o", "gpt5",
+        "chatgpt", "claude", "gemini", "llama", "deepseek", "grok", "qwen",
+        "mistral", "copilot", "cursor", "perplexity", "midjourney", "sora",
+        "ollama", "anthropic", "bard", "kimi", "phi",
+    }
+)
+
+
+def _is_handle_line(line: str) -> bool:
+    """整行是否像作者帳號 handle（Bug #7b 收緊後）：純小寫 handle 字元，且非 AI 專名。"""
+    return bool(_HANDLE_RE.match(line)) and line.lower() not in _AI_PROPER_NOUNS
+
 
 # 絕對日期行：YYYY-M-D / YYYY/M/D（Threads 顯示舊貼用絕對日期）。整行就是日期 → chrome。
 _ABS_DATE_RE = re.compile(r"^\d{4}[-/]\d{1,2}[-/]\d{1,2}$")
@@ -43,6 +63,15 @@ _REL_TIME_RE = re.compile(
 # 純數字互動計數行（讚/留言/轉發），含千分位逗號 / K,M 縮寫：15、3,761、1.2K、24M。
 _COUNT_RE = re.compile(r"^\d{1,3}(?:,\d{3})*(?:\.\d+)?\s*[KMkm]?$")
 
+# 「明確的互動計數樣態」：含千分位逗號（3,761）或 K/M 縮寫（1.2K、24M）。
+# 這類絕不會是內文裡單獨成行的年份/型號/版本 → 即使落單也可放心剝。
+_DEFINITE_COUNT_RE = re.compile(r"^(?:\d{1,3}(?:,\d{3})+(?:\.\d+)?\s*[KMkm]?|\d+(?:\.\d+)?\s*[KMkm])$")
+
+# 落單裸數字若 ≥4 位（年份 2025 / 型號 4090 / 12900）或像年份，當內容性數字，不剝。
+# （Bug #7a：真內文尾端的年份/型號/版本被當互動計數誤刪。讚/留言計數真要 4 位以上時
+#  Threads 一律帶千分位逗號 → 由 _DEFINITE_COUNT_RE 接手，故此處放行裸 4 位數安全。）
+_BARE_NUMBER_RE = re.compile(r"^\d+$")
+
 # 分頁指示：單獨的 "/"、"·"、"(續)"、"（續）"、"1/2" 之類。
 _PAGINATION_RE = re.compile(r"^(?:/|·|•|\(續\)|（續）|\(续\)|（续）|\d+\s*/\s*\d+)$")
 
@@ -61,14 +90,27 @@ def _is_long_body_line(line: str) -> bool:
     return len(line) > _BODY_LINE_MAXLEN or bool(_SENTENCE_PUNCT_RE.search(line))
 
 
-def _is_footer_chrome_line(line: str) -> bool:
-    """整行是否為『可剝的結尾 chrome』（純數字計數 / 分頁 / 翻譯 / 日期 / 相對時間）。"""
+def _is_nonnumeric_footer_chrome(line: str) -> bool:
+    """整行是否為『非數字類』結尾 chrome（分頁 / 翻譯 / 日期 / 相對時間）。
+    這類有明確字面特徵，誤判風險低，落單也可放心剝。"""
     return bool(
-        _COUNT_RE.match(line)
-        or _PAGINATION_RE.match(line)
+        _PAGINATION_RE.match(line)
         or _TRANSLATE_RE.match(line)
         or _ABS_DATE_RE.match(line)
         or _REL_TIME_RE.match(line)
+    )
+
+
+def _is_footer_chrome_line(line: str) -> bool:
+    """整行是否為『可剝的結尾 chrome 候選』（純數字計數 / 分頁 / 翻譯 / 日期 / 相對時間）。
+    註：此函式僅判斷『字面像 chrome』；落單裸數字（含 ≥4 位的年份/型號樣態）是否真的剝，
+    由 clean_thread_text 的結尾掃描依「上下文（是否成群/前有其他 chrome）」再決定（Bug #7a）。
+    這裡刻意把『任意長度的純整數』與千分位/K,M 計數都納為候選，讓上下文判斷成為唯一決策點，
+    而非依賴 _COUNT_RE 的 3 位上限這種隱性副作用。"""
+    return bool(
+        _COUNT_RE.match(line)
+        or _BARE_NUMBER_RE.match(line)
+        or _is_nonnumeric_footer_chrome(line)
     )
 
 
@@ -99,7 +141,7 @@ def clean_thread_text(text: str) -> str:
     while first < n and not lines[first]:
         first += 1
     _HEADER_SCAN = 4  # 從第一個非空行起，最多往下看幾行找時間錨點
-    if first < n and _HANDLE_RE.match(lines[first]):
+    if first < n and _is_handle_line(lines[first]):
         time_anchor = -1
         for i in range(first, min(n, first + _HEADER_SCAN)):
             if not lines[i]:
@@ -114,16 +156,46 @@ def clean_thread_text(text: str) -> str:
             start = time_anchor + 1  # 剝到時間行（含）為止
 
     # ---- 剝結尾 chrome ----
+    # 先把尾端「字面像 chrome」的連續區塊（含空行）算出來，再決定真正要剝多少。
+    # Bug #7a 防誤刪：落單裸數字（年份 2025 / 型號 4090 / 版本）易被當互動計數誤刪。
+    # 規則：尾端 chrome 區塊裡，凡「字面是裸數字、且不符合明確互動計數樣態（無千分位/無 K,M）」
+    #   的行，只有在「該數字屬於 2+ 行的 chrome 群（多個計數連在一起）」或「其後仍接著其他
+    #   已確認 chrome（分頁/翻譯/時間/千分位計數）」時才剝；若是『單獨一個、且前面就是真內文』
+    #   的裸數字，且 ≥4 位（年份/型號樣態）→ 視為內容，停止剝除、保留。
     end = n
+    stripped_any = False  # 本輪是否已剝過任何尾端 chrome（提供「往後看」的群組脈絡）。
     while end > start:
         ln = lines[end - 1]
         if not ln:
             end -= 1
             continue
-        if _is_footer_chrome_line(ln):
+        if not _is_footer_chrome_line(ln):
+            break
+        # 非數字類 chrome（分頁/翻譯/日期/相對時間）或明確互動計數（千分位/K,M）→ 直接剝。
+        if _is_nonnumeric_footer_chrome(ln) or _DEFINITE_COUNT_RE.match(ln):
             end -= 1
+            stripped_any = True
             continue
-        break
+        # 走到這：ln 是裸數字（或非明確計數樣態的數字）。先看「上方相鄰非空行」是否真內文。
+        prev = end - 2
+        while prev >= start and not lines[prev]:
+            prev -= 1
+        prev_is_chrome = prev >= start and _is_footer_chrome_line(lines[prev])
+        bare = _BARE_NUMBER_RE.match(ln)
+        # Bug #7a 反向保護（優先於成群剝除）：與真內文相鄰（上一行就是內文）的純整數，
+        # 若 ≥4 位（年份 2025 / 型號 4090 / 12900）→ 視為內容，停止剝除、保留。
+        # 不受其後計數群（stripped_any）影響——內容年份後面接讚數很常見。
+        if not prev_is_chrome and bare and len(bare.group()) >= 4:
+            break
+        # 否則：成群（上一行也是 chrome）或其後已剝過 chrome（夾在計數群中）→ 當計數剝。
+        if prev_is_chrome or stripped_any:
+            end -= 1
+            stripped_any = True
+            continue
+        # 落單、與真內文相鄰、1–3 位裸數字（4 / 15 / 730…）或含小數計數 → 仍當互動計數剝
+        # （沿用既有行為，不回歸現有單一尾端計數測試）。
+        end -= 1
+        stripped_any = True
 
     body = "\n".join(lines[start:end])
     # 壓掉開頭剝完留下的多餘空行，並 strip。

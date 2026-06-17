@@ -1,8 +1,15 @@
 """
 應用設定 - 用 pydantic-settings 從環境變數載入。
 """
+from pathlib import Path
+
 from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# repo 根目錄（api/api/config.py → parents[2] = repo 根）。
+# DB-optional 來源檔（events / storylines）預設用「相對 repo 根的絕對路徑」，
+# 避免 uvicorn/docker 從非 repo 根 cwd 啟動時相對路徑解析失敗永遠回 []。
+_REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 class Settings(BaseSettings):
@@ -53,7 +60,7 @@ class Settings(BaseSettings):
     # /api/events/today 直接讀此檔（DB-optional，不查資料庫）；不存在則回 []。
     # 環境變數用 PULSE_EVENTS_FILE（也相容 EVENTS_FILE）。
     events_file: str = Field(
-        default="data/events_today.jsonl",
+        default=str(_REPO_ROOT / "data" / "events_today.jsonl"),
         validation_alias=AliasChoices("PULSE_EVENTS_FILE", "EVENTS_FILE"),
     )
 
@@ -61,7 +68,7 @@ class Settings(BaseSettings):
     # /api/storylines 直接讀此檔（DB-optional，不查資料庫）；不存在則回 []。
     # 環境變數用 PULSE_STORYLINES_FILE（也相容 STORYLINES_FILE）。
     storylines_file: str = Field(
-        default="data/storylines.jsonl",
+        default=str(_REPO_ROOT / "data" / "storylines.jsonl"),
         validation_alias=AliasChoices("PULSE_STORYLINES_FILE", "STORYLINES_FILE"),
     )
 
