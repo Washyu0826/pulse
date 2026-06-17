@@ -83,8 +83,9 @@ services:
       # 容器內連 db 服務名與「容器內」5432（非 host 的 5433）。變數名須對齊 api.config.Settings 欄位。
       DATABASE_URL: postgresql+asyncpg://pulse:pulse@db:5432/pulse
       DATABASE_URL_SYNC: postgresql://pulse:pulse@db:5432/pulse
-      # 今日事件來源檔（pipeline 產出 JSONL）—— 下方 volume 把 host 的 ./data 掛進 /app/data。
+      # 今日事件 / 議題演變來源檔（pipeline 產出 JSONL）—— 下方 volume 把 host 的 ./data 掛進 /app/data。
       PULSE_EVENTS_FILE: /app/data/events_today.jsonl
+      PULSE_STORYLINES_FILE: /app/data/storylines.jsonl
       # CORS：放行容器化 web 對外埠（瀏覽器端若直打 API 才會用到；server 端 fetch 不受 CORS 限制）。
       CORS_ORIGINS: '["http://localhost:3000","http://localhost:8010"]'
       ENVIRONMENT: ${ENVIRONMENT:-production}
