@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { buildPath, buildSentimentPath } from "@/lib/trend-path";
+import { buildPath, buildSentimentPath, buildStackedAreas } from "@/lib/trend-path";
 
 const GEOM = { W: 720, PAD: 8 };
 
@@ -54,5 +54,44 @@ describe("buildSentimentPath", () => {
   it("0（中性）也是有效資料點，不被當成缺值", () => {
     const path = buildSentimentPath([0], 80, GEOM);
     expect(path.startsWith("M")).toBe(true);
+  });
+});
+
+describe("buildStackedAreas", () => {
+  it("0 序列 → 空陣列", () => {
+    expect(buildStackedAreas([], 160, GEOM)).toEqual([]);
+  });
+
+  it("序列存在但 0 點 → 每序列回空字串", () => {
+    expect(buildStackedAreas([[], []], 160, GEOM)).toEqual(["", ""]);
+  });
+
+  it("全為 0（總和 0）→ 不除以 0，每帶仍是封閉路徑（高度 0）", () => {
+    const areas = buildStackedAreas([[0, 0], [0, 0]], 160, GEOM);
+    expect(areas).toHaveLength(2);
+    areas.forEach((d) => {
+      expect(d.startsWith("M")).toBe(true);
+      expect(d.endsWith("Z")).toBe(true);
+    });
+  });
+
+  it("回傳數量 = 序列數，每帶為封閉路徑", () => {
+    const areas = buildStackedAreas([[1, 2, 3], [3, 2, 1], [0, 1, 0]], 160, GEOM);
+    expect(areas).toHaveLength(3);
+    areas.forEach((d) => {
+      expect(d.startsWith("M")).toBe(true);
+      expect(d.endsWith("Z")).toBe(true);
+    });
+  });
+
+  it("堆疊：第二條序列的下緣 = 第一條序列的上緣（共享邊界 y 不重疊穿底）", () => {
+    // 單點、單位寬，便於比對 y 值。max 總和 = 1+3 = 4。
+    const areas = buildStackedAreas([[1], [3]], 160, GEOM);
+    // 取每條 path 內所有 y 值。
+    const ysOf = (d: string) => (d.match(/,(\d+\.\d)/g) ?? []).map((s) => Number(s.slice(1)));
+    const ys0 = ysOf(areas[0]);
+    const ys1 = ysOf(areas[1]);
+    // 第一條的上緣 y（最小 = 最高處）應等於第二條的下緣 y（最大 = 最低處）。
+    expect(Math.min(...ys0)).toBeCloseTo(Math.max(...ys1), 1);
   });
 });

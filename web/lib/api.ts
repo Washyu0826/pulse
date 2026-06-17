@@ -1,5 +1,6 @@
 import { API_URL } from "@/lib/utils";
 import type {
+  DashboardTrends,
   DecideReport,
   EventSummary,
   FeedFilters,
@@ -8,6 +9,7 @@ import type {
   FeedThemes,
   ModelDetail,
   ModelSummary,
+  Storyline,
   TrendingKeyword,
 } from "@/lib/types";
 
@@ -164,6 +166,43 @@ export function getTodayEvents(limit = 8): Promise<ApiResult<EventSummary[]>> {
 /** 6 模型即時看板彙總。 */
 export function getModelDashboard(): Promise<ApiResult<ModelSummary[]>> {
   return fetchArray<ModelSummary>(`/api/models`);
+}
+
+/**
+ * 議題時間軸：把跨日相關事件串成議題鏈 + 每日聲量走勢 + 升溫/退燒狀態。
+ * 後端端點 /api/storylines 由 build_storylines.py 每日產製、讀檔回傳；
+ * 尚未產出或失敗一律回 { ok:false }，UI 退回空狀態（不 throw）。
+ */
+export function getStorylines(limit = 8): Promise<ApiResult<Storyline[]>> {
+  return fetchArray<Storyline>(`/api/storylines?limit=${limit}`);
+}
+
+/**
+ * 產品洞察 dashboard 時序：近 N 天的逐日主題分布 + 情緒佔比。
+ * 後端端點 /api/dashboard/trends 可能尚未上線（與本頁並行開發）→ 失敗一律回 { ok:false }，
+ * 對應區塊退回「暫時載入不了」空狀態，不 throw 整頁。
+ */
+export async function getDashboardTrends(days = 14): Promise<ApiResult<DashboardTrends>> {
+  try {
+    const res = await fetch(`${BASE}/api/dashboard/trends?days=${days}`, {
+      next: { revalidate: 60 },
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+    });
+    if (!res.ok) {
+      console.error(`[api] /api/dashboard/trends HTTP ${res.status}`);
+      return { ok: false, error: `HTTP ${res.status}` };
+    }
+    const json = (await res.json()) as Partial<DashboardTrends>;
+    // 後端契約：兩條時序皆為陣列。任一缺失/型別不符 → 視為格式異常，走錯誤路徑（不讓圖表拿到 undefined）。
+    if (!Array.isArray(json.theme_trend) || !Array.isArray(json.sentiment_trend)) {
+      console.error("[api] /api/dashboard/trends 回應格式異常");
+      return { ok: false, error: "malformed response" };
+    }
+    return { ok: true, data: { theme_trend: json.theme_trend, sentiment_trend: json.sentiment_trend } };
+  } catch (err) {
+    console.error("[api] /api/dashboard/trends fetch failed", err);
+    return { ok: false, error: String(err) };
+  }
 }
 
 /** 單一模型詳情（趨勢 + 事件 + 熱門討論 + 發布）。404 → { ok:false }。 */

@@ -13,7 +13,17 @@ export const alt = "Pulse — Daily AI intel, curated.";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
-export default function OpengraphImage() {
+// 自帶字型 buffer 渲染 —— 讓 next/og 不再於 build/render 時向 Google/Vercel CDN 抓預設字型
+// （那會在 TLS 攔截網路或離線環境，含 Docker build，以 UNABLE_TO_VERIFY_LEAF_SIGNATURE 失敗）。
+// 字型用 build 期一起打包的本地 woff2（fetch(new URL(...)) 讀的是 bundle 內資產，不連外）。
+// 與 layout.tsx 的自託管字型策略一致：build / render 皆 hermetic。
+async function loadFont(): Promise<ArrayBuffer> {
+  const url = new URL("./fonts/inter-latin-wght-normal.woff2", import.meta.url);
+  return fetch(url).then((r) => r.arrayBuffer());
+}
+
+export default async function OpengraphImage() {
+  const fontData = await loadFont();
   return new ImageResponse(
     (
       <div
@@ -44,16 +54,19 @@ export default function OpengraphImage() {
               <path d="M1 12 H6 L8.5 5 L12.5 19 L15 12 H23" />
             </svg>
           </div>
-          <div style={{ fontSize: 104, fontWeight: 800, letterSpacing: -2 }}>Pulse</div>
+          <div style={{ fontSize: 104, fontWeight: 700, letterSpacing: -2 }}>Pulse</div>
         </div>
-        <div style={{ marginTop: 40, fontSize: 46, fontWeight: 600, color: "#1B2536" }}>
+        <div style={{ marginTop: 40, fontSize: 46, fontWeight: 700, color: "#1B2536" }}>
           {SITE.tagline}
         </div>
-        <div style={{ marginTop: 20, fontSize: 30, color: "#4D74EA", fontWeight: 600 }}>
+        <div style={{ marginTop: 20, fontSize: 30, color: "#4D74EA", fontWeight: 700 }}>
           Tools · Models · How-to · Risks · Ethics
         </div>
       </div>
     ),
-    { ...size },
+    {
+      ...size,
+      fonts: [{ name: "Inter", data: fontData, weight: 400, style: "normal" }],
+    },
   );
 }

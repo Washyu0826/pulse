@@ -1,1 +1,8 @@
 .devlog.txt
+
+# 本機 TLS 攔截（Avast / 企業 MITM proxy）的根憑證 —— 機器專屬，build 期選配掛入，切勿入庫。
+# 只忽略憑證檔本身，保留 certs/ 目錄（.gitkeep 入庫）讓 Dockerfile 的 COPY certs/ 在乾淨 checkout 也成立。
+web/certs/*.crt
+web/certs/*.pem
+certs/*.crt
+certs/*.pem

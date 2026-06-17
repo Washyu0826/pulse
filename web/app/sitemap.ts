@@ -6,7 +6,7 @@ import { SITE } from "@/lib/site";
 /** 網站地圖：靜態頁 + 5 個主題列表頁 + 6 個模型詳情頁。 */
 export default function sitemap(): MetadataRoute.Sitemap {
   const now = new Date();
-  const staticRoutes = ["", "/favorites", "/decide", "/newsletter"].map((path) => ({
+  const staticRoutes = ["", "/dashboard", "/favorites", "/decide", "/newsletter"].map((path) => ({
     url: `${SITE.url}${path}`,
     lastModified: now,
     changeFrequency: "daily" as const,

@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 
 const LINKS = [
   { href: "/", label: "儀表板" },
+  { href: "/dashboard", label: "產品洞察" },
   { href: "/favorites", label: "我的最愛" },
   { href: "/decide", label: "決策報告" },
   { href: "/newsletter", label: "電子報" },
