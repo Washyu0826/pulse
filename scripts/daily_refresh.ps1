@@ -40,12 +40,15 @@ Step "2/8 DQC quality" { docker exec pulse-airflow-scheduler /opt/airflow/pulse-
 Step "3/8 sentiment" { & $sysPy "$root\scripts\backfill_sentiments.py" }
 Step "4/8 theme" { & $sysPy "$root\scripts\backfill_themes.py" }
 Step "5/8 weekly keywords" { & $sysPy "$root\scripts\backfill_keywords.py" --top 20 }
-Step "6/8 translation" { & $sysPy "$root\scripts\backfill_translations.py" --days 7 --limit 60 }
+Step "6/9 translation" { & $sysPy "$root\scripts\backfill_translations.py" --days 7 --limit 60 }
+# 今日事件：DB 撈當日貼文 → 忠實事件摘要 pipeline → data/events_today.jsonl（電子報「今日事件」
+# 區與前端 /api/events/today 共用）。需 Ollama 開著（nomic 嵌入 + qwen 生成）+ transformers（NLI）。
+Step "7/9 today events" { & $sysPy "$root\scripts\build_today_events.py" }
 # 電子報用系統 Python（matplotlib + diffusers + httpx + opencc）；需 .env 有 PULSE_SMTP_*。
 # 不想每天跑 SD 題圖可加 --no-cover（快很多）。
-Step "7/8 newsletter" { & $sysPy "$root\scripts\send_newsletter.py" }
+Step "8/9 newsletter" { & $sysPy "$root\scripts\send_newsletter.py" }
 # 資料流健康檢查：各來源近 24h 進貨低於門檻就 FAIL 進 log（斷流要看得見，2026-06-12 教訓）。
-Step "8/8 dataflow health" { & $sysPy "$root\scripts\check_dataflow.py" }
+Step "9/9 dataflow health" { & $sysPy "$root\scripts\check_dataflow.py" }
 
 $doneTs = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
 if ($failedSteps.Count -gt 0) {

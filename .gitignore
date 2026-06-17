@@ -66,3 +66,15 @@ data/
 # OS
 Thumbs.db
 scripts/daily_refresh.log
+
+# 訓練 / 機器產生的 log 工件（機器專屬，勿入庫）
+logs_theme_train.txt
+logs/
+*.log.bak
+
+# 本機 TLS 攔截（Avast / 企業 MITM proxy）根憑證 —— 機器專屬，Docker build 期選配掛入，切勿入庫。
+# 只忽略憑證檔，保留 certs/ 目錄（.gitkeep 入庫）讓 Dockerfile 的 COPY certs/ 在乾淨 checkout 也成立。
+*/certs/*.crt
+*/certs/*.pem
+certs/*.crt
+certs/*.pem

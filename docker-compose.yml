@@ -72,6 +72,72 @@ services:
       retries: 5
     restart: unless-stopped
 
+  # ===== 業務 API（FastAPI / uvicorn）=====
+  api:
+    build:
+      context: ./api          # api/Dockerfile 的 COPY 路徑（pyproject/alembic.ini/alembic）皆相對 api/
+      dockerfile: Dockerfile
+    image: pulse-api:0.1.0
+    container_name: pulse-api
+    environment:
+      # 容器內連 db 服務名與「容器內」5432（非 host 的 5433）。變數名須對齊 api.config.Settings 欄位。
+      DATABASE_URL: postgresql+asyncpg://pulse:pulse@db:5432/pulse
+      DATABASE_URL_SYNC: postgresql://pulse:pulse@db:5432/pulse
+      # 今日事件來源檔（pipeline 產出 JSONL）—— 下方 volume 把 host 的 ./data 掛進 /app/data。
+      PULSE_EVENTS_FILE: /app/data/events_today.jsonl
+      # CORS：放行容器化 web 對外埠（瀏覽器端若直打 API 才會用到；server 端 fetch 不受 CORS 限制）。
+      CORS_ORIGINS: '["http://localhost:3000","http://localhost:8010"]'
+      ENVIRONMENT: ${ENVIRONMENT:-production}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    ports:
+      - "8010:8000"           # 對外沿用 8010（與本機手動 uvicorn 慣例一致）；容器內 8000。
+    volumes:
+      # 事件摘要來源檔唯讀掛入（pipeline 寫在 host ./data，API 只讀）。
+      - ./data:/app/data:ro
+      # collection router 重用 monorepo 的 ml 純函式（collection_pack / summarize）；
+      # 它把「容器內 /ml」加進 sys.path（= /app/api/routers/collection.py 的 parents[3]/ml）。
+      # 掛 host ./ml → /ml，使 `import ml.collection_pack`（= /ml/ml/...）可解析。唯讀、editable。
+      - ./ml:/ml:ro
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      # python 內建 urllib 打健康端點（slim image 無 curl）；DB 通才算健康。
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/api/health').status==200 else 1)"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    restart: unless-stopped
+
+  # ===== 前端 Web（Next.js 14 standalone）=====
+  web:
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+    image: pulse-web:0.1.0
+    container_name: pulse-web
+    environment:
+      # Server Component 端 fetch 走內網（容器→容器），指向 api 服務名與容器內 8000。
+      API_URL_INTERNAL: http://api:8000
+      # 瀏覽器端若有 client fetch 才用得到 —— 走 host 對外埠。
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8010}
+      NODE_ENV: production
+    ports:
+      - "3000:3000"
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      # node 內建 http 打首頁；standalone runner image 無 curl/wget。
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    restart: unless-stopped
+
   # ===== Airflow Metadata DB（獨立）=====
   airflow-postgres:
     image: postgres:16-alpine
