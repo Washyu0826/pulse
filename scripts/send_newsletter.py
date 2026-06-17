@@ -29,6 +29,17 @@ _ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(_ROOT / "api"))
 sys.path.insert(0, str(_ROOT / "ml"))
 
+# 改用 OS 信任庫，避開企業/校園 TLS 攔截導致的 CERTIFICATE_VERIFY_FAILED。
+# 缺這步時 huggingface_hub 1.x 下載模型會在 SSL 失敗→retry 重用已關閉的 httpx Client，
+# 噴 "Cannot send a request, as the client has been closed"，題圖整個生不出來。
+# best-effort：未裝 truststore（無攔截網路）就略過，OS 信任庫本來就正確。
+try:
+    import truststore
+
+    truststore.inject_into_ssl()
+except Exception:  # noqa: BLE001 — 注入失敗不該擋整支電子報
+    pass
+
 from ml.newsletter import (  # noqa: E402
     build_mime_message,
     cover_prompt,
@@ -185,13 +196,65 @@ def _send(msg) -> None:
     import ssl
 
     host = os.environ.get("PULSE_SMTP_HOST", "smtp.gmail.com")
-    port = int(os.environ.get("PULSE_SMTP_PORT", "465"))
+    # 預設用 587 STARTTLS（見下方註解）。可用 PULSE_SMTP_PORT=465 強制走 SMTP_SSL。
+    port = int(os.environ.get("PULSE_SMTP_PORT", "587"))
     user = os.environ["PULSE_SMTP_USER"]
     password = os.environ["PULSE_SMTP_APP_PASSWORD"]
-    ctx = ssl.create_default_context()
-    with smtplib.SMTP_SSL(host, port, context=ctx) as s:
-        s.login(user, password)
-        s.send_message(msg)
+
+    # 本機環境裝了 Avast Web/Mail Shield，會 MITM 攔截 SMTP TLS：
+    #   * 465 SMTP_SSL：Avast 竟用「Untrusted Root」重簽 Gmail 憑證
+    #     （issuer=CN=Avast Web/Mail Shield Untrusted Root），無論 Windows 信任庫
+    #     或 certifi 都驗不過 → CERT_UNTRUSTED_ROOT / unable to get local issuer。
+    #   * 587 STARTTLS：Avast 改用一般掃描根「CN=Avast Web/Mail Shield Root」重簽，
+    #     該根已裝進 Windows 信任庫 → 用 truststore（Windows store）即可驗過。
+    # 因此寄送走 truststore 的 Windows 信任庫：攔截環境吃 Avast 掃描根、
+    # 未攔截環境吃 Gmail 公開根，兩者皆通；同時不動全域 truststore 注入，
+    # 題圖（huggingface）下載能力完全保留。
+    ctx = ssl.create_default_context()  # 全域已 inject_into_ssl → Windows 信任庫
+    if port == 465:
+        with smtplib.SMTP_SSL(host, port, context=ctx) as s:
+            s.login(user, password)
+            s.send_message(msg)
+    else:
+        with smtplib.SMTP(host, port) as s:
+            s.ehlo()
+            s.starttls(context=ctx)
+            s.ehlo()
+            s.login(user, password)
+            s.send_message(msg)
+
+
+# ----------------------- 今日事件（忠實摘要 pipeline 產出的 JSONL）-----------------------
+def _events_path() -> str:
+    """今日事件來源檔路徑：環境變數 PULSE_EVENTS_FILE / EVENTS_FILE，預設 data/events_today.jsonl。
+    （與 api/api/config.py 的 events_file 預設一致；由 scripts/run_event_pipeline.py 產出。）"""
+    return os.environ.get(
+        "PULSE_EVENTS_FILE",
+        os.environ.get("EVENTS_FILE", str(_ROOT / "data" / "events_today.jsonl")),
+    )
+
+
+def _load_events_file() -> list[dict]:
+    """讀今日事件 JSONL（一行一事件），給電子報「今日事件」區塊。
+    缺檔 / 空行 / 壞行皆優雅略過回 []（無事件就不出該區塊，向後相容）。
+    欄位（title/summary/citations/member_count/theme）即 render_today_events_section 所需。"""
+    import json
+
+    path = Path(_events_path())
+    if not path.exists():
+        return []
+    out: list[dict] = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            rec = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(rec, dict) and isinstance(rec.get("summary"), str) and rec["summary"].strip():
+            out.append(rec)
+    return out
 
 
 # ----------------------- 編排 -----------------------
@@ -208,18 +271,8 @@ async def main_async(args: argparse.Namespace) -> None:
     titles = [(p.get("title_zh") or p.get("title") or "") for ps in highlights.values() for p in ps]
     summary = await _summarize(titles)
 
-    # 圖表（matplotlib）
+    # 報紙版型用 HTML/table 新聞紙風條圖（不再用彩色 matplotlib PNG）→ 計數直接交給 render_html。
     images: dict[str, bytes] = {}
-    chart_cids: dict[str, str] = {}
-    try:
-        from ml.charts import sentiment_bar_png, theme_bar_png
-
-        images["theme@pulse"] = theme_bar_png(tcounts)
-        chart_cids["theme"] = "theme@pulse"
-        images["sentiment@pulse"] = sentiment_bar_png(scounts)
-        chart_cids["sentiment"] = "sentiment@pulse"
-    except Exception:  # noqa: BLE001 — 無 matplotlib 就不放圖
-        logger.exception("圖表產生失敗（未裝 matplotlib？），略過圖表")
 
     # 題圖（地端 SD）
     cover_cid = None
@@ -230,9 +283,13 @@ async def main_async(args: argparse.Namespace) -> None:
             images["cover@pulse"] = cover
             cover_cid = "cover@pulse"
 
+    events = _load_events_file()
+    if events:
+        print(f"🗂️  今日事件 {len(events)} 則（{Path(_events_path()).name}）")
     html = render_html(
         day=date.today(), summary=summary, highlights=highlights, movers=movers,
-        trending=trending, cover_cid=cover_cid, chart_cids=chart_cids,
+        trending=trending, cover_cid=cover_cid, events=events,
+        theme_counts=tcounts, sentiment_counts=scounts,
     )
 
     if args.dry_run:

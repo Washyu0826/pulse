@@ -12,12 +12,14 @@ from pathlib import Path
 
 __all__ = ["theme_bar_png", "sentiment_bar_png"]
 
-# 與電子報視覺一致的色票
-_ACCENT = "#2563eb"
-_ACCENT2 = "#f97316"
-_INK = "#111827"
-_MUTED = "#6b7280"
-_CARD = "#ffffff"
+# 與電子報暖刊孔版（Risograph）視覺一致的色票：磚紅主套印 + 米杏紙底 + 墨黑字。
+# 圖表是電子報的一部分，色票必須跟 newsletter.py 的視覺 token 對齊，否則整封信會撞色。
+_ACCENT = "#c9a25a"   # 暗金（次要長條）—— 與磚紅同屬暖色，避免藍橘亂入
+_ACCENT2 = "#d1495b"  # 磚紅（強調當日第一名，等同 newsletter 主套印色）
+_INK = "#201a17"      # 墨黑（標題/標籤）
+_MUTED = "#8c8178"    # 暖灰（數值/次要）
+_CARD = "#f5efe6"     # 米杏紙底（同 newsletter 卡片底，去掉刺眼純白）
+_GRID = "#e3d8c6"     # 紙感淡格線
 
 # 繁中字體候選（Windows 內建 msjh 優先；否則專案內 Noto；都沒有則 DejaVu（中文會 tofu 但不 crash））。
 _CJK_FONT_CANDIDATES = [
@@ -49,12 +51,12 @@ def _ensure_style():
                     continue
     plt.rcParams.update({
         "figure.facecolor": _CARD, "axes.facecolor": _CARD, "savefig.facecolor": _CARD,
-        "savefig.dpi": 200, "font.family": [_FONT_NAME], "axes.unicode_minus": False,
+        "savefig.dpi": 220, "font.family": [_FONT_NAME], "axes.unicode_minus": False,
         "axes.spines.top": False, "axes.spines.right": False,
         "axes.spines.left": False, "axes.spines.bottom": False,
         "xtick.major.size": 0, "ytick.major.size": 0,
         "text.color": _INK, "axes.labelcolor": _MUTED,
-        "ytick.color": _INK, "xtick.color": _MUTED, "ytick.labelsize": 10,
+        "ytick.color": _INK, "xtick.color": _MUTED, "ytick.labelsize": 10.5,
     })
     return plt
 
@@ -65,20 +67,34 @@ def _hbar(labels: list[str], values: list[int], *, title: str, highlight: bool =
     pairs = sorted(zip(labels, values, strict=True), key=lambda x: x[1])  # 升冪 → barh 最大在上
     labels = [p[0] for p in pairs]
     values = [p[1] for p in pairs]
-    fig, ax = plt.subplots(figsize=(3.2, max(1.4, 0.42 * len(labels) + 0.6)))
+    fig, ax = plt.subplots(figsize=(3.4, max(1.5, 0.46 * len(labels) + 0.7)))
+    mx = max(values) if values else 1
+    if mx <= 0:  # 全 0（今日無資料）→ 給個非零上界，避免 xlim 退化警告
+        mx = 1
+    # 紙感「軌道」底襯：每條長條後方畫一條淡色滿格軌道，營造孔版印刷的層次（去 chartjunk 但有質感）。
+    y = range(len(values))
+    ax.barh(list(y), [mx] * len(values), color=_GRID, height=0.64, zorder=1)
     colors = [_ACCENT] * len(values)
     if highlight and values:
-        colors[-1] = _ACCENT2  # 強調當日第一名
-    bars = ax.barh(labels, values, color=colors, height=0.62)
-    ax.set_title(title, loc="left", fontsize=13, fontweight="bold", pad=10)
+        colors[-1] = _ACCENT2  # 強調當日第一名（磚紅主套印色）
+    bars = ax.barh(list(y), values, color=colors, height=0.64, zorder=2)
+    ax.set_yticks(list(y))
+    ax.set_yticklabels(labels, fontsize=10.5, color=_INK)
+    ax.set_title(title, loc="left", fontsize=13.5, fontweight="bold", pad=12, color=_INK)
     ax.set_xticks([])
-    mx = max(values) if values else 1
+    ax.set_xlim(0, mx * 1.18)
     for b, v in zip(bars, values, strict=True):
-        ax.text(b.get_width() + mx * 0.02, b.get_y() + b.get_height() / 2,
-                str(v), va="center", ha="left", color=_MUTED, fontsize=9)
-    ax.margins(x=0.16)
+        # 數值標籤：長條夠長就放條內（白字、收斂版面）；太短就放條外（暖灰）。
+        inside = b.get_width() > mx * 0.18
+        ax.text(
+            b.get_width() - mx * 0.02 if inside else b.get_width() + mx * 0.02,
+            b.get_y() + b.get_height() / 2, str(v),
+            va="center", ha="right" if inside else "left",
+            color="#fbf6ec" if inside else _MUTED,
+            fontsize=9.5, fontweight="bold", zorder=3,
+        )
     buf = io.BytesIO()
-    fig.savefig(buf, format="png", bbox_inches="tight", pad_inches=0.12)
+    fig.savefig(buf, format="png", bbox_inches="tight", pad_inches=0.14)
     plt.close(fig)  # 釋放記憶體（每日長跑腳本必須）
     return buf.getvalue()
 

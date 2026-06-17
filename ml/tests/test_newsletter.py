@@ -140,17 +140,18 @@ def test_render_html_contains_sections_and_escapes():
         summary="今天 AI 圈很熱鬧",
         highlights=posts,
         trending=["MCP", "Claude"],
-        cover_cid="cover1",
-        chart_cids={"theme": "chart1"},
+        theme_counts={"新工具": 3},
+        sentiment_counts={"positive": 1, "neutral": 2, "negative": 0},
     )
-    assert "Pulse 每日 AI 情報" in out
-    assert "2026-06-05" in out
-    assert "今天 AI 圈很熱鬧" in out
+    assert "Pulse 每日 AI 情報" in out  # <title>
+    assert "每日人工智慧週報" in out  # 報頭副標
+    assert "2026 年 6 月 5 日" in out  # 報紙風中文日期
+    assert "圈很熱鬧" in out  # 社論導言（首字下沉拆出第一字，餘文連續）
     assert "新工具 &lt;X&gt;" in out  # HTML 跳脫，防注入
     assert "b=1&amp;c=2" in out  # URL 跳脫
-    assert "cid:cover1" in out  # 封面內嵌
-    assert "cid:chart1" in out  # 圖表內嵌
-    assert "#MCP" in out  # 熱詞 chip
+    assert "新工具 · 使用方法" in out  # 精選欄目名
+    assert "今日數據 · 主題分布" in out  # 側欄條圖
+    assert "MCP" in out  # 熱詞索引
 
 
 def test_render_html_skips_empty_blocks():
@@ -181,9 +182,9 @@ def test_events_section_renders_title_summary_refs_and_count():
     out = render_today_events_section([_event()])
     assert "今日事件" in out
     assert "GPT-5 發表" in out  # 標題
-    assert "OpenAI 發表 GPT-5" in out  # 摘要內文
+    assert "宣稱推理能力提升" in out  # 摘要內文（頭條首字下沉拆出第一字，取後段連續片段比對）
     assert "[1]" in out and "[2]" in out  # 行內引註標記
-    assert "3 篇" in out  # 成員貼文數
+    assert "綜合 3 則來源" in out  # 成員貼文數徽章
     assert "threads" in out and "Hacker News" in out  # 出處清單來源
     assert "出處" in out
 
@@ -194,7 +195,7 @@ def test_events_section_multiple_events_all_present():
         _event(title="事件乙", summary="內容乙[1]。", theme="新工具"),
     ])
     assert "事件甲" in out and "事件乙" in out
-    assert "🆕" in out  # 新工具 icon
+    assert "新工具" in out  # 第二則事件的主題作雙欄欄目 kicker
 
 
 def test_events_section_escapes_and_pangu():
@@ -202,7 +203,7 @@ def test_events_section_escapes_and_pangu():
         _event(title="風險<X>", summary="模型GPT很強[1]。"),
     ])
     assert "風險&lt;X&gt;" in out  # 標題 HTML 跳脫
-    assert "模型 GPT 很強" in out  # 摘要套用盤古空格
+    assert "GPT 很強" in out  # 摘要套用盤古空格（頭條首字下沉拆出第一字，餘文連續）
     assert "x=1&amp;y=2" in out  # 出處 url 跳脫
 
 
@@ -234,7 +235,7 @@ def test_events_section_is_pure_no_mutation():
 def test_events_section_accepts_camelcase_member_count():
     ev = {"title": "t", "summary": "s[1]。", "citations": [{"n": 1, "url": "http://a"}], "memberCount": 7}
     out = render_today_events_section([ev])
-    assert "7 篇" in out
+    assert "綜合 7 則來源" in out
 
 
 # ---- render_html with events ----
@@ -248,9 +249,9 @@ def test_render_html_includes_events_section_when_provided():
     assert "今日事件" in out
     assert "GPT-5 發表" in out
     assert "[1]" in out
-    assert "3 篇" in out
-    # 事件區塊應排在「今日重點」摘要之後、各主題精選（🆕 新工具）之前
-    assert out.index("今日重點") < out.index("今日事件") < out.index("🆕 新工具")
+    assert "綜合 3 則來源" in out
+    # 事件區塊應排在社論導言（Editor’s Note）之後、各主題精選（新工具 · 使用方法）之前
+    assert out.index("Editor") < out.index("今日事件") < out.index("新工具 · 使用方法")
 
 
 def test_render_html_without_events_omits_section_and_is_unchanged():
