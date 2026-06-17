@@ -24,11 +24,9 @@ scripts/build_today_events.py 的模式**：DB → JSONL 產出檔，由 API（/
 from __future__ import annotations
 
 import argparse
-import asyncio
 import json
 import logging
 import sys
-from datetime import date, timedelta
 from pathlib import Path
 
 # 壓掉 SQLAlchemy echo（與原型一致，輸出乾淨）。
@@ -52,6 +50,7 @@ sys.path.insert(0, str(_ROOT / "api"))
 sys.path.insert(0, str(_ROOT / "ml"))
 sys.path.insert(0, str(_ROOT / "scripts"))
 
+import storyline_core  # noqa: E402
 from ml import hotness  # noqa: E402
 
 # 複用原型已驗證的逐日分群 / 跨日鏈結 / DB 撈資料（純藍本，不重寫）。
@@ -71,12 +70,22 @@ def _coerce_theme(value: str | None) -> str:
     return value if value in _VALID_THEMES else "其他"
 
 
+def _prod_state_fn(cells: list[dict]) -> None:
+    """正式 producer 的逐日 velocity + 狀態（hotness 全序列前綴），再標全局高峰。就地填入。"""
+    daily_volumes = [c["volume"] for c in cells]
+    for k, c in enumerate(cells):
+        prefix = daily_volumes[: k + 1]
+        c["velocity"] = round(hotness.velocity(prefix), 3)
+        c["state"] = hotness.storyline_state(prefix)
+    storyline_core.mark_peak(cells)
+
+
 def build_storyline_record(
     s: Storyline,
     rank: int,
     *,
     generate_fn=None,
-) -> dict:
+) -> tuple[dict, float]:
     """
     把一條跨日 Storyline 轉成對外 JSONL 記錄（比照 events_today 的扁平、DB-optional 形狀）。
 
@@ -94,59 +103,42 @@ def build_storyline_record(
     }
 
     每日聲量 / velocity / 狀態用 ml.hotness（成員數 + log(1+互動)；末日相對前日 + 全局高峰）。
+
+    回傳 (record, unrounded_hotness)：unrounded_hotness 供 storyline 間排序（避免 _sl_hotness
+    再算一遍 day_volume）；record["hotness"] 為其四捨五入到 3 位的對外值。
     """
-    # 1) 同日合併成一格（同一天可能有多個日事件）。
-    by_day: dict[date, dict] = {}
-    for e in s.events:
-        cell = by_day.setdefault(e.day, {
-            "date": e.day.isoformat(),
-            "members": 0,
-            "interaction": 0,      # 原型 DayEvent.volume = 成員互動分數總和 → 當互動量
-            "headline": e.rep_title,
-            "_top": -1,
-            "_rep_url": e.rep_url,  # 最熱日事件的代表 URL（出處用）
-            "sources": set(),
-            "themes": set(),
-            "_sentiments": [],      # 當日所有成員的情緒標籤（多數情緒用）
-        })
-        cell["members"] += e.member_count
-        cell["interaction"] += e.volume
-        cell["sources"].update(e.sources)
-        cell["themes"].update(e.themes)
-        cell["_sentiments"].extend(e.sentiments)
-        if e.volume > cell["_top"]:
-            cell["_top"] = e.volume
-            cell["headline"] = e.rep_title
-            cell["_rep_url"] = e.rep_url
+    # 1) 逐日合併 + volume + velocity/state + 標高峰（共用 storyline_core.build_timeline）。
+    #    production：cell volume = round(hotness.day_volume(members, interaction), 3)；同時把
+    #    「未四捨五入」的每日 day_volume 收集起來供 storyline 間排序用（取代原 _sl_hotness：
+    #    不再對 day_volume 算第二遍）。排序值與對外 hotness 欄位刻意分開，沿用原行為：
+    #    排序用 未捨入聲量總和、對外 hotness = round(已捨入聲量總和, 3)。
+    raw_daily_volumes: list[float] = []
 
-    cells = [by_day[d] for d in sorted(by_day)]
+    def _volume_fn(members: int, interaction: int) -> float:
+        raw = hotness.day_volume(members, interaction)
+        raw_daily_volumes.append(raw)
+        return round(raw, 3)
 
-    # 2) 每日聲量（hotness.day_volume）。
-    for c in cells:
-        c["volume"] = round(hotness.day_volume(c["members"], c["interaction"]), 3)
+    cells = storyline_core.build_timeline(
+        s,
+        volume_fn=_volume_fn,
+        state_fn=_prod_state_fn,
+        with_sentiment_citations=True,
+    )
 
     daily_volumes = [c["volume"] for c in cells]
-
-    # 3) 逐日 velocity + 狀態（日對日）；整條的狀態用全序列判。
-    for k, c in enumerate(cells):
-        prefix = daily_volumes[: k + 1]
-        c["velocity"] = round(hotness.velocity(prefix), 3)
-        c["state"] = hotness.storyline_state(prefix)
-    # 全局高峰那天標「高峰」（多天才標；單日不蓋）。
-    if len(cells) > 1:
-        peak_k = max(range(len(cells)), key=lambda i: cells[i]["volume"])
-        cells[peak_k]["state"] = hotness.STATE_PEAK
-
     overall_state = hotness.storyline_state(daily_volumes)
     overall_hotness = round(hotness.storyline_hotness(daily_volumes), 3)
+    # 排序用熱度（未捨入），與原 _sl_hotness 等價。
+    sort_hotness = hotness.storyline_hotness(raw_daily_volumes)
 
-    # 4) 標題 = 最熱一天的代表標題；主題 = 全鏈最常見主題（兜底「其他」）。
+    # 2) 標題 = 最熱一天的代表標題；主題 = 全鏈最常見主題（兜底「其他」）。
     peak_cell = max(cells, key=lambda c: c["volume"])
     title = peak_cell["headline"]
     all_themes = [t for c in cells for t in c["themes"]]
     theme = _coerce_theme(_most_common(all_themes))
 
-    # 5) 每日一句摘要（選配 qwen；否則用 headline 當摘要）。
+    # 3) 每日一句摘要（選配 qwen；否則用 headline 當摘要）+ 出處 + 當日情緒。
     citations: list[dict] = []
     n = 0
     for c in cells:
@@ -154,8 +146,6 @@ def build_storyline_record(
         rep_url = c.pop("_rep_url", None)
         sents = c.pop("_sentiments", [])
         c.pop("themes", None)
-        c.pop("_top", None)
-        c.pop("interaction", None)
         c["summary"] = c.pop("headline")
         # 出處：每日代表事件的代表貼文 URL（前端用 citation.n 對齊時間軸第 n 天 → 渲染 [n] 連結）。
         # 取不到 url 時留 None，前端條件式渲染會自動略過連結。
@@ -168,7 +158,7 @@ def build_storyline_record(
     if generate_fn is not None:
         _attach_daily_summaries(cells, title, generate_fn)
 
-    return {
+    record = {
         "id": f"story_{rank:03d}",
         "title": title,
         "state": overall_state,
@@ -178,6 +168,7 @@ def build_storyline_record(
         "timeline": cells,
         "citations": citations,
     }
+    return record, sort_hotness
 
 
 _VALID_SENTIMENTS = {"positive", "neutral", "negative"}
@@ -227,28 +218,12 @@ def _attach_daily_summaries(cells: list[dict], title: str, generate_fn) -> None:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description="每日議題時間軸 storylines 產製（DB → JSONL）")
-    ap.add_argument("--days", type=int, default=21, help="回看天數（含今天）")
-    ap.add_argument("--per-day-cap", type=int, default=80, help="每天最多納入幾篇（控時間）")
-    ap.add_argument("--min-quality", type=int, default=30)
-    ap.add_argument("--sources", nargs="+", default=["hackernews", "devto"])
-    ap.add_argument("--include-threads", action="store_true")
-    ap.add_argument("--cluster-threshold", type=float, default=0.75, help="逐日分群餘弦門檻")
-    ap.add_argument("--min-size", type=int, default=2, help="日事件最小成員數")
-    ap.add_argument("--link-threshold", type=float, default=0.7, help="跨日鏈結餘弦門檻（甜蜜點）")
-    ap.add_argument("--max-gap", type=int, default=1, help="跨日鏈結容忍最大天數間隔（1=相鄰日）")
-    ap.add_argument("--top", type=int, default=12, help="最多寫出幾條最熱跨日 storyline")
-    ap.add_argument("--summarize", action="store_true", help="用 qwen 產每日一句重點（較慢）")
-    ap.add_argument("--embed-model", default="nomic-embed-text")
-    ap.add_argument("--gen-model", default="qwen2.5:7b")
+    storyline_core.add_common_args(ap, default_top=12)
     ap.add_argument("--out", type=Path, default=_ROOT / "data" / "storylines.jsonl")
     args = ap.parse_args()
 
-    sources = list(args.sources)
-    if args.include_threads and "threads" not in sources:
-        sources.append("threads")
-
-    today = date.today()
-    days = [today - timedelta(days=i) for i in range(args.days - 1, -1, -1)]
+    sources = storyline_core.resolve_sources(args)
+    days = storyline_core.compute_window(args.days)
 
     print(f"⚙️  視窗 {days[0].isoformat()} ~ {days[-1].isoformat()}（{args.days} 天）"
           f"｜來源 {','.join(sources)}｜每日上限 {args.per_day_cap}")
@@ -258,15 +233,9 @@ def main() -> int:
 
     # --- 撈資料（逐日）---
     print("📂 撈逐日貼文…")
-
-    async def _fetch_all():
-        out = []
-        for d in days:
-            posts = await _fetch_posts_for_day(d, sources, args.min_quality, args.per_day_cap)
-            out.append((d, posts))
-        return out
-
-    days_data = asyncio.run(_fetch_all())
+    days_data = storyline_core.fetch_days(
+        days, sources, args.min_quality, args.per_day_cap, _fetch_posts_for_day
+    )
     total_posts = sum(len(p) for _, p in days_data)
     print(f"📂 共撈 {total_posts} 篇（{args.days} 天）")
     if total_posts < args.min_size * 2:
@@ -275,23 +244,21 @@ def main() -> int:
         return 0
 
     # --- 建嵌入 callable ---
-    try:
-        embed_fn = build_ollama_embedder(model=args.embed_model)
-    except ImportError as e:
-        print(f"❌ 無法建立嵌入器（缺 httpx / Ollama 未開）：{e}", file=sys.stderr)
+    embed_fn = storyline_core.build_embedder(
+        args.embed_model, build_ollama_embedder=build_ollama_embedder
+    )
+    if embed_fn is None:
         # 寫空檔不擋每日流程（與「資料不足」一致地以 0 結束）。
         args.out.write_text("", encoding="utf-8")
         return 0
 
-    # --- 逐日分群 + 嵌入代表文字 ---
+    # --- 逐日分群 + 嵌入 + 跨日鏈結 ---
     print("🧩 逐日分群中（每天各跑一次 cluster_events）…")
-    days_events = build_day_events(
-        days_data, embed_fn, cluster_threshold=args.cluster_threshold, min_size=args.min_size
-    )
-
-    # --- 跨日鏈結 ---
-    storylines = link_storylines(
-        days_events, link_threshold=args.link_threshold, max_gap=args.max_gap
+    _, storylines = storyline_core.cluster_and_link(
+        days_data, embed_fn,
+        cluster_threshold=args.cluster_threshold, min_size=args.min_size,
+        link_threshold=args.link_threshold, max_gap=args.max_gap,
+        build_day_events=build_day_events, link_storylines=link_storylines,
     )
     multi_day = [s for s in storylines if s.span_days >= 2]
     print(f"🔗 鏈結完成：{len(storylines)} 條（跨日 {len(multi_day)} 條）")
@@ -311,26 +278,21 @@ def main() -> int:
             print(f"⚠️  無法建生成器，略過每日摘要：{e}", file=sys.stderr)
 
     # --- 依 storyline_hotness 排序（最熱在前），取 top ---
-    def _sl_hotness(s: Storyline) -> float:
-        by_day: dict[date, list] = {}
-        for e in s.events:
-            by_day.setdefault(e.day, []).append(e)
-        vols = [
-            hotness.day_volume(
-                sum(ev.member_count for ev in evs),
-                sum(ev.volume for ev in evs),
-            )
-            for evs in (by_day[d] for d in sorted(by_day))
-        ]
-        return hotness.storyline_hotness(vols)
+    # 先對每條建記錄（不跑 qwen，便宜），用記錄帶回的「未捨入聲量總和」排序 —— 取代原
+    # _sl_hotness（不再對 day_volume 算第二遍）。排序鍵與原本相同：(sort_hotness, span_days)。
+    built = [build_storyline_record(s, 0) for s in multi_day]  # (record, sort_hotness)
+    built.sort(key=lambda rh: (rh[1], rh[0]["span_days"]), reverse=True)
+    show = built[: args.top]
 
-    multi_day.sort(key=lambda s: (_sl_hotness(s), s.span_days), reverse=True)
-    show = multi_day[: args.top]
-
-    records = [
-        build_storyline_record(s, rank, generate_fn=generate_fn)
-        for rank, s in enumerate(show, 1)
-    ]
+    # 取 top N → 補正式 id（依排名）+ 選配每日 qwen 摘要（與原本一樣只對 top N 跑）。
+    records = []
+    for rank, (record, _sort_h) in enumerate(show, 1):
+        record["id"] = f"story_{rank:03d}"
+        # qwen 每日摘要只對 top N 跑（與原本相同；citation 標題已用原 headline 固定，
+        # 摘要改寫的是 timeline summary，順序與原 build_storyline_record 等價）。
+        if generate_fn is not None:
+            _attach_daily_summaries(record["timeline"], record["title"], generate_fn)
+        records.append(record)
 
     args.out.write_text(
         "".join(json.dumps(r, ensure_ascii=False) + "\n" for r in records), encoding="utf-8"

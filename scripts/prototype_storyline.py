@@ -30,7 +30,6 @@
 from __future__ import annotations
 
 import argparse
-import asyncio
 import json
 import logging
 import sys
@@ -61,6 +60,7 @@ sys.path.insert(0, str(_ROOT / "api"))
 sys.path.insert(0, str(_ROOT / "ml"))
 sys.path.insert(0, str(_ROOT / "scripts"))
 
+import storyline_core  # noqa: E402
 from ml import event_cluster  # noqa: E402
 from run_event_pipeline import build_ollama_embedder  # noqa: E402
 
@@ -282,46 +282,48 @@ def _state_label(prev_vol: int | None, cur_vol: int, next_vol: int | None) -> tu
     return vel, "退燒"
 
 
+def _proto_state_fn(cells: list[dict]) -> None:
+    """原型的日對日 velocity + 啟發式狀態（_state_label），再標全局高峰。就地填入 cells。"""
+    vols = [c["volume"] for c in cells]
+    for k, c in enumerate(cells):
+        prev_vol = vols[k - 1] if k > 0 else None
+        next_vol = vols[k + 1] if k + 1 < len(vols) else None
+        c["velocity"], c["state"] = _state_label(prev_vol, c["volume"], next_vol)
+    storyline_core.mark_peak(cells)
+
+
 def build_timeline(s: Storyline) -> list[dict]:
     """
     產 storyline 的演變時間軸（**每天一格**，含 velocity 與狀態）。
 
     velocity / 升溫退燒是「日對日」訊號，故同一天的多個日事件先合併成一格
     （volume / members 相加、headline 取當天最大規模者、sources/themes 取聯集）→ 再算日對日 Δ。
+
+    共用 storyline_core.build_timeline 的逐日合併骨架；原型語意以 callable 注入：
+    volume = 當日原始互動加總（int）、狀態用 _state_label 啟發式（含 prev/next）。
     """
-    # 1) 同日合併
-    by_day: dict[date, dict] = {}
-    for e in s.events:
-        cell = by_day.setdefault(e.day, {
-            "date": e.day.isoformat(), "volume": 0, "members": 0,
-            "headline": e.rep_title, "_top_vol": -1, "sources": set(), "themes": set(),
-        })
-        cell["volume"] += e.volume
-        cell["members"] += e.member_count
-        cell["sources"].update(e.sources)
-        cell["themes"].update(e.themes)
-        if e.volume > cell["_top_vol"]:
-            cell["_top_vol"] = e.volume
-            cell["headline"] = e.rep_title
-
-    cells = [by_day[d] for d in sorted(by_day)]
-    for c in cells:
-        c["sources"] = sorted(c["sources"])
-        c["themes"] = sorted(c["themes"])
-        c.pop("_top_vol", None)
-
-    # 2) 日對日 velocity + 狀態
-    vols = [c["volume"] for c in cells]
-    for k, c in enumerate(cells):
-        prev_vol = vols[k - 1] if k > 0 else None
-        next_vol = vols[k + 1] if k + 1 < len(vols) else None
-        c["velocity"], c["state"] = _state_label(prev_vol, c["volume"], next_vol)
-
-    # 3) 標全局高峰（多天才標）
-    if len(cells) > 1:
-        peak_k = max(range(len(cells)), key=lambda k: cells[k]["volume"])
-        cells[peak_k]["state"] = "高峰"
-    return cells
+    cells = storyline_core.build_timeline(
+        s,
+        volume_fn=lambda members, interaction: interaction,
+        state_fn=_proto_state_fn,
+        with_sentiment_citations=False,
+    )
+    # 對外保留原型既有 JSONL 鍵序（date, volume, members, headline, sources, themes,
+    # velocity, state）—— 與重構前 storylines_proto.jsonl 完全等價（含鍵順序）。
+    # sources/themes 排序後輸出。
+    return [
+        {
+            "date": c["date"],
+            "volume": c["volume"],
+            "members": c["members"],
+            "headline": c["headline"],
+            "sources": sorted(c["sources"]),
+            "themes": sorted(c["themes"]),
+            "velocity": c["velocity"],
+            "state": c["state"],
+        }
+        for c in cells
+    ]
 
 
 # ---------------------------------------------------------------------------
@@ -412,30 +414,14 @@ def evaluate(storylines: list[Storyline], link_threshold: float) -> dict:
 # ---------------------------------------------------------------------------
 def main() -> int:
     ap = argparse.ArgumentParser(description="議題演變 storyline 可行性原型（只讀 DB，不改正式系統）")
-    ap.add_argument("--days", type=int, default=21, help="回看天數（含今天）")
-    ap.add_argument("--per-day-cap", type=int, default=80, help="每天最多納入幾篇（控時間）")
-    ap.add_argument("--min-quality", type=int, default=30)
-    ap.add_argument("--sources", nargs="+", default=["hackernews", "devto"])
-    ap.add_argument("--include-threads", action="store_true", help="額外納入 threads（內文剛清洗）")
-    ap.add_argument("--cluster-threshold", type=float, default=0.75, help="逐日分群餘弦門檻（比照 build_today_events）")
-    ap.add_argument("--min-size", type=int, default=2, help="日事件最小成員數")
-    ap.add_argument("--link-threshold", type=float, default=0.7, help="跨日鏈結餘弦門檻")
-    ap.add_argument("--max-gap", type=int, default=1, help="跨日鏈結容忍的最大天數間隔（1=相鄰日）")
+    storyline_core.add_common_args(ap, default_top=5)
     ap.add_argument("--compare-thresholds", nargs="*", type=float, default=None,
                     help="給多個鏈結門檻做掃描比較（如 0.65 0.7 0.75）")
-    ap.add_argument("--top", type=int, default=5, help="印出 / 摘要前幾條最熱 storyline")
-    ap.add_argument("--summarize", action="store_true", help="對前 top 條用 qwen 產演變摘要（較慢）")
-    ap.add_argument("--embed-model", default="nomic-embed-text")
-    ap.add_argument("--gen-model", default="qwen2.5:7b")
     ap.add_argument("--out", type=Path, default=_ROOT / "data" / "storylines_proto.jsonl")
     args = ap.parse_args()
 
-    sources = list(args.sources)
-    if args.include_threads and "threads" not in sources:
-        sources.append("threads")
-
-    today = date.today()
-    days = [today - timedelta(days=i) for i in range(args.days - 1, -1, -1)]
+    sources = storyline_core.resolve_sources(args)
+    days = storyline_core.compute_window(args.days)
 
     print(f"⚙️  視窗 {days[0].isoformat()} ~ {days[-1].isoformat()}（{args.days} 天）"
           f"｜來源 {','.join(sources)}｜每日上限 {args.per_day_cap}")
@@ -443,15 +429,9 @@ def main() -> int:
 
     # --- 撈資料（逐日）---
     print("📂 撈逐日貼文…")
-
-    async def _fetch_all():
-        out = []
-        for d in days:
-            posts = await _fetch_posts_for_day(d, sources, args.min_quality, args.per_day_cap)
-            out.append((d, posts))
-        return out
-
-    days_data = asyncio.run(_fetch_all())
+    days_data = storyline_core.fetch_days(
+        days, sources, args.min_quality, args.per_day_cap, _fetch_posts_for_day
+    )
     total_posts = sum(len(p) for _, p in days_data)
     print(f"📂 共撈 {total_posts} 篇（{args.days} 天）")
     if total_posts < args.min_size * 2:
@@ -459,10 +439,10 @@ def main() -> int:
         return 1
 
     # --- 建嵌入 callable ---
-    try:
-        embed_fn = build_ollama_embedder(model=args.embed_model)
-    except ImportError as e:
-        print(f"❌ 無法建立嵌入器（缺 httpx / Ollama 未開）：{e}", file=sys.stderr)
+    embed_fn = storyline_core.build_embedder(
+        args.embed_model, build_ollama_embedder=build_ollama_embedder
+    )
+    if embed_fn is None:
         return 1
 
     # --- 逐日分群 + 嵌入 ---
