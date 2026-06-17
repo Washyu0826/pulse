@@ -57,6 +57,14 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("PULSE_EVENTS_FILE", "EVENTS_FILE"),
     )
 
+    # 議題時間軸（storylines）來源檔（build_storylines.py 產出的跨日議題鏈 JSONL，一行一條）。
+    # /api/storylines 直接讀此檔（DB-optional，不查資料庫）；不存在則回 []。
+    # 環境變數用 PULSE_STORYLINES_FILE（也相容 STORYLINES_FILE）。
+    storylines_file: str = Field(
+        default="data/storylines.jsonl",
+        validation_alias=AliasChoices("PULSE_STORYLINES_FILE", "STORYLINES_FILE"),
+    )
+
     # ---- 啟用某功能所需金鑰的延遲驗證（lazy / at-use）----
     # 設計取捨：所有金鑰皆為選配，缺值時不該讓整個 app 啟動失敗（多數來源/通知是 best-effort）。
     # 改採「用到才驗」：呼叫端在真正要用某功能前呼叫對應 require_*()，缺值即 fail fast 給清楚訊息。

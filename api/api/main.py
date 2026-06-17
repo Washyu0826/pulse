@@ -20,6 +20,7 @@ from api.middleware import (
 from api.routers import (
     collection,
     corpus,
+    dashboard,
     decide,
     events,
     events_today,
@@ -28,6 +29,7 @@ from api.routers import (
     metrics,
     models,
     releases,
+    storylines,
 )
 
 # 統一日誌格式（含時間 / level / logger）。等級走設定（PULSE LOG_LEVEL）。
@@ -94,9 +96,11 @@ app.include_router(feed.router, prefix="/api", tags=["feed"])
 app.include_router(releases.router, prefix="/api", tags=["releases"])
 app.include_router(events.router, prefix="/api", tags=["events"])
 app.include_router(events_today.router, prefix="/api", tags=["events"])
+app.include_router(storylines.router, prefix="/api", tags=["storylines"])
 app.include_router(decide.router, prefix="/api", tags=["decide"])
 app.include_router(corpus.router, prefix="/api", tags=["corpus"])
 app.include_router(collection.router, prefix="/api", tags=["collection"])
+app.include_router(dashboard.router, prefix="/api", tags=["dashboard"])
 # Prometheus 業務指標（無 /api 前綴，scrape URL = /metrics）
 app.include_router(metrics.router, tags=["metrics"])
 

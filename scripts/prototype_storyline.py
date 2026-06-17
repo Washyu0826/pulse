@@ -79,6 +79,8 @@ class DayEvent:
     volume: int             # 規模指標（這裡用 成員互動分數總和；退回 member_count）
     sources: list[str]      # 來源集合（hackernews / devto / threads）
     themes: list[str]       # 成員主題集合
+    rep_url: str | None = None        # 代表貼文原 URL（出處 citation 用；可能為 None）
+    sentiments: list[str] = field(default_factory=list)  # 成員情緒標籤（多數情緒用；positive/neutral/negative）
     uid: str = ""           # 全域唯一 id（day#idx）
     embedding: list[float] = field(default_factory=list)
 
@@ -123,9 +125,10 @@ async def _fetch_posts_for_day(
                 text(
                     "select p.id, p.source, p.title, p.content, p.url, "
                     "coalesce(p.score,0)+coalesce(p.num_comments,0) as engagement, "
-                    "th.label as theme "
+                    "th.label as theme, se.label as sentiment "
                     "from posts p "
                     "left join themes th on th.post_id=p.id "
+                    "left join sentiments se on se.post_id=p.id "
                     "where p.posted_at >= :d0 and p.posted_at < :d1 "
                     "and (p.quality_score is null or p.quality_score >= :q) "
                     f"and p.source in ({placeholders}) "
@@ -144,7 +147,8 @@ async def _fetch_posts_for_day(
             continue
         posts.append({
             "post_id": f"p{r.id}", "text": txt, "title": title, "url": r.url,
-            "source": r.source, "theme": r.theme, "engagement": int(r.engagement or 0),
+            "source": r.source, "theme": r.theme, "sentiment": r.sentiment,
+            "engagement": int(r.engagement or 0),
         })
     return posts
 
@@ -168,6 +172,10 @@ def _cluster_one_day(
         vol = sum(m.get("engagement", 0) for m in members) or c.size
         srcs = sorted({m["source"] for m in members})
         themes = sorted({m["theme"] for m in members if m.get("theme")})
+        # 成員情緒標籤（多數情緒用；缺情緒的成員略過）。
+        sents = [m["sentiment"] for m in members if m.get("sentiment")]
+        # 代表貼文 URL（沒有就退而取任一有 url 的成員，盡量讓 citation 可點）。
+        rep_url = rep.get("url") or next((m.get("url") for m in members if m.get("url")), None)
         day_events.append(DayEvent(
             day=d,
             rep_text=rep["text"],
@@ -176,6 +184,8 @@ def _cluster_one_day(
             volume=int(vol),
             sources=srcs,
             themes=themes,
+            rep_url=rep_url,
+            sentiments=sents,
             uid=f"{d.isoformat()}#{idx}",
         ))
     return day_events
